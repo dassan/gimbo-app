@@ -8,7 +8,15 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
 }
 
 function makeCategory(overrides: Partial<Category> = {}): Category {
-  return { id: 'cat-1', parentId: null, name: 'Food', icon: 'utensils', color: '#FF0000', type: 'EXPENSE', ...overrides }
+  return {
+    id: 'cat-1',
+    parentId: null,
+    name: 'Food',
+    icon: 'utensils',
+    color: '#FF0000',
+    type: 'EXPENSE',
+    ...overrides,
+  }
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -17,8 +25,15 @@ function makeTag(overrides: Partial<Tag> = {}): Tag {
 
 function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
-    id: 'tx-1', accountId: 'acc-1', categoryId: 'cat-1', amount: 100, type: 'EXPENSE',
-    date: new Date().toISOString().slice(0, 10), description: 'Test', isPaid: true, tags: [],
+    id: 'tx-1',
+    accountId: 'acc-1',
+    categoryId: 'cat-1',
+    amount: 100,
+    type: 'EXPENSE',
+    date: new Date().toISOString().slice(0, 10),
+    description: 'Test',
+    isPaid: true,
+    tags: [],
     ...overrides,
   }
 }
@@ -87,11 +102,17 @@ describe('categories', () => {
     useDataStore.setState({ data: makeDataFile(), unsyncedCount: 0 })
     useDataStore.getState().addCategory(makeCategory({ id: 'cat-1' }))
     expect(useDataStore.getState().data?.categories).toHaveLength(1)
-    expect(useDataStore.getState().data?.auditLog.some((e) => e.action === 'CREATE' && e.entityId === 'cat-1')).toBe(true)
+    expect(
+      useDataStore
+        .getState()
+        .data?.auditLog.some((e) => e.action === 'CREATE' && e.entityId === 'cat-1')
+    ).toBe(true)
   })
 
   it('updateCategory changes the category', () => {
-    useDataStore.setState({ data: makeDataFile({ categories: [makeCategory({ id: 'cat-1', name: 'Old' })] }) })
+    useDataStore.setState({
+      data: makeDataFile({ categories: [makeCategory({ id: 'cat-1', name: 'Old' })] }),
+    })
     useDataStore.getState().updateCategory(makeCategory({ id: 'cat-1', name: 'New' }))
     expect(useDataStore.getState().data?.categories[0].name).toBe('New')
   })
@@ -108,7 +129,11 @@ describe('tags', () => {
     useDataStore.setState({ data: makeDataFile(), unsyncedCount: 0 })
     useDataStore.getState().addTag(makeTag({ id: 'tag-1' }))
     expect(useDataStore.getState().data?.tags).toHaveLength(1)
-    expect(useDataStore.getState().data?.auditLog.some((e) => e.action === 'CREATE' && e.entityId === 'tag-1')).toBe(true)
+    expect(
+      useDataStore
+        .getState()
+        .data?.auditLog.some((e) => e.action === 'CREATE' && e.entityId === 'tag-1')
+    ).toBe(true)
   })
 
   it('deleteTag removes it', () => {
@@ -126,20 +151,31 @@ describe('tags', () => {
 
 describe('transactions', () => {
   it('addTransaction appends and creates audit entry', () => {
-    useDataStore.setState({ data: makeDataFile({ categories: [makeCategory()] }), unsyncedCount: 0 })
+    useDataStore.setState({
+      data: makeDataFile({ categories: [makeCategory()] }),
+      unsyncedCount: 0,
+    })
     useDataStore.getState().addTransaction(makeTransaction({ id: 'tx-1' }))
     expect(useDataStore.getState().data?.transactions).toHaveLength(1)
-    expect(useDataStore.getState().data?.auditLog.some((e) => e.action === 'CREATE' && e.entityId === 'tx-1')).toBe(true)
+    expect(
+      useDataStore
+        .getState()
+        .data?.auditLog.some((e) => e.action === 'CREATE' && e.entityId === 'tx-1')
+    ).toBe(true)
   })
 
   it('updateTransaction changes data', () => {
-    useDataStore.setState({ data: makeDataFile({ transactions: [makeTransaction({ id: 'tx-1', amount: 100 })] }) })
+    useDataStore.setState({
+      data: makeDataFile({ transactions: [makeTransaction({ id: 'tx-1', amount: 100 })] }),
+    })
     useDataStore.getState().updateTransaction(makeTransaction({ id: 'tx-1', amount: 200 }))
     expect(useDataStore.getState().data?.transactions[0].amount).toBe(200)
   })
 
   it('deleteTransaction removes it', () => {
-    useDataStore.setState({ data: makeDataFile({ transactions: [makeTransaction({ id: 'tx-1' })] }) })
+    useDataStore.setState({
+      data: makeDataFile({ transactions: [makeTransaction({ id: 'tx-1' })] }),
+    })
     useDataStore.getState().deleteTransaction('tx-1')
     expect(useDataStore.getState().data?.transactions).toHaveLength(0)
   })
@@ -150,7 +186,11 @@ describe('updateUser', () => {
     useDataStore.setState({ data: makeDataFile() })
     useDataStore.getState().updateUser({ name: 'New Name' })
     expect(useDataStore.getState().data?.user.name).toBe('New Name')
-    expect(useDataStore.getState().data?.auditLog.some((e) => e.action === 'UPDATE' && e.entity === 'user')).toBe(true)
+    expect(
+      useDataStore
+        .getState()
+        .data?.auditLog.some((e) => e.action === 'UPDATE' && e.entity === 'user')
+    ).toBe(true)
   })
 })
 

@@ -40,7 +40,10 @@ describe('applyRetention', () => {
   })
 
   it('applies both date filter and limit together', () => {
-    const log = [makeEntry(AUDIT_RETENTION_DAYS + 1), ...Array.from({ length: 5 }, (_, i) => makeEntry(i))]
+    const log = [
+      makeEntry(AUDIT_RETENTION_DAYS + 1),
+      ...Array.from({ length: 5 }, (_, i) => makeEntry(i)),
+    ]
     const result = applyRetention(log, 3)
     expect(result).toHaveLength(3)
     expect(result.every((e) => !e.id.startsWith(`id-${AUDIT_RETENTION_DAYS + 1}`))).toBe(true)
@@ -85,10 +88,29 @@ describe('validateDataFile', () => {
   })
 
   it('throws when required array fields are missing', () => {
-    expect(() => validateDataFile({ user: {}, settings: {}, accounts: 'bad', categories: [], tags: [], transactions: [], auditLog: [] })).toThrow('"accounts" must be an array')
+    expect(() =>
+      validateDataFile({
+        user: {},
+        settings: {},
+        accounts: 'bad',
+        categories: [],
+        tags: [],
+        transactions: [],
+        auditLog: [],
+      })
+    ).toThrow('"accounts" must be an array')
   })
 
   it('throws when user field is missing', () => {
-    expect(() => validateDataFile({ accounts: [], categories: [], tags: [], transactions: [], auditLog: [], settings: {} })).toThrow('missing "user"')
+    expect(() =>
+      validateDataFile({
+        accounts: [],
+        categories: [],
+        tags: [],
+        transactions: [],
+        auditLog: [],
+        settings: {},
+      })
+    ).toThrow('missing "user"')
   })
 })
