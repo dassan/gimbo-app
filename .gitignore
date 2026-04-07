@@ -1,0 +1,25 @@
+# Dependencies
+app/node_modules/
+
+# Build output
+app/dist/
+
+# Vite / TypeScript cache
+app/.vite/
+app/node_modules/.tmp/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# PWA dev files (generated at build time)
+app/dev-dist/

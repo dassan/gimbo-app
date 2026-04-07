@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* ── Typography ──────────────────────────────────────────── */
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* ── Brand colors (light mode) ───────────────────────────── */
+  --color-primary:                 #006E2F;
+  --color-primary-container:       #22C55E;
+  --color-tertiary:                #B91A24;
+  --color-tertiary-container:      #FF8A83;
+
+  /* ── Surface scale ───────────────────────────────────────── */
+  --color-surface:                 #F8F9FA;
+  --color-surface-container-low:   #F3F4F5;
+  --color-surface-container-high:  #E8E9EA;
+  --color-surface-container-highest: #DDDEE0;
+
+  /* ── On-surface ──────────────────────────────────────────── */
+  --color-on-surface:              #191C1D;
+  --color-outline-variant:         rgba(25, 28, 29, 0.15);
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --shadow-ambient: 0px 20px 40px rgba(25, 28, 29, 0.06);
+}
+
+/* ── Base reset ───────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Label utility ────────────────────────────────────────── */
+.label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+}
