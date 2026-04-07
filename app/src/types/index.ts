@@ -4,6 +4,9 @@ export type AccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT_CARD'
 export type CategoryType = 'INCOME' | 'EXPENSE'
 export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER'
 
+export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
+export type AuditEntity = 'account' | 'category' | 'tag' | 'transaction' | 'user'
+
 // ─── Entities ─────────────────────────────────────────────────────────────────
 
 export interface User {
@@ -14,8 +17,9 @@ export interface User {
 }
 
 export interface Settings {
-  fileCreatedAt: string // ISO 8601
-  fileUpdatedAt: string // ISO 8601
+  fileCreatedAt: string          // ISO 8601
+  fileUpdatedAt: string          // ISO 8601
+  auditLogRetentionLimit: number | null // null = unlimited (opt-in); default 200
 }
 
 export interface Account {
@@ -52,6 +56,15 @@ export interface Transaction {
   tags: string[] // UUID[]
 }
 
+export interface AuditEntry {
+  id: string       // UUID
+  timestamp: string // ISO 8601
+  action: AuditAction
+  entity: AuditEntity
+  entityId: string
+  summary: string  // human-readable, generated in active locale at mutation time
+}
+
 // ─── Root data.json shape ─────────────────────────────────────────────────────
 
 export interface DataFile {
@@ -61,6 +74,7 @@ export interface DataFile {
   categories: Category[]
   tags: Tag[]
   transactions: Transaction[]
+  auditLog: AuditEntry[]
 }
 
 // ─── workspace.json shape ─────────────────────────────────────────────────────

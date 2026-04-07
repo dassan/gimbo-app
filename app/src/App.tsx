@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { useDataStore } from '@/store/useDataStore'
+import { loadFromIdb } from '@/lib/storage/indexedDb'
 import AppLayout from '@/components/AppLayout'
 import Onboarding from '@/pages/Onboarding'
 import Dashboard from '@/pages/Dashboard'
@@ -11,11 +12,22 @@ import Settings from '@/pages/Settings'
 
 export default function App() {
   const initWorkspace = useWorkspaceStore((s) => s.init)
+  const loadData = useDataStore((s) => s.loadData)
   const data = useDataStore((s) => s.data)
+  const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    initWorkspace()
-  }, [initWorkspace])
+    async function init() {
+      initWorkspace()
+      const saved = await loadFromIdb()
+      if (saved) loadData(saved)
+      setHydrated(true)
+    }
+    init()
+  }, [])
+
+  // Avoid flash of onboarding while IDB is loading
+  if (!hydrated) return null
 
   const isLoaded = data !== null
 

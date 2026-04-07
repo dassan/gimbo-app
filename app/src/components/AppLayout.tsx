@@ -10,18 +10,24 @@ const NO_FAB_ROUTES = ['/settings']
 export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const location = useLocation()
+
   const data = useDataStore((s) => s.data)
+  const unsyncedCount = useDataStore((s) => s.unsyncedCount)
+  const persist = useDataStore((s) => s.persist)
 
   const showFAB = !NO_FAB_ROUTES.some((r) => location.pathname.startsWith(r))
 
-  // Derive initials from user name for avatar
   const initials = data?.user.name
     ? data.user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : 'U'
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
-      <Navbar initials={initials} />
+      <Navbar
+        initials={initials}
+        unsyncedCount={unsyncedCount}
+        onSync={async () => { await persist() }}
+      />
 
       <main className="flex-1 pt-14">
         <Outlet />

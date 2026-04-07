@@ -125,6 +125,25 @@
     "creditCard": "Credit Card",
     "balance": "Balance"
   },
+  "sync": {
+    "syncNow": "Sync now",
+    "unsaved": "unsaved change",
+    "unsaved_plural": "unsaved changes",
+    "syncing": "Syncing..."
+  },
+  "audit": {
+    "title": "Recent Changes",
+    "subtitle": "Your ledger modification history",
+    "noEntries": "No modifications recorded",
+    "create": "Created",
+    "update": "Updated",
+    "delete": "Deleted",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "retentionLabel": "Unlimited history retention",
+    "retentionHint": "Unlimited history may impact performance over time.",
+    "retentionDefault": "Default: 200 entries or 90 days"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",

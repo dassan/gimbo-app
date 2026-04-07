@@ -125,6 +125,25 @@
     "creditCard": "Cartão de Crédito",
     "balance": "Saldo"
   },
+  "sync": {
+    "syncNow": "Sincronizar agora",
+    "unsaved": "alteração não salva",
+    "unsaved_plural": "alterações não salvas",
+    "syncing": "Sincronizando..."
+  },
+  "audit": {
+    "title": "Modificações Recentes",
+    "subtitle": "Histórico de alterações do seu ledger",
+    "noEntries": "Nenhuma modificação registrada",
+    "create": "Criação",
+    "update": "Atualização",
+    "delete": "Exclusão",
+    "today": "Hoje",
+    "yesterday": "Ontem",
+    "retentionLabel": "Retenção ilimitada do histórico",
+    "retentionHint": "O histórico ilimitado pode impactar o desempenho com o uso prolongado.",
+    "retentionDefault": "Padrão: 200 entradas ou 90 dias"
+  },
   "common": {
     "save": "Salvar",
     "cancel": "Cancelar",

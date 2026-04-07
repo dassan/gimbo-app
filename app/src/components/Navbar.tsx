@@ -1,25 +1,40 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Settings, Bell } from 'lucide-react'
+import { Settings, Bell, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { to: '/dashboard',     key: 'nav.dashboard' },
-  { to: '/transactions',  key: 'nav.transactions' },
-  { to: '/analytics',     key: 'nav.analytics' },
+  { to: '/dashboard',    key: 'nav.dashboard' },
+  { to: '/transactions', key: 'nav.transactions' },
+  { to: '/analytics',    key: 'nav.analytics' },
 ]
 
 interface NavbarProps {
   initials?: string
+  unsyncedCount: number
+  onSync: () => Promise<void>
 }
 
-export default function Navbar({ initials = 'U' }: NavbarProps) {
+export default function Navbar({ initials = 'U', unsyncedCount, onSync }: NavbarProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [syncing, setSyncing] = useState(false)
+
+  async function handleSync() {
+    if (syncing || unsyncedCount === 0) return
+    setSyncing(true)
+    await onSync()
+    setSyncing(false)
+  }
+
+  const badgeLabel = unsyncedCount > 99 ? '99+' : String(unsyncedCount)
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between bg-white/80 px-6 backdrop-blur-[24px]"
-            style={{ boxShadow: '0px 1px 0px rgba(25,28,29,0.06)' }}>
+    <header
+      className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between bg-white/80 px-6 backdrop-blur-[24px]"
+      style={{ boxShadow: '0px 1px 0px rgba(25,28,29,0.06)' }}
+    >
       {/* Logo + nav */}
       <div className="flex items-center gap-8">
         <span className="text-sm font-semibold tracking-tight text-on-surface">
@@ -52,7 +67,8 @@ export default function Navbar({ initials = 'U' }: NavbarProps) {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
+        {/* Bell — decorative */}
         <button
           aria-label="Notificações"
           className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low hover:text-on-surface/70 transition-colors"
@@ -60,15 +76,35 @@ export default function Navbar({ initials = 'U' }: NavbarProps) {
           <Bell size={18} strokeWidth={1.5} />
         </button>
 
+        {/* Sync icon with unsaved-changes badge */}
         <button
-          aria-label="Configurações"
+          aria-label={t('sync.syncNow')}
+          onClick={handleSync}
+          disabled={syncing}
+          className="relative flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low hover:text-on-surface/70 transition-colors disabled:cursor-default"
+        >
+          <RefreshCw
+            size={18}
+            strokeWidth={1.5}
+            className={cn(syncing && 'animate-spin')}
+          />
+          {unsyncedCount > 0 && !syncing && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-tertiary px-1 text-[9px] font-bold leading-none text-white">
+              {badgeLabel}
+            </span>
+          )}
+        </button>
+
+        {/* Settings */}
+        <button
+          aria-label={t('nav.settings')}
           onClick={() => navigate('/settings')}
           className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low hover:text-on-surface/70 transition-colors"
         >
           <Settings size={18} strokeWidth={1.5} />
         </button>
 
-        {/* Avatar decorativo */}
+        {/* Avatar — decorative */}
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-white">
           {initials}
         </div>
