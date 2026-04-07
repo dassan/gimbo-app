@@ -41,12 +41,17 @@ O Nexus é um aplicativo web (PWA Client-side) de gestão de finanças pessoais 
 * **F-9:** Motor de Arquivo Client-Side PWA (Exportar/Importar `data.json` local).
 * **F-10:** A capacidade de escolher/alterar o idioma da aplicação através de um seletor visual na interface.
 * **F-11:** Modal de Onboarding/Setup Inicial: Ponto de entrada do PWA onde o usuário decide entre "Criar Novo Arquivo" (informando Nome, Email e Idioma) ou "Importar data.json Existente" (ocultando os formulários e carregando os dados logados).
+* **F-12:** Auto-save via IndexedDB: toda mutação de dados é persistida automaticamente no IndexedDB do browser (debounced ~300ms), eliminando risco de perda de dados por fechamento acidental da aba. O IndexedDB é o banco de dados primário em tempo de execução; o `data.json` é o formato de exportação/portabilidade.
+* **F-13:** Audit Log: registro imutável de todas as alterações feitas pelo usuário (criação, edição e exclusão de qualquer entidade). Armazenado dentro do `data.json` para que o histórico viaje com o arquivo. Retenção padrão: **200 entradas ou 90 dias** (o que ocorrer primeiro). Opt-in de retenção ilimitada disponível em Configurações, acompanhado de aviso sobre impacto potencial no desempenho no longo prazo.
+* **F-14:** Indicador de Alterações Não Sincronizadas: ícone de sincronização (setas em círculo) na Navbar, ao lado do sino, exibindo em badge vermelho a contagem de mutações realizadas desde o último Export/Sync. Ao clicar, dispara a sincronização do estado atual do IndexedDB para o `data.json` (via File System Access API ou download fallback).
+* **F-15:** Tela "Modificações Recentes" dentro da seção Aplicativo em Configurações: lista cronológica reversa das entradas do Audit Log, com ação, entidade, resumo legível e timestamp.
 
 ### Fora do Escopo (Out of Scope - Futuro)
 * **X-1:** Criptografia do arquivo JSON de dados.
 * **X-2:** Sincronização automatizada via Open-Banking de extratos.
 * **X-3:** Plataforma mobile nativa submetida as Lojas de Apps.
 * **X-4:** Login de servidor online via senhas e banco em nuvem / Modo partilhado e Rateio de despesas em grupo.
+* **X-5:** Backup do Audit Log em arquivo separado (`audit.json`): mover as entradas do `auditLog` para fora do `data.json`, mantendo o ledger financeiro enxuto e delegando o histórico de modificações a um arquivo dedicado, importável e exportável de forma independente.
 
 ## 6. Modelo de Dados e Arquitetura
 
@@ -64,7 +69,8 @@ Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
   },
   "settings": {
     "fileCreatedAt": "ISO_Date",
-    "fileUpdatedAt": "ISO_Date"
+    "fileUpdatedAt": "ISO_Date",
+    "auditLogRetentionLimit": "Integer | null (null = ilimitado, opt-in)"
   },
   "accounts": [
     {
@@ -102,6 +108,16 @@ Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
       "description": "String",
       "isPaid": "Boolean",
       "tags": ["[UUID]"]
+    }
+  ],
+  "auditLog": [
+    {
+      "id": "UUID",
+      "timestamp": "ISO_Date",
+      "action": "Enum(CREATE, UPDATE, DELETE)",
+      "entity": "Enum(account, category, tag, transaction, user)",
+      "entityId": "UUID",
+      "summary": "String (descrição legível gerada no momento da mutação)"
     }
   ]
 }

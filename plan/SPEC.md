@@ -24,6 +24,7 @@
 | `clsx` + `tailwind-merge` | Utilitário `cn()` para classes condicionais |
 | `react-router-dom` | Roteamento SPA |
 | `vite-plugin-pwa` | Service worker + Web App Manifest |
+| `idb` | Wrapper Promise-based para IndexedDB (auto-save e contagem de não-sincronizados) |
 
 ### TASK-03: Design System — tokens Tailwind
 Mapear as cores, sombras e fontes do design system para variáveis CSS via `@theme` no Tailwind v4, em `src/index.css`:
@@ -54,6 +55,25 @@ Definir todas as entidades do `data.json` e `workspace.json` conforme o PRD:
 - Enums: `AccountType`, `CategoryType`, `TransactionType`
 - `DataFile` (root de `data.json`) e `WorkspaceFile` (root de `workspace.json`)
 - `Theme` e `Locale` para o workspace
+- `AuditEntry` e `AuditAction` / `AuditEntity` (F-13):
+
+```typescript
+type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
+type AuditEntity = 'account' | 'category' | 'tag' | 'transaction' | 'user'
+
+interface AuditEntry {
+  id: string          // UUID
+  timestamp: string   // ISO 8601
+  action: AuditAction
+  entity: AuditEntity
+  entityId: string
+  summary: string     // descrição legível, gerada no momento da mutação
+}
+```
+
+- `Settings` atualizado para incluir `auditLogRetentionLimit: number | null`
+  - `number` → limite padrão de entradas (default: `200`)
+  - `null` → retenção ilimitada (opt-in pelo usuário)
 
 ### TASK-05: Camada de storage (`src/lib/storage/`)
 
@@ -69,6 +89,19 @@ Definir todas as entidades do `data.json` e `workspace.json` conforme o PRD:
 - `loadWorkspace()` / `saveWorkspace()` → `localStorage` (persistência de preferências visuais)
 - Augmentação de `Window` para tipagem de `showOpenFilePicker` / `showSaveFilePicker`
 
+**`indexedDb.ts`** *(novo — F-12):*
+- Banco: `nexus-db`, store: `ledger`
+- `saveToIdb(data: DataFile)` → serializa e grava o estado completo (debounced 300ms)
+- `loadFromIdb()` → desserializa e retorna `DataFile | null`
+- `clearIdb()` → chamado ao importar um arquivo externo (evita estado híbrido)
+- Chave única fixa (`'current'`) — apenas um ledger ativo por browser
+- Utiliza `idb` para API Promise-based sem callbacks
+
+**Fluxo de inicialização do app (atualizado):**
+1. Tentar `loadFromIdb()` → se encontrar dados, carregar direto (sem Onboarding)
+2. Se vazio → exibir Onboarding (criar novo ou importar arquivo)
+3. Em Onboarding "Importar": após `loadData()`, chamar `clearIdb()` + `saveToIdb()` imediatamente
+
 ### TASK-06: Utilitários (`src/lib/utils.ts`)
 - `cn(...classes)` → merge Tailwind com `clsx` + `tailwind-merge`
 - `uuid()` → `crypto.randomUUID()`
@@ -81,14 +114,25 @@ Definir todas as entidades do `data.json` e `workspace.json` conforme o PRD:
 
 ### TASK-07: Store de dados (`src/store/useDataStore.ts`)
 Store Zustand com todo o CRUD do `DataFile`:
-- `data: DataFile | null` + `isDirty: boolean`
+- `data: DataFile | null` + `unsyncedCount: number`
 - `loadData(data)` / `clearData()`
 - `addAccount` / `updateAccount` / `deleteAccount`
 - `addCategory` / `updateCategory` / `deleteCategory`
 - `addTag` / `updateTag` / `deleteTag`
 - `addTransaction` / `updateTransaction` / `deleteTransaction`
-- `persist()` → chama `saveDataFile`, atualiza `settings.fileUpdatedAt`
+- `persist()` → chama `saveDataFile`, atualiza `settings.fileUpdatedAt`, zera `unsyncedCount`
 - Mutações via `structuredClone` para imutabilidade
+
+**Comportamento pós-mutação (F-12, F-13, F-14):**
+Toda função de mutação (`add*`, `update*`, `delete*`) deve, após atualizar o estado:
+1. Acrescentar uma `AuditEntry` ao `data.auditLog` com action, entity, entityId e summary
+2. Aplicar a política de retenção: se `settings.auditLogRetentionLimit !== null`, truncar o log mantendo apenas as N entradas mais recentes
+3. Incrementar `unsyncedCount` em 1
+4. Chamar `saveToIdb(data)` (debounced) para persistir o estado no IndexedDB
+
+**Resumo (`summary`) das entradas do audit log:**
+- Gerado em português no momento da mutação (não traduzido retroativamente)
+- Exemplos: `"Conta criada: Nubank"`, `"Transação removida: R$ 142,50 — Supermercado"`, `"Categoria atualizada: Alimentação"`
 
 ### TASK-08: Store de workspace (`src/store/useWorkspaceStore.ts`)
 Store Zustand para preferências visuais:
@@ -136,6 +180,14 @@ app, nav, onboarding, dashboard, transactions, analytics, settings, accounts, co
 - Indicador de aba ativa: barra `2px` na cor `primary` na borda inferior do item
 - Avatar exibe iniciais do nome do usuário (calculadas no `AppLayout`)
 - Props: `initials: string`
+
+**Ícone de Sync (F-14):**
+- Ícone `RefreshCw` (Lucide) posicionado entre o sino e a engrenagem
+- Badge vermelho sobreposto com `unsyncedCount` quando `> 0`; oculto quando `=== 0`
+- Badge exibe `99+` quando a contagem exceder 99
+- `onClick` → chama `persist()` do `useDataStore` (File System Access API ou download fallback)
+- Durante o save: ícone gira (`animate-spin`) até a Promise resolver
+- Props: `unsyncedCount: number`, `onSync: () => Promise<void>`
 
 ### TASK-12: AppLayout (`src/components/AppLayout.tsx`)
 - Monta `Navbar`, `<Outlet />` e `TransactionDrawer`
@@ -316,6 +368,17 @@ GESTÃO DE DADOS          APLICATIVO
 - Card de aviso de privacidade (local-first)
 - Grid 2 colunas: "Exportar Dados" (`downloadDataFile`) + "Importar Dados" (`openDataFile`)
 
+**Seção Modificações Recentes (F-15)** *(nova, dentro de Aplicativo):*
+- Lista cronológica reversa das entradas de `data.auditLog`
+- Cada item: ícone por tipo de ação (+ verde / ✎ amarelo / × vermelho), entidade, summary, timestamp relativo ("há 2 horas", "ontem")
+- Agrupamento por data (Hoje / Ontem / DD MMM)
+- Estado vazio: mensagem "Nenhuma modificação registrada"
+
+**Seção Preferências — opção de retenção do Audit Log (F-13 opt-in):**
+- Toggle: "Retenção ilimitada do histórico"
+  - Desativado (padrão): mantém as últimas 200 entradas ou 90 dias
+  - Ativado: `settings.auditLogRetentionLimit = null`; exibir aviso inline: *"O histórico ilimitado pode impactar o desempenho com o uso prolongado."*
+
 ---
 
 ## Fase 8 — PWA
@@ -338,6 +401,12 @@ GESTÃO DE DADOS          APLICATIVO
 | "Planejamento" na navbar | Omitido | Fora do escopo inicial (Out of Scope no PRD) |
 | Contas na navegação | Via ⚙️ Settings | Decisão de UX: toda gestão de dados (contas, categorias, tags) numa seção dedicada |
 | Notificações / Avatar | Decorativos | Funcionalidade fora do escopo inicial |
+| Banco de dados primário em runtime | IndexedDB (via `idb`) | File System Access API perde o handle ao fechar o browser e tem suporte inconsistente em Firefox/Safari; IndexedDB é universal e sem limite de tamanho relevante para uso pessoal |
+| `data.json` como formato de portabilidade | Export/Import explícito | O arquivo continua sendo o formato canônico e portátil; o sync é controlado pelo usuário via ícone na Navbar |
+| Audit log dentro do `data.json` | Incluído na exportação | O histórico de modificações tem valor informacional e deve viajar com o ledger entre dispositivos |
+| Retenção padrão do audit log | 200 entradas ou 90 dias | Equilibra rastreabilidade e tamanho do arquivo; usuários avançados podem optar por retenção ilimitada com aviso de performance |
+| `summary` do audit log gerado em pt-BR | String fixa no momento da mutação | Evita complexidade de tradução retroativa; o idioma do summary reflete o idioma ativo no momento da ação |
+| `unsyncedCount` | Estado Zustand (não exportado) | É estado de UI, não dado financeiro; zera ao sincronizar e ao importar |
 
 ---
 
@@ -347,6 +416,8 @@ GESTÃO DE DADOS          APLICATIVO
 - `X-2` Sincronização via Open Banking
 - `X-3` App nativo mobile
 - `X-4` Autenticação com servidor / modo partilhado
+- `X-5` Backup do Audit Log em arquivo separado (`audit.json`) — mover `auditLog` para fora do `data.json` mantendo o ledger enxuto; arquivo importável/exportável de forma independente
 - "Planejamento" (4ª aba do nav do design) — implementação futura
 - Code splitting do bundle (otimização pós-MVP)
 - Exportação real de PDF nos Relatórios
+- `summary` do audit log multilíngue (geração retroativa por idioma)
