@@ -4,6 +4,7 @@ import { useDataStore } from '@/store/useDataStore'
 import Navbar from '@/components/Navbar'
 import FAB from '@/components/FAB'
 import TransactionDrawer from '@/components/TransactionDrawer'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const NO_FAB_ROUTES = ['/settings']
 
@@ -18,7 +19,12 @@ export default function AppLayout() {
   const showFAB = !NO_FAB_ROUTES.some((r) => location.pathname.startsWith(r))
 
   const initials = data?.user.name
-    ? data.user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+    ? data.user.name
+        .split(' ')
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
     : 'U'
 
   return (
@@ -26,11 +32,15 @@ export default function AppLayout() {
       <Navbar
         initials={initials}
         unsyncedCount={unsyncedCount}
-        onSync={async () => { await persist() }}
+        onSync={async () => {
+          await persist()
+        }}
       />
 
       <main className="flex-1 pt-14">
-        <Outlet />
+        <ErrorBoundary fallback="card">
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {showFAB && <FAB onClick={() => setDrawerOpen(true)} />}

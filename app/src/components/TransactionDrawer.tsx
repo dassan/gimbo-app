@@ -12,11 +12,27 @@ interface TransactionDrawerProps {
 
 type TxType = TransactionType
 
-const TYPE_CONFIG: Record<TxType, { label: string; color: string; bg: string; btnClass: string }> = {
-  EXPENSE:  { label: 'transactions.expense',  color: 'text-tertiary',  bg: 'bg-tertiary/10',  btnClass: 'bg-tertiary hover:brightness-110' },
-  INCOME:   { label: 'transactions.income',   color: 'text-primary',   bg: 'bg-primary/10',   btnClass: 'bg-primary hover:brightness-110' },
-  TRANSFER: { label: 'transactions.transfer', color: 'text-on-surface', bg: 'bg-surface-container-high', btnClass: 'bg-on-surface hover:brightness-110' },
-}
+const TYPE_CONFIG: Record<TxType, { label: string; color: string; bg: string; btnClass: string }> =
+  {
+    EXPENSE: {
+      label: 'transactions.expense',
+      color: 'text-tertiary',
+      bg: 'bg-tertiary/10',
+      btnClass: 'bg-tertiary hover:brightness-110',
+    },
+    INCOME: {
+      label: 'transactions.income',
+      color: 'text-primary',
+      bg: 'bg-primary/10',
+      btnClass: 'bg-primary hover:brightness-110',
+    },
+    TRANSFER: {
+      label: 'transactions.transfer',
+      color: 'text-on-surface',
+      bg: 'bg-surface-container-high',
+      btnClass: 'bg-on-surface hover:brightness-110',
+    },
+  }
 
 export default function TransactionDrawer({ open, onClose }: TransactionDrawerProps) {
   const { t } = useTranslation()
@@ -32,9 +48,10 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
   const [description, setDescription] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
-  // Reset on open
+  // Reset on open — intentional setState-in-effect to initialise form fields
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setType('EXPENSE')
       setAmount(0)
       setAmountStr('0,00')
@@ -54,9 +71,7 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
   }
 
   function toggleTag(id: string) {
-    setSelectedTags((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
-    )
+    setSelectedTags((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]))
   }
 
   function handleSave() {
@@ -147,7 +162,10 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
           <div>
             <label className="label text-on-surface/40 block mb-2">{t('transactions.date')}</label>
             <div className="relative">
-              <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40" />
+              <Calendar
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40"
+              />
               <input
                 type="date"
                 value={date}
@@ -159,7 +177,9 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
 
           {/* Account */}
           <div>
-            <label className="label text-on-surface/40 block mb-2">{t('transactions.account')}</label>
+            <label className="label text-on-surface/40 block mb-2">
+              {t('transactions.account')}
+            </label>
             <div className="relative">
               <select
                 value={accountId}
@@ -167,20 +187,27 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
                 className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
               >
                 {(data?.accounts ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
                 ))}
                 {(data?.accounts ?? []).length === 0 && (
                   <option value="">{t('common.noData')}</option>
                 )}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none" />
+              <ChevronDown
+                size={16}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+              />
             </div>
           </div>
 
           {/* Category */}
           {type !== 'TRANSFER' && (
             <div>
-              <label className="label text-on-surface/40 block mb-2">{t('transactions.category')}</label>
+              <label className="label text-on-surface/40 block mb-2">
+                {t('transactions.category')}
+              </label>
               <div className="relative">
                 <select
                   value={categoryId}
@@ -189,10 +216,15 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
                 >
                   <option value="">{t('transactions.category')}</option>
                   {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
                   ))}
                 </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none" />
+                <ChevronDown
+                  size={16}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+                />
               </div>
             </div>
           )}
@@ -229,7 +261,9 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
 
           {/* Description */}
           <div>
-            <label className="label text-on-surface/40 block mb-2">{t('transactions.description')}</label>
+            <label className="label text-on-surface/40 block mb-2">
+              {t('transactions.description')}
+            </label>
             <input
               type="text"
               value={description}

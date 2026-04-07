@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { useDataStore } from '@/store/useDataStore'
 import { loadFromIdb } from '@/lib/storage/indexedDb'
 import AppLayout from '@/components/AppLayout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import Onboarding from '@/pages/Onboarding'
 import Dashboard from '@/pages/Dashboard'
 import Transactions from '@/pages/Transactions'
@@ -15,39 +16,58 @@ export default function App() {
   const loadData = useDataStore((s) => s.loadData)
   const data = useDataStore((s) => s.data)
   const [hydrated, setHydrated] = useState(false)
+  const [initError, setInitError] = useState<string | null>(null)
 
   useEffect(() => {
     async function init() {
-      initWorkspace()
-      const saved = await loadFromIdb()
-      if (saved) loadData(saved)
-      setHydrated(true)
+      try {
+        initWorkspace()
+        const saved = await loadFromIdb()
+        if (saved) loadData(saved)
+      } catch (err) {
+        setInitError(err instanceof Error ? err.message : 'Erro ao carregar dados locais')
+      } finally {
+        setHydrated(true)
+      }
     }
-    init()
+    void init()
   }, [])
 
   // Avoid flash of onboarding while IDB is loading
   if (!hydrated) return null
 
+  if (initError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface p-8 text-center">
+        <p className="text-sm font-semibold text-on-surface">
+          Não foi possível carregar seus dados
+        </p>
+        <p className="max-w-sm text-xs text-on-surface/50">{initError}</p>
+      </div>
+    )
+  }
+
   const isLoaded = data !== null
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/onboarding" element={<Onboarding />} />
+    <ErrorBoundary fallback="full-page">
+      <BrowserRouter>
+        <Routes>
+          <Route path="/onboarding" element={<Onboarding />} />
 
-        {isLoaded ? (
-          <Route element={<AppLayout />}>
-            <Route path="/dashboard"    element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/analytics"    element={<Analytics />} />
-            <Route path="/settings"     element={<Settings />} />
-            <Route path="*"             element={<Navigate to="/dashboard" replace />} />
-          </Route>
-        ) : (
-          <Route path="*" element={<Navigate to="/onboarding" replace />} />
-        )}
-      </Routes>
-    </BrowserRouter>
+          {isLoaded ? (
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Route>
+          ) : (
+            <Route path="*" element={<Navigate to="/onboarding" replace />} />
+          )}
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

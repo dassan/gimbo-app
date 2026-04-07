@@ -2,8 +2,15 @@ import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts'
 import { TrendingUp, TrendingDown, CheckCircle2, Clock } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
@@ -21,23 +28,26 @@ export default function Dashboard() {
   const data = useDataStore((s) => s.data)
   const [period, setPeriod] = useState<Period>('monthly')
 
-  const now = new Date()
+  const now = useMemo(() => new Date(), [])
 
   // ── Current month stats ───────────────────────────────────────────────────
   const { income, expenses, balance, recentTxs } = useMemo(() => {
     if (!data) return { income: 0, expenses: 0, balance: 0, recentTxs: [] }
-    const m = now.getMonth(), y = now.getFullYear()
+    const m = now.getMonth(),
+      y = now.getFullYear()
     const monthly = data.transactions.filter((tx) => {
       const d = new Date(tx.date)
       return d.getMonth() === m && d.getFullYear() === y
     })
     const income = monthly.filter((tx) => tx.type === 'INCOME').reduce((s, tx) => s + tx.amount, 0)
-    const expenses = monthly.filter((tx) => tx.type === 'EXPENSE').reduce((s, tx) => s + tx.amount, 0)
+    const expenses = monthly
+      .filter((tx) => tx.type === 'EXPENSE')
+      .reduce((s, tx) => s + tx.amount, 0)
     const recentTxs = [...data.transactions]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5)
     return { income, expenses, balance: income - expenses, recentTxs }
-  }, [data])
+  }, [data, now])
 
   // ── Cash flow chart data (±3 months) ─────────────────────────────────────
   const cashFlowData = useMemo(() => {
@@ -49,12 +59,13 @@ export default function Dashboard() {
       const exp = txs.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
       return { label: slot.label, income: inc, expenses: exp, net: inc - exp }
     })
-  }, [data, period])
+  }, [data, period, now])
 
   // ── Expenses by category (donut) ──────────────────────────────────────────
   const donutData = useMemo(() => {
     if (!data) return []
-    const m = now.getMonth(), y = now.getFullYear()
+    const m = now.getMonth(),
+      y = now.getFullYear()
     const expTxs = data.transactions.filter((tx) => {
       const d = new Date(tx.date)
       return tx.type === 'EXPENSE' && d.getMonth() === m && d.getFullYear() === y
@@ -71,7 +82,7 @@ export default function Dashboard() {
       value,
       pct: Math.round((value / total) * 100),
     }))
-  }, [data])
+  }, [data, now])
 
   if (!data) return null
 
@@ -103,7 +114,10 @@ export default function Dashboard() {
       {/* ── Charts row ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
         {/* Cash flow chart — 2/3 */}
-        <div className="col-span-2 rounded-2xl bg-white p-6" style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
+        <div
+          className="col-span-2 rounded-2xl bg-white p-6"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
           <div className="flex items-start justify-between mb-1">
             <div>
               <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.cashFlow')}</h3>
@@ -133,14 +147,43 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor="#FF8A83" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                  />
                   <Tooltip
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }}
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: 'none',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                      fontSize: 12,
+                    }}
                     formatter={(value) => formatCurrency(Number(value))}
                   />
-                  <Area type="monotone" dataKey="income" stroke="#006E2F" strokeWidth={2} fill="url(#incomeGrad)" dot={false} />
-                  <Area type="monotone" dataKey="expenses" stroke="#FF8A83" strokeWidth={2} fill="url(#expenseGrad)" dot={false} />
+                  <Area
+                    type="monotone"
+                    dataKey="income"
+                    stroke="#006E2F"
+                    strokeWidth={2}
+                    fill="url(#incomeGrad)"
+                    dot={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="expenses"
+                    stroke="#FF8A83"
+                    strokeWidth={2}
+                    fill="url(#expenseGrad)"
+                    dot={false}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -150,8 +193,13 @@ export default function Dashboard() {
         </div>
 
         {/* Donut chart — 1/3 */}
-        <div className="rounded-2xl bg-white p-6" style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
-          <h3 className="text-sm font-semibold text-on-surface mb-4">{t('dashboard.byCategory')}</h3>
+        <div
+          className="rounded-2xl bg-white p-6"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
+          <h3 className="text-sm font-semibold text-on-surface mb-4">
+            {t('dashboard.byCategory')}
+          </h3>
 
           {donutData.length > 0 ? (
             <>
@@ -176,8 +224,12 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 {/* Center label */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-[10px] uppercase tracking-widest text-on-surface/40">{t('dashboard.total')}</p>
-                  <p className="text-sm font-bold text-on-surface">{formatCurrency(totalExpenses)}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-on-surface/40">
+                    {t('dashboard.total')}
+                  </p>
+                  <p className="text-sm font-bold text-on-surface">
+                    {formatCurrency(totalExpenses)}
+                  </p>
                 </div>
               </div>
 
@@ -185,7 +237,10 @@ export default function Dashboard() {
                 {donutData.slice(0, 4).map((d, i) => (
                   <div key={d.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                      />
                       <span className="text-xs text-on-surface/70">{d.name}</span>
                     </div>
                     <span className="text-xs font-medium text-on-surface">{d.pct}%</span>
@@ -200,11 +255,18 @@ export default function Dashboard() {
       </div>
 
       {/* ── Recent transactions ───────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-white p-6" style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
+      <div
+        className="rounded-2xl bg-white p-6"
+        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+      >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.recentTransactions')}</h3>
+          <h3 className="text-sm font-semibold text-on-surface">
+            {t('dashboard.recentTransactions')}
+          </h3>
           <button
-            onClick={() => navigate('/transactions')}
+            onClick={() => {
+              void navigate('/transactions')
+            }}
             className="text-xs font-medium text-primary hover:underline"
           >
             {t('dashboard.viewAll')}
@@ -227,37 +289,61 @@ export default function Dashboard() {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon, variant }: {
-  label: string; value: string; icon?: React.ReactNode; variant: 'income' | 'expense' | 'balance'
+function StatCard({
+  label,
+  value,
+  icon,
+  variant,
+}: {
+  label: string
+  value: string
+  icon?: React.ReactNode
+  variant: 'income' | 'expense' | 'balance'
 }) {
   const isBalance = variant === 'balance'
   return (
     <div
-      className={cn(
-        'rounded-2xl p-5',
-        isBalance ? 'bg-primary text-white' : 'bg-white'
-      )}
+      className={cn('rounded-2xl p-5', isBalance ? 'bg-primary text-white' : 'bg-white')}
       style={!isBalance ? { boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' } : {}}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className={cn('label', isBalance ? 'text-white/60' : 'text-on-surface/40')}>{label}</span>
+        <span className={cn('label', isBalance ? 'text-white/60' : 'text-on-surface/40')}>
+          {label}
+        </span>
         {icon && (
-          <span className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-full',
-            variant === 'income' ? 'bg-primary/10 text-primary' : variant === 'expense' ? 'bg-tertiary/10 text-tertiary' : 'bg-white/20 text-white'
-          )}>
+          <span
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-full',
+              variant === 'income'
+                ? 'bg-primary/10 text-primary'
+                : variant === 'expense'
+                  ? 'bg-tertiary/10 text-tertiary'
+                  : 'bg-white/20 text-white'
+            )}
+          >
             {icon}
           </span>
         )}
       </div>
-      <p className={cn('text-2xl font-bold', isBalance ? 'text-white' : variant === 'income' ? 'text-primary' : 'text-tertiary')}>
+      <p
+        className={cn(
+          'text-2xl font-bold',
+          isBalance ? 'text-white' : variant === 'income' ? 'text-primary' : 'text-tertiary'
+        )}
+      >
         {value}
       </p>
     </div>
   )
 }
 
-function TransactionRow({ tx, data }: { tx: Transaction; data: NonNullable<ReturnType<typeof useDataStore.getState>['data']> }) {
+function TransactionRow({
+  tx,
+  data,
+}: {
+  tx: Transaction
+  data: NonNullable<ReturnType<typeof useDataStore.getState>['data']>
+}) {
   const cat = data.categories.find((c) => c.id === tx.categoryId)
   const acc = data.accounts.find((a) => a.id === tx.accountId)
   const isIncome = tx.type === 'INCOME'
@@ -275,7 +361,9 @@ function TransactionRow({ tx, data }: { tx: Transaction; data: NonNullable<Retur
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-on-surface truncate">{tx.description || cat?.name || '—'}</p>
+        <p className="text-sm font-medium text-on-surface truncate">
+          {tx.description || cat?.name || '—'}
+        </p>
         <p className="text-xs text-on-surface/40 mt-0.5">
           {cat?.name} · {acc?.name} · {dateStr}
         </p>
@@ -284,24 +372,36 @@ function TransactionRow({ tx, data }: { tx: Transaction; data: NonNullable<Retur
       {/* Amount + status */}
       <div className="flex items-center gap-2 shrink-0">
         <span className={cn('text-sm font-semibold', isIncome ? 'text-primary' : 'text-tertiary')}>
-          {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+          {isIncome ? '+' : '-'}
+          {formatCurrency(tx.amount)}
         </span>
-        {tx.isPaid
-          ? <CheckCircle2 size={16} className="text-primary" strokeWidth={1.5} />
-          : <Clock size={16} className="text-on-surface/20" strokeWidth={1.5} />
-        }
+        {tx.isPaid ? (
+          <CheckCircle2 size={16} className="text-primary" strokeWidth={1.5} />
+        ) : (
+          <Clock size={16} className="text-on-surface/20" strokeWidth={1.5} />
+        )}
       </div>
     </div>
   )
 }
 
-function PeriodBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function PeriodBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
   return (
     <button
       onClick={onClick}
       className={cn(
         'rounded-md px-3 py-1.5 text-xs font-medium transition-all',
-        active ? 'bg-white text-on-surface shadow-sm' : 'text-on-surface/40 hover:text-on-surface/60'
+        active
+          ? 'bg-white text-on-surface shadow-sm'
+          : 'text-on-surface/40 hover:text-on-surface/60'
       )}
     >
       {children}
@@ -327,7 +427,8 @@ interface Slot {
 function buildMonthlySlots(now: Date): Slot[] {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 3 + i, 1)
-    const m = d.getMonth(), y = d.getFullYear()
+    const m = d.getMonth(),
+      y = d.getFullYear()
     return {
       label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
       includes: (date: Date) => date.getMonth() === m && date.getFullYear() === y,

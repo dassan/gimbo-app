@@ -5,9 +5,9 @@ import { Settings, Bell, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { to: '/dashboard',    key: 'nav.dashboard' },
+  { to: '/dashboard', key: 'nav.dashboard' },
   { to: '/transactions', key: 'nav.transactions' },
-  { to: '/analytics',    key: 'nav.analytics' },
+  { to: '/analytics', key: 'nav.analytics' },
 ]
 
 interface NavbarProps {
@@ -79,15 +79,11 @@ export default function Navbar({ initials = 'U', unsyncedCount, onSync }: Navbar
         {/* Sync icon with unsaved-changes badge */}
         <button
           aria-label={t('sync.syncNow')}
-          onClick={handleSync}
+          onClick={() => void handleSync()}
           disabled={syncing}
           className="relative flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low hover:text-on-surface/70 transition-colors disabled:cursor-default"
         >
-          <RefreshCw
-            size={18}
-            strokeWidth={1.5}
-            className={cn(syncing && 'animate-spin')}
-          />
+          <RefreshCw size={18} strokeWidth={1.5} className={cn(syncing && 'animate-spin')} />
           {unsyncedCount > 0 && !syncing && (
             <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-tertiary px-1 text-[9px] font-bold leading-none text-white">
               {badgeLabel}
@@ -98,7 +94,9 @@ export default function Navbar({ initials = 'U', unsyncedCount, onSync }: Navbar
         {/* Settings */}
         <button
           aria-label={t('nav.settings')}
-          onClick={() => navigate('/settings')}
+          onClick={() => {
+            void navigate('/settings')
+          }}
           className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low hover:text-on-surface/70 transition-colors"
         >
           <Settings size={18} strokeWidth={1.5} />

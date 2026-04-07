@@ -16,7 +16,7 @@ export default function Transactions() {
   const [filterAccountId, setFilterAccountId] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all')
 
-  const now = new Date()
+  const now = useMemo(() => new Date(), [])
 
   const filtered = useMemo(() => {
     if (!data) return []
@@ -28,7 +28,8 @@ export default function Transactions() {
       if (period === 'today') {
         return d.toDateString() === now.toDateString()
       } else if (period === 'week') {
-        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7)
+        const weekAgo = new Date(now)
+        weekAgo.setDate(now.getDate() - 7)
         return d >= weekAgo
       } else if (period === 'month') {
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
@@ -50,7 +51,7 @@ export default function Transactions() {
     }
 
     return txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [data, period, filterAccountId, filterStatus, search])
+  }, [data, period, filterAccountId, filterStatus, search, now])
 
   // Group by date
   const grouped = useMemo(() => {
@@ -65,7 +66,9 @@ export default function Transactions() {
 
   // Summary
   const income = filtered.filter((tx) => tx.type === 'INCOME').reduce((s, tx) => s + tx.amount, 0)
-  const expenses = filtered.filter((tx) => tx.type === 'EXPENSE').reduce((s, tx) => s + tx.amount, 0)
+  const expenses = filtered
+    .filter((tx) => tx.type === 'EXPENSE')
+    .reduce((s, tx) => s + tx.amount, 0)
   const consolidated = income - expenses
 
   if (!data) return null
@@ -105,7 +108,10 @@ export default function Transactions() {
 
         {/* Search */}
         <div className="relative ml-auto">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40" />
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40"
+          />
           <input
             type="text"
             value={search}
@@ -129,14 +135,19 @@ export default function Transactions() {
                 : 'bg-surface-container-low text-on-surface/50 hover:text-on-surface/70'
             )}
           >
-            {t(`transactions.${p === 'today' ? 'today' : p === 'week' ? 'thisWeek' : p === 'month' ? 'thisMonth' : 'custom'}`)}
+            {t(
+              `transactions.${p === 'today' ? 'today' : p === 'week' ? 'thisWeek' : p === 'month' ? 'thisMonth' : 'custom'}`
+            )}
           </button>
         ))}
       </div>
 
       {/* ── Transaction list ──────────────────────────────────────────────── */}
       {grouped.length === 0 ? (
-        <div className="rounded-2xl bg-white p-12 text-center" style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
+        <div
+          className="rounded-2xl bg-white p-12 text-center"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
           <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
         </div>
       ) : (
@@ -149,24 +160,31 @@ export default function Transactions() {
 
       {/* ── Footer summary ────────────────────────────────────────────────── */}
       {filtered.length > 0 && (
-        <div className="mt-8 flex items-center justify-between rounded-2xl bg-white px-6 py-4"
-             style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
+        <div
+          className="mt-8 flex items-center justify-between rounded-2xl bg-white px-6 py-4"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
           <p className="text-xs text-on-surface/40">
             <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
             {t('transactions.listed')}
           </p>
           <div className="flex items-center gap-2">
-            <span className={cn(
-              'label text-xs font-bold',
-              consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-            )}>
+            <span
+              className={cn(
+                'label text-xs font-bold',
+                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
+              )}
+            >
               {consolidated >= 0 ? t('transactions.positiveFlow') : t('transactions.negativeFlow')}
             </span>
-            <span className={cn(
-              'text-sm font-bold',
-              consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-            )}>
-              {consolidated >= 0 ? '+' : ''}{formatCurrency(consolidated)}
+            <span
+              className={cn(
+                'text-sm font-bold',
+                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
+              )}
+            >
+              {consolidated >= 0 ? '+' : ''}
+              {formatCurrency(consolidated)}
             </span>
           </div>
         </div>
@@ -177,14 +195,19 @@ export default function Transactions() {
 
 // ─── DateGroup ─────────────────────────────────────────────────────────────────
 
-function DateGroup({ dateKey, txs, data }: {
+function DateGroup({
+  dateKey,
+  txs,
+  data,
+}: {
   dateKey: string
   txs: Transaction[]
   data: NonNullable<ReturnType<typeof useDataStore.getState>['data']>
 }) {
   const date = new Date(dateKey + 'T12:00:00')
   const today = new Date()
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
 
   let label: string
   if (date.toDateString() === today.toDateString()) label = 'Hoje'
@@ -199,7 +222,10 @@ function DateGroup({ dateKey, txs, data }: {
         <span className="label text-xs font-semibold text-on-surface/50 uppercase">{label}</span>
         <span className="text-xs text-on-surface/30">{dateFormatted}</span>
       </div>
-      <div className="rounded-2xl bg-white overflow-hidden" style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
+      <div
+        className="rounded-2xl bg-white overflow-hidden"
+        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+      >
         {txs.map((tx, i) => (
           <TxRow key={tx.id} tx={tx} data={data} isLast={i === txs.length - 1} />
         ))}
@@ -210,7 +236,11 @@ function DateGroup({ dateKey, txs, data }: {
 
 // ─── TxRow ─────────────────────────────────────────────────────────────────────
 
-function TxRow({ tx, data, isLast }: {
+function TxRow({
+  tx,
+  data,
+  isLast,
+}: {
   tx: Transaction
   data: NonNullable<ReturnType<typeof useDataStore.getState>['data']>
   isLast: boolean
@@ -220,13 +250,18 @@ function TxRow({ tx, data, isLast }: {
   const txTags = data.tags.filter((tag) => tx.tags.includes(tag.id))
   const isIncome = tx.type === 'INCOME'
 
-  const timeStr = new Date(tx.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const timeStr = new Date(tx.date).toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
   return (
-    <div className={cn(
-      'flex items-center gap-4 px-5 py-4 hover:bg-surface-container-low transition-colors',
-      !isLast && 'border-b border-surface-container-low'
-    )}>
+    <div
+      className={cn(
+        'flex items-center gap-4 px-5 py-4 hover:bg-surface-container-low transition-colors',
+        !isLast && 'border-b border-surface-container-low'
+      )}
+    >
       {/* Category icon */}
       <div
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white text-sm font-semibold"
@@ -242,7 +277,9 @@ function TxRow({ tx, data, isLast }: {
             {tx.type === 'INCOME' ? 'Receita' : tx.type === 'EXPENSE' ? 'Despesa' : 'Transf.'}
           </span>
         </div>
-        <p className="text-sm font-semibold text-on-surface truncate">{tx.description || cat?.name || '—'}</p>
+        <p className="text-sm font-semibold text-on-surface truncate">
+          {tx.description || cat?.name || '—'}
+        </p>
         <div className="flex items-center gap-2 mt-0.5">
           {txTags.map((tag) => (
             <span
@@ -253,9 +290,7 @@ function TxRow({ tx, data, isLast }: {
               #{tag.name}
             </span>
           ))}
-          {acc && (
-            <span className="text-xs text-on-surface/30">{acc.name}</span>
-          )}
+          {acc && <span className="text-xs text-on-surface/30">{acc.name}</span>}
           <span className="text-xs text-on-surface/30">{timeStr}</span>
         </div>
       </div>
@@ -264,17 +299,19 @@ function TxRow({ tx, data, isLast }: {
       <div className="flex items-center gap-3 shrink-0">
         <div className="text-right">
           <p className={cn('text-sm font-bold', isIncome ? 'text-primary' : 'text-tertiary')}>
-            {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+            {isIncome ? '+' : '-'}
+            {formatCurrency(tx.amount)}
           </p>
           <p className="text-[10px] text-on-surface/30 mt-0.5">
             {isIncome ? 'Depósito' : 'Débito'}
           </p>
         </div>
         <button className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors">
-          {tx.isPaid
-            ? <CheckCircle2 size={20} className="text-primary" strokeWidth={1.5} />
-            : <Clock size={20} className="text-on-surface/20" strokeWidth={1.5} />
-          }
+          {tx.isPaid ? (
+            <CheckCircle2 size={20} className="text-primary" strokeWidth={1.5} />
+          ) : (
+            <Clock size={20} className="text-on-surface/20" strokeWidth={1.5} />
+          )}
         </button>
       </div>
     </div>
@@ -283,7 +320,11 @@ function TxRow({ tx, data, isLast }: {
 
 // ─── FilterDropdown ────────────────────────────────────────────────────────────
 
-function FilterDropdown({ value, onChange, options }: {
+function FilterDropdown({
+  value,
+  onChange,
+  options,
+}: {
   label?: string
   value: string
   onChange: (v: string) => void
@@ -297,10 +338,15 @@ function FilterDropdown({ value, onChange, options }: {
         className="appearance-none rounded-xl bg-surface-container-low py-2 pl-3 pr-7 text-sm font-medium text-on-surface/70 outline-none hover:bg-surface-container-high transition-colors cursor-pointer"
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
         ))}
       </select>
-      <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none" />
+      <ChevronDown
+        size={14}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+      />
     </div>
   )
 }

@@ -2,8 +2,17 @@ import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
-  PieChart, Pie, Cell,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
 import { formatCurrency, cn } from '@/lib/utils'
@@ -21,7 +30,7 @@ export default function Analytics() {
   const [includeUnpaid, setIncludeUnpaid] = useState(false)
   const [offset, setOffset] = useState(0) // months back/forward
 
-  const now = new Date()
+  const now = useMemo(() => new Date(), [])
 
   // ── Date range label ────────────────────────────────────────────────────────
   const { startDate, endDate } = useMemo(() => {
@@ -33,7 +42,7 @@ export default function Analytics() {
     const start = new Date(ref.getFullYear(), ref.getMonth() - 3, 1)
     const end = new Date(ref.getFullYear(), ref.getMonth() + 3, 0)
     return { startDate: start, endDate: end }
-  }, [viewPeriod, offset])
+  }, [viewPeriod, offset, now])
 
   const dateRangeLabel = `${startDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })} – ${endDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}`
 
@@ -78,11 +87,13 @@ export default function Analytics() {
 
     function groupByCategory(type: 'INCOME' | 'EXPENSE') {
       const map: Record<string, number> = {}
-      txs.filter((tx) => tx.type === type).forEach((tx) => {
-        const cat = data!.categories.find((c) => c.id === tx.categoryId)
-        const name = cat?.name ?? 'Outros'
-        map[name] = (map[name] ?? 0) + tx.amount
-      })
+      txs
+        .filter((tx) => tx.type === type)
+        .forEach((tx) => {
+          const cat = data!.categories.find((c) => c.id === tx.categoryId)
+          const name = cat?.name ?? 'Outros'
+          map[name] = (map[name] ?? 0) + tx.amount
+        })
       return Object.entries(map).map(([name, value]) => ({ name, value }))
     }
 
@@ -103,11 +114,19 @@ export default function Analytics() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Date navigation */}
         <div className="flex items-center gap-2">
-          <button onClick={() => setOffset((o) => o - 1)} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors">
+          <button
+            onClick={() => setOffset((o) => o - 1)}
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+          >
             <ChevronLeft size={18} strokeWidth={1.5} className="text-on-surface/60" />
           </button>
-          <h2 className="text-xl font-bold text-on-surface min-w-44 text-center">{dateRangeLabel}</h2>
-          <button onClick={() => setOffset((o) => o + 1)} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors">
+          <h2 className="text-xl font-bold text-on-surface min-w-44 text-center">
+            {dateRangeLabel}
+          </h2>
+          <button
+            onClick={() => setOffset((o) => o + 1)}
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+          >
             <ChevronRight size={18} strokeWidth={1.5} className="text-on-surface/60" />
           </button>
         </div>
@@ -153,7 +172,10 @@ export default function Analytics() {
       </div>
 
       {/* ── Cash flow projection chart ────────────────────────────────────── */}
-      <div className="rounded-2xl bg-white p-6" style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
+      <div
+        className="rounded-2xl bg-white p-6"
+        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+      >
         <h3 className="text-sm font-semibold text-on-surface">{t('analytics.cashFlowTitle')}</h3>
         <p className="text-xs text-on-surface/40 mt-0.5 mb-6">{t('analytics.cashFlowSub')}</p>
 
@@ -161,17 +183,59 @@ export default function Analytics() {
           {cashFlowData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={cashFlowData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(25,28,29,0.04)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(25,28,29,0.04)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                />
                 <Tooltip
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }}
+                  contentStyle={{
+                    borderRadius: '12px',
+                    border: 'none',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                    fontSize: 12,
+                  }}
                   formatter={(value) => formatCurrency(Number(value))}
                 />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 16 }}
-                  formatter={(value) => value === 'generalFlow' ? t('analytics.generalFlow') : t('analytics.consolidatedBalance')} />
-                <Line type="monotone" dataKey="generalFlow" stroke="#006E2F" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="consolidatedBalance" stroke="#22C55E" strokeWidth={2} strokeDasharray="4 2" dot={false} activeDot={{ r: 4 }} />
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: 12, paddingTop: 16 }}
+                  formatter={(value) =>
+                    value === 'generalFlow'
+                      ? t('analytics.generalFlow')
+                      : t('analytics.consolidatedBalance')
+                  }
+                />
+                <Line
+                  type="monotone"
+                  dataKey="generalFlow"
+                  stroke="#006E2F"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="consolidatedBalance"
+                  stroke="#22C55E"
+                  strokeWidth={2}
+                  strokeDasharray="4 2"
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -203,14 +267,22 @@ export default function Analytics() {
 
 // ─── CategoryDonut ────────────────────────────────────────────────────────────
 
-function CategoryDonut({ title, data, total, colors }: {
+function CategoryDonut({
+  title,
+  data,
+  total,
+  colors,
+}: {
   title: string
   data: { name: string; value: number }[]
   total: number
   colors: string[]
 }) {
   return (
-    <div className="rounded-2xl bg-white p-6" style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}>
+    <div
+      className="rounded-2xl bg-white p-6"
+      style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+    >
       <h3 className="text-sm font-semibold text-on-surface mb-4">{title}</h3>
 
       {data.length === 0 ? (
@@ -220,8 +292,19 @@ function CategoryDonut({ title, data, total, colors }: {
           {/* Donut */}
           <div className="relative shrink-0" style={{ width: 120, height: 120 }}>
             <PieChart width={120} height={120}>
-              <Pie data={data} cx={55} cy={55} innerRadius={36} outerRadius={54} paddingAngle={2} dataKey="value" strokeWidth={0}>
-                {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+              <Pie
+                data={data}
+                cx={55}
+                cy={55}
+                innerRadius={36}
+                outerRadius={54}
+                paddingAngle={2}
+                dataKey="value"
+                strokeWidth={0}
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={colors[i % colors.length]} />
+                ))}
               </Pie>
             </PieChart>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -234,10 +317,15 @@ function CategoryDonut({ title, data, total, colors }: {
             {data.slice(0, 5).map((item, i) => (
               <div key={item.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: colors[i % colors.length] }}
+                  />
                   <span className="text-xs text-on-surface/70 truncate">{item.name}</span>
                 </div>
-                <span className="text-xs font-semibold text-on-surface ml-2">{formatCurrency(item.value)}</span>
+                <span className="text-xs font-semibold text-on-surface ml-2">
+                  {formatCurrency(item.value)}
+                </span>
               </div>
             ))}
           </div>

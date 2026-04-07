@@ -23,7 +23,7 @@ export async function saveToIdb(data: DataFile): Promise<void> {
 
 export async function loadFromIdb(): Promise<DataFile | null> {
   const db = await getDb()
-  return (await db.get(STORE, KEY)) ?? null
+  return ((await db.get(STORE, KEY)) as DataFile | undefined) ?? null
 }
 
 export async function clearIdb(): Promise<void> {
