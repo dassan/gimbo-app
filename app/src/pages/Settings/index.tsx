@@ -16,6 +16,24 @@ import {
   Pencil,
   Trash2,
   AlertTriangle,
+  X,
+  PiggyBank,
+  CreditCard,
+  Bitcoin,
+  ArrowLeftRight,
+  Briefcase,
+  TrendingUp,
+  MoreHorizontal,
+  Utensils,
+  ShoppingCart,
+  Car,
+  Home,
+  Heart,
+  Plane,
+  GraduationCap,
+  Tv,
+  Wrench,
+  Gift,
 } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
@@ -23,9 +41,64 @@ import { downloadDataFile, openDataFile } from '@/lib/storage/fileSystem'
 import { clearIdb, saveToIdb } from '@/lib/storage/indexedDb'
 import { formatCurrency, cn, uuid, now } from '@/lib/utils'
 import { AUDIT_RETENTION_DEFAULT } from '@/lib/storage/schema'
-import type { Locale, Theme, AuditAction } from '@/types'
+import type {
+  Account,
+  AccountType,
+  Category,
+  CategoryType,
+  Locale,
+  Theme,
+  AuditAction,
+} from '@/types'
 
 type Section = 'accounts' | 'categories' | 'tags' | 'profile' | 'preferences' | 'data' | 'history'
+
+// ─── Account type config ──────────────────────────────────────────────────────
+
+const ACCOUNT_TYPES: { type: AccountType; icon: React.ReactNode }[] = [
+  { type: 'RETAIL', icon: <Landmark size={20} strokeWidth={1.5} /> },
+  { type: 'SAVINGS', icon: <PiggyBank size={20} strokeWidth={1.5} /> },
+  { type: 'CREDIT', icon: <CreditCard size={20} strokeWidth={1.5} /> },
+  { type: 'CRYPTO', icon: <Bitcoin size={20} strokeWidth={1.5} /> },
+  { type: 'FOREX', icon: <ArrowLeftRight size={20} strokeWidth={1.5} /> },
+  { type: 'ASSET', icon: <Briefcase size={20} strokeWidth={1.5} /> },
+  { type: 'STOCKS', icon: <TrendingUp size={20} strokeWidth={1.5} /> },
+  { type: 'OTHER', icon: <MoreHorizontal size={20} strokeWidth={1.5} /> },
+]
+
+// ─── Category icon config ─────────────────────────────────────────────────────
+
+const CATEGORY_ICONS: { name: string; icon: React.ReactNode }[] = [
+  { name: 'utensils', icon: <Utensils size={18} strokeWidth={1.5} /> },
+  { name: 'shopping-cart', icon: <ShoppingCart size={18} strokeWidth={1.5} /> },
+  { name: 'car', icon: <Car size={18} strokeWidth={1.5} /> },
+  { name: 'home', icon: <Home size={18} strokeWidth={1.5} /> },
+  { name: 'heart', icon: <Heart size={18} strokeWidth={1.5} /> },
+  { name: 'plane', icon: <Plane size={18} strokeWidth={1.5} /> },
+  { name: 'graduation-cap', icon: <GraduationCap size={18} strokeWidth={1.5} /> },
+  { name: 'tv', icon: <Tv size={18} strokeWidth={1.5} /> },
+  { name: 'wrench', icon: <Wrench size={18} strokeWidth={1.5} /> },
+  { name: 'briefcase', icon: <Briefcase size={18} strokeWidth={1.5} /> },
+  { name: 'gift', icon: <Gift size={18} strokeWidth={1.5} /> },
+  { name: 'tag', icon: <Tag size={18} strokeWidth={1.5} /> },
+]
+
+function categoryIcon(name: string): React.ReactNode {
+  return CATEGORY_ICONS.find((i) => i.name === name)?.icon ?? <Tag size={18} strokeWidth={1.5} />
+}
+
+function accountTypeIcon(type: AccountType): React.ReactNode {
+  return (
+    ACCOUNT_TYPES.find((t) => t.type === type)?.icon ?? <Landmark size={18} strokeWidth={1.5} />
+  )
+}
+
+// ─── Modal state ──────────────────────────────────────────────────────────────
+
+type ModalState = { open: false } | { open: true; account: Account | null }
+type CategoryModalState = { open: false } | { open: true; category: Category | null }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -70,13 +143,25 @@ const ACTION_ICON: Record<AuditAction, React.ReactNode> = {
 export default function Settings() {
   const { t, i18n } = useTranslation()
   const data = useDataStore((s) => s.data)
-  const { addAccount, addCategory, addTag, updateUser, setRetentionLimit } = useDataStore()
+  const {
+    addAccount,
+    updateAccount,
+    deleteAccount,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    addTag,
+    updateUser,
+    setRetentionLimit,
+  } = useDataStore()
   const loadData = useDataStore((s) => s.loadData)
   const { workspace, setTheme, setLocale } = useWorkspaceStore()
 
   const [activeSection, setActiveSection] = useState<Section>('accounts')
   const [profileName, setProfileName] = useState(data?.user.name ?? '')
   const [profileEmail, setProfileEmail] = useState(data?.user.email ?? '')
+  const [modal, setModal] = useState<ModalState>({ open: false })
+  const [categoryModal, setCategoryModal] = useState<CategoryModalState>({ open: false })
 
   function handleSaveProfile() {
     if (!data) return
@@ -100,19 +185,37 @@ export default function Settings() {
     loadData(imported)
   }
 
-  function handleAddAccount() {
-    addAccount({ id: uuid(), name: 'Nova Conta', type: 'CHECKING', balance: 0 })
+  function handleSaveAccount(name: string, type: AccountType, includeInBalance: boolean) {
+    if (modal.open && modal.account) {
+      updateAccount({ ...modal.account, name, type, includeInBalance })
+    } else {
+      addAccount({ id: uuid(), name, type, balance: 0, includeInBalance })
+    }
+    setModal({ open: false })
   }
 
-  function handleAddCategory() {
-    addCategory({
-      id: uuid(),
-      parentId: null,
-      name: 'Nova Categoria',
-      icon: 'tag',
-      color: '#6B7280',
-      type: 'EXPENSE',
-    })
+  function handleDeleteAccount(id: string) {
+    deleteAccount(id)
+    setModal({ open: false })
+  }
+
+  function handleSaveCategory(
+    name: string,
+    icon: string,
+    parentId: string | null,
+    type: CategoryType
+  ) {
+    if (categoryModal.open && categoryModal.category) {
+      updateCategory({ ...categoryModal.category, name, icon, parentId, type })
+    } else {
+      addCategory({ id: uuid(), name, icon, parentId, type, color: '#22c55e' })
+    }
+    setCategoryModal({ open: false })
+  }
+
+  function handleDeleteCategory(id: string) {
+    deleteCategory(id)
+    setCategoryModal({ open: false })
   }
 
   function handleAddTag() {
@@ -149,360 +252,746 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="text-2xl font-bold text-on-surface mb-1">{t('settings.title')}</h1>
+    <>
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <h1 className="text-2xl font-bold text-on-surface mb-1">{t('settings.title')}</h1>
 
-      <div className="mt-6 flex gap-6">
-        {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-        <aside className="w-52 shrink-0">
-          <SidebarGroup label={t('settings.dataManagement')}>
-            {DATA_SECTIONS.map((s) => (
-              <SidebarItem
-                key={s.key}
-                icon={s.icon}
-                label={t(s.labelKey)}
-                active={activeSection === s.key}
-                onClick={() => setActiveSection(s.key)}
-              />
-            ))}
-          </SidebarGroup>
+        <div className="mt-6 flex gap-6">
+          {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+          <aside className="w-52 shrink-0">
+            <SidebarGroup label={t('settings.dataManagement')}>
+              {DATA_SECTIONS.map((s) => (
+                <SidebarItem
+                  key={s.key}
+                  icon={s.icon}
+                  label={t(s.labelKey)}
+                  active={activeSection === s.key}
+                  onClick={() => setActiveSection(s.key)}
+                />
+              ))}
+            </SidebarGroup>
 
-          <SidebarGroup label={t('settings.appSettings')} className="mt-4">
-            {APP_SECTIONS.map((s) => (
-              <SidebarItem
-                key={s.key}
-                icon={s.icon}
-                label={t(s.labelKey)}
-                active={activeSection === s.key}
-                onClick={() => setActiveSection(s.key)}
-              />
-            ))}
-          </SidebarGroup>
-        </aside>
+            <SidebarGroup label={t('settings.appSettings')} className="mt-4">
+              {APP_SECTIONS.map((s) => (
+                <SidebarItem
+                  key={s.key}
+                  icon={s.icon}
+                  label={t(s.labelKey)}
+                  active={activeSection === s.key}
+                  onClick={() => setActiveSection(s.key)}
+                />
+              ))}
+            </SidebarGroup>
+          </aside>
 
-        {/* ── Content ─────────────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0">
-          {/* Accounts */}
-          {activeSection === 'accounts' && (
-            <Section title={t('settings.accounts')}>
-              <div className="space-y-2 mb-4">
-                {data.accounts.length === 0 && (
-                  <p className="py-4 text-center text-sm text-on-surface/40">
-                    {t('common.noData')}
+          {/* ── Content ─────────────────────────────────────────────────────── */}
+          <div className="flex-1 min-w-0">
+            {/* Accounts */}
+            {activeSection === 'accounts' && (
+              <Section title={t('settings.accounts')}>
+                <div className="space-y-2 mb-4">
+                  {data.accounts.length === 0 && (
+                    <p className="py-4 text-center text-sm text-on-surface/40">
+                      {t('common.noData')}
+                    </p>
+                  )}
+                  {data.accounts.map((acc) => (
+                    <button
+                      key={acc.id}
+                      onClick={() => setModal({ open: true, account: acc })}
+                      className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
+                      style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                        <span className="text-primary">{accountTypeIcon(acc.type)}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-on-surface">{acc.name}</p>
+                        <p className="text-xs text-on-surface/40">
+                          {t(`accounts.${acc.type.toLowerCase()}`)}
+                        </p>
+                      </div>
+                      <span className="text-sm font-bold text-on-surface">
+                        {formatCurrency(acc.balance)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setModal({ open: true, account: null })}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
+                >
+                  <Plus size={16} strokeWidth={2.5} />
+                  {t('settings.newAccount')}
+                </button>
+              </Section>
+            )}
+
+            {/* Categories */}
+            {activeSection === 'categories' && (
+              <Section title={t('settings.categories')}>
+                <div className="mb-4 rounded-2xl bg-primary px-5 py-4 text-white">
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-70">
+                    {t('settings.subcategoriesTip')}
                   </p>
-                )}
-                {data.accounts.map((acc) => (
+                  <p className="mt-1 text-sm">{t('settings.subcategoriesTipDesc')}</p>
+                </div>
+                <div className="space-y-2 mb-4">
+                  {data.categories.length === 0 && (
+                    <p className="py-4 text-center text-sm text-on-surface/40">
+                      {t('common.noData')}
+                    </p>
+                  )}
+                  {data.categories
+                    .filter((c) => !c.parentId)
+                    .map((parent) => (
+                      <div key={parent.id}>
+                        <button
+                          onClick={() => setCategoryModal({ open: true, category: parent })}
+                          className="flex w-full items-center gap-3 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
+                          style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                        >
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+                            <span className="text-primary">{categoryIcon(parent.icon)}</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-on-surface">{parent.name}</p>
+                            <p className="text-xs text-on-surface/40">
+                              {parent.type === 'INCOME'
+                                ? t('settings.categoryTypeIncome')
+                                : t('settings.categoryTypeExpense')}
+                            </p>
+                          </div>
+                        </button>
+                        {data.categories
+                          .filter((c) => c.parentId === parent.id)
+                          .map((child) => (
+                            <button
+                              key={child.id}
+                              onClick={() => setCategoryModal({ open: true, category: child })}
+                              className="ml-6 mt-1 flex w-full items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3 text-left hover:bg-surface-container-high transition-colors"
+                            >
+                              <div className="h-1.5 w-1.5 rounded-full bg-on-surface/20" />
+                              <p className="text-sm text-on-surface/70">{child.name}</p>
+                            </button>
+                          ))}
+                      </div>
+                    ))}
+                </div>
+                <button
+                  onClick={() => setCategoryModal({ open: true, category: null })}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
+                >
+                  <Plus size={16} strokeWidth={2.5} />
+                  {t('settings.newCategory')}
+                </button>
+              </Section>
+            )}
+
+            {/* Tags */}
+            {activeSection === 'tags' && (
+              <Section title={t('settings.tags')}>
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {data.tags.length === 0 && (
+                    <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
+                  )}
+                  {data.tags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="rounded-full px-4 py-1.5 text-sm font-medium text-white"
+                      style={{ backgroundColor: tag.color }}
+                    >
+                      #{tag.name}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  onClick={handleAddTag}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
+                >
+                  <Plus size={16} strokeWidth={2.5} />
+                  {t('settings.newTag')}
+                </button>
+              </Section>
+            )}
+
+            {/* Profile */}
+            {activeSection === 'profile' && (
+              <Section title={t('settings.profile')}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="label text-on-surface/40 block mb-1.5">
+                      {t('onboarding.name')}
+                    </label>
+                    <input
+                      type="text"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="label text-on-surface/40 block mb-1.5">
+                      {t('onboarding.email')}
+                    </label>
+                    <input
+                      type="email"
+                      value={profileEmail}
+                      onChange={(e) => setProfileEmail(e.target.value)}
+                      className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSaveProfile}
+                    className="rounded-2xl bg-on-surface px-6 py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
+                  >
+                    {t('settings.saveProfile')}
+                  </button>
+                </div>
+              </Section>
+            )}
+
+            {/* Preferences */}
+            {activeSection === 'preferences' && (
+              <Section title={t('settings.preferences')}>
+                <div className="space-y-3">
+                  <SettingRow label={t('settings.language')}>
+                    <select
+                      value={workspace.locale}
+                      onChange={(e) => handleLocaleChange(e.target.value as Locale)}
+                      className="appearance-none rounded-xl border border-outline-variant bg-surface px-4 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+                    >
+                      <option value="pt-BR">Português (Brasil)</option>
+                      <option value="en-US">English (US)</option>
+                    </select>
+                  </SettingRow>
+
+                  <SettingRow label={t('settings.theme')}>
+                    <select
+                      value={workspace.theme}
+                      onChange={(e) => setTheme(e.target.value as Theme)}
+                      className="appearance-none rounded-xl border border-outline-variant bg-surface px-4 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+                    >
+                      <option value="system">{t('settings.themeSystem')}</option>
+                      <option value="light">{t('settings.themeLight')}</option>
+                      <option value="dark">{t('settings.themeDark')}</option>
+                    </select>
+                  </SettingRow>
+
+                  {/* Audit log retention toggle */}
                   <div
-                    key={acc.id}
-                    className="flex items-center gap-4 rounded-2xl bg-white px-5 py-4"
+                    className="rounded-2xl bg-white px-5 py-4 space-y-3"
                     style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                      <Landmark size={18} className="text-primary" strokeWidth={1.5} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-on-surface">{acc.name}</p>
-                      <p className="text-xs text-on-surface/40">
-                        {t(
-                          `accounts.${acc.type === 'CHECKING' ? 'checking' : acc.type === 'SAVINGS' ? 'savings' : 'creditCard'}`
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-on-surface">{t('audit.retentionLabel')}</p>
+                        <p className="text-xs text-on-surface/40 mt-0.5">
+                          {t('audit.retentionDefault')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleRetentionToggle}
+                        className={cn(
+                          'relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200',
+                          isUnlimited ? 'bg-primary' : 'bg-surface-container-high'
                         )}
-                      </p>
+                      >
+                        <span
+                          className={cn(
+                            'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 mt-0.5',
+                            isUnlimited ? 'translate-x-5' : 'translate-x-0.5'
+                          )}
+                        />
+                      </button>
                     </div>
-                    <span className="text-sm font-bold text-on-surface">
-                      {formatCurrency(acc.balance)}
+                    {isUnlimited && (
+                      <div className="flex items-start gap-2 rounded-xl bg-tertiary/8 px-3 py-2.5">
+                        <AlertTriangle
+                          size={14}
+                          className="text-tertiary shrink-0 mt-0.5"
+                          strokeWidth={2}
+                        />
+                        <p className="text-xs text-tertiary">{t('audit.retentionHint')}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Section>
+            )}
+
+            {/* Data file */}
+            {activeSection === 'data' && (
+              <Section title={t('settings.dataFile')}>
+                <div className="mb-6 rounded-2xl bg-surface-container-low p-5">
+                  <p className="text-sm text-on-surface/60">{t('settings.localFirst')}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-primary" strokeWidth={2} />
+                    <span className="text-xs font-semibold text-primary">
+                      {t('settings.privacyGuarantee')}
                     </span>
                   </div>
-                ))}
-              </div>
-              <button
-                onClick={handleAddAccount}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
-              >
-                <Plus size={16} strokeWidth={2.5} />
-                {t('settings.newAccount')}
-              </button>
-            </Section>
-          )}
-
-          {/* Categories */}
-          {activeSection === 'categories' && (
-            <Section title={t('settings.categories')}>
-              <div className="mb-4 rounded-2xl bg-primary px-5 py-4 text-white">
-                <p className="text-xs font-bold uppercase tracking-widest opacity-70">
-                  {t('settings.subcategoriesTip')}
-                </p>
-                <p className="mt-1 text-sm">{t('settings.subcategoriesTipDesc')}</p>
-              </div>
-              <div className="space-y-2 mb-4">
-                {data.categories
-                  .filter((c) => !c.parentId)
-                  .map((parent) => (
-                    <div key={parent.id}>
-                      <div
-                        className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4"
-                        style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                      >
-                        <div
-                          className="flex h-9 w-9 items-center justify-center rounded-xl text-white text-sm font-semibold"
-                          style={{ backgroundColor: parent.color }}
-                        >
-                          {parent.name[0]}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-on-surface">{parent.name}</p>
-                          <p className="text-xs text-on-surface/40">
-                            {parent.type === 'INCOME' ? 'Receita' : 'Despesa'}
-                          </p>
-                        </div>
-                      </div>
-                      {data.categories
-                        .filter((c) => c.parentId === parent.id)
-                        .map((child) => (
-                          <div
-                            key={child.id}
-                            className="ml-6 mt-1 flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3"
-                          >
-                            <div className="h-1.5 w-1.5 rounded-full bg-on-surface/20" />
-                            <p className="text-sm text-on-surface/70">{child.name}</p>
-                          </div>
-                        ))}
-                    </div>
-                  ))}
-              </div>
-              <button
-                onClick={handleAddCategory}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
-              >
-                <Plus size={16} strokeWidth={2.5} />
-                {t('settings.newCategory')}
-              </button>
-            </Section>
-          )}
-
-          {/* Tags */}
-          {activeSection === 'tags' && (
-            <Section title={t('settings.tags')}>
-              <div className="flex flex-wrap gap-2 mb-6">
-                {data.tags.length === 0 && (
-                  <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
-                )}
-                {data.tags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="rounded-full px-4 py-1.5 text-sm font-medium text-white"
-                    style={{ backgroundColor: tag.color }}
-                  >
-                    #{tag.name}
-                  </span>
-                ))}
-              </div>
-              <button
-                onClick={handleAddTag}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
-              >
-                <Plus size={16} strokeWidth={2.5} />
-                {t('settings.newTag')}
-              </button>
-            </Section>
-          )}
-
-          {/* Profile */}
-          {activeSection === 'profile' && (
-            <Section title={t('settings.profile')}>
-              <div className="space-y-4">
-                <div>
-                  <label className="label text-on-surface/40 block mb-1.5">
-                    {t('onboarding.name')}
-                  </label>
-                  <input
-                    type="text"
-                    value={profileName}
-                    onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  />
                 </div>
-                <div>
-                  <label className="label text-on-surface/40 block mb-1.5">
-                    {t('onboarding.email')}
-                  </label>
-                  <input
-                    type="email"
-                    value={profileEmail}
-                    onChange={(e) => setProfileEmail(e.target.value)}
-                    className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={handleExport}
+                    className="flex flex-col items-center gap-2 rounded-2xl bg-white py-6 hover:bg-surface-container-low transition-colors"
+                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                  >
+                    <Download size={22} className="text-on-surface/60" strokeWidth={1.5} />
+                    <span className="text-sm font-medium text-on-surface">
+                      {t('settings.exportData')}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => void handleImport()}
+                    className="flex flex-col items-center gap-2 rounded-2xl bg-white py-6 hover:bg-surface-container-low transition-colors"
+                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                  >
+                    <Upload size={22} className="text-on-surface/60" strokeWidth={1.5} />
+                    <span className="text-sm font-medium text-on-surface">
+                      {t('settings.importData')}
+                    </span>
+                  </button>
                 </div>
-                <button
-                  onClick={handleSaveProfile}
-                  className="rounded-2xl bg-on-surface px-6 py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
-                >
-                  {t('settings.saveProfile')}
-                </button>
-              </div>
-            </Section>
-          )}
+              </Section>
+            )}
 
-          {/* Preferences */}
-          {activeSection === 'preferences' && (
-            <Section title={t('settings.preferences')}>
-              <div className="space-y-3">
-                <SettingRow label={t('settings.language')}>
-                  <select
-                    value={workspace.locale}
-                    onChange={(e) => handleLocaleChange(e.target.value as Locale)}
-                    className="appearance-none rounded-xl border border-outline-variant bg-surface px-4 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+            {/* Modification history */}
+            {activeSection === 'history' && (
+              <Section title={t('audit.title')} subtitle={t('audit.subtitle')}>
+                {auditLog.length === 0 ? (
+                  <div
+                    className="rounded-2xl bg-white py-12 text-center"
+                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
                   >
-                    <option value="pt-BR">Português (Brasil)</option>
-                    <option value="en-US">English (US)</option>
-                  </select>
-                </SettingRow>
-
-                <SettingRow label={t('settings.theme')}>
-                  <select
-                    value={workspace.theme}
-                    onChange={(e) => setTheme(e.target.value as Theme)}
-                    className="appearance-none rounded-xl border border-outline-variant bg-surface px-4 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
-                  >
-                    <option value="system">{t('settings.themeSystem')}</option>
-                    <option value="light">{t('settings.themeLight')}</option>
-                    <option value="dark">{t('settings.themeDark')}</option>
-                  </select>
-                </SettingRow>
-
-                {/* Audit log retention toggle */}
-                <div
-                  className="rounded-2xl bg-white px-5 py-4 space-y-3"
-                  style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-on-surface">{t('audit.retentionLabel')}</p>
-                      <p className="text-xs text-on-surface/40 mt-0.5">
-                        {t('audit.retentionDefault')}
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleRetentionToggle}
-                      className={cn(
-                        'relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200',
-                        isUnlimited ? 'bg-primary' : 'bg-surface-container-high'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 mt-0.5',
-                          isUnlimited ? 'translate-x-5' : 'translate-x-0.5'
-                        )}
-                      />
-                    </button>
+                    <History
+                      size={32}
+                      className="mx-auto text-on-surface/20 mb-3"
+                      strokeWidth={1}
+                    />
+                    <p className="text-sm text-on-surface/40">{t('audit.noEntries')}</p>
                   </div>
-                  {isUnlimited && (
-                    <div className="flex items-start gap-2 rounded-xl bg-tertiary/8 px-3 py-2.5">
-                      <AlertTriangle
-                        size={14}
-                        className="text-tertiary shrink-0 mt-0.5"
-                        strokeWidth={2}
-                      />
-                      <p className="text-xs text-tertiary">{t('audit.retentionHint')}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Section>
-          )}
-
-          {/* Data file */}
-          {activeSection === 'data' && (
-            <Section title={t('settings.dataFile')}>
-              <div className="mb-6 rounded-2xl bg-surface-container-low p-5">
-                <p className="text-sm text-on-surface/60">{t('settings.localFirst')}</p>
-                <div className="mt-3 flex items-center gap-2">
-                  <ShieldCheck size={14} className="text-primary" strokeWidth={2} />
-                  <span className="text-xs font-semibold text-primary">
-                    {t('settings.privacyGuarantee')}
-                  </span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleExport}
-                  className="flex flex-col items-center gap-2 rounded-2xl bg-white py-6 hover:bg-surface-container-low transition-colors"
-                  style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                >
-                  <Download size={22} className="text-on-surface/60" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-on-surface">
-                    {t('settings.exportData')}
-                  </span>
-                </button>
-                <button
-                  onClick={() => void handleImport()}
-                  className="flex flex-col items-center gap-2 rounded-2xl bg-white py-6 hover:bg-surface-container-low transition-colors"
-                  style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                >
-                  <Upload size={22} className="text-on-surface/60" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-on-surface">
-                    {t('settings.importData')}
-                  </span>
-                </button>
-              </div>
-            </Section>
-          )}
-
-          {/* Modification history */}
-          {activeSection === 'history' && (
-            <Section title={t('audit.title')} subtitle={t('audit.subtitle')}>
-              {auditLog.length === 0 ? (
-                <div
-                  className="rounded-2xl bg-white py-12 text-center"
-                  style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                >
-                  <History size={32} className="mx-auto text-on-surface/20 mb-3" strokeWidth={1} />
-                  <p className="text-sm text-on-surface/40">{t('audit.noEntries')}</p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {Array.from(auditGroups.entries()).map(([dateKey, entries]) => (
-                    <div key={dateKey}>
-                      <p className="label text-xs font-semibold text-on-surface/40 uppercase mb-2">
-                        {dateGroupLabel(dateKey)}
-                      </p>
-                      <div
-                        className="rounded-2xl bg-white overflow-hidden"
-                        style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                      >
-                        {entries.map((entry, i) => (
-                          <div
-                            key={entry.id}
-                            className={cn(
-                              'flex items-center gap-3 px-5 py-3.5',
-                              i < entries.length - 1 && 'border-b border-surface-container-low'
-                            )}
-                          >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-container-low">
-                              {ACTION_ICON[entry.action]}
+                ) : (
+                  <div className="space-y-6">
+                    {Array.from(auditGroups.entries()).map(([dateKey, entries]) => (
+                      <div key={dateKey}>
+                        <p className="label text-xs font-semibold text-on-surface/40 uppercase mb-2">
+                          {dateGroupLabel(dateKey)}
+                        </p>
+                        <div
+                          className="rounded-2xl bg-white overflow-hidden"
+                          style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                        >
+                          {entries.map((entry, i) => (
+                            <div
+                              key={entry.id}
+                              className={cn(
+                                'flex items-center gap-3 px-5 py-3.5',
+                                i < entries.length - 1 && 'border-b border-surface-container-low'
+                              )}
+                            >
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-container-low">
+                                {ACTION_ICON[entry.action]}
+                              </div>
+                              <p className="flex-1 text-sm text-on-surface truncate">
+                                {entry.summary}
+                              </p>
+                              <span className="text-xs text-on-surface/30 shrink-0">
+                                {relativeTime(entry.timestamp)}
+                              </span>
                             </div>
-                            <p className="flex-1 text-sm text-on-surface truncate">
-                              {entry.summary}
-                            </p>
-                            <span className="text-xs text-on-surface/30 shrink-0">
-                              {relativeTime(entry.timestamp)}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-          )}
+                    ))}
+                  </div>
+                )}
+              </Section>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* ── Add / Edit Account Modal ─────────────────────────────────────────── */}
+      {modal.open && (
+        <AddAccountModal
+          account={modal.account}
+          onSave={handleSaveAccount}
+          onDelete={handleDeleteAccount}
+          onClose={() => setModal({ open: false })}
+        />
+      )}
+
+      {/* ── Add / Edit Category Modal ────────────────────────────────────────── */}
+      {categoryModal.open && (
+        <AddCategoryModal
+          category={categoryModal.category}
+          topLevelCategories={data.categories.filter((c) => !c.parentId)}
+          onSave={handleSaveCategory}
+          onDelete={handleDeleteCategory}
+          onClose={() => setCategoryModal({ open: false })}
+        />
+      )}
+    </>
+  )
+}
+
+// ─── AddAccountModal ──────────────────────────────────────────────────────────
+
+function AddAccountModal({
+  account,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  account: Account | null
+  onSave: (name: string, type: AccountType, includeInBalance: boolean) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const isEdit = account !== null
+
+  const [name, setName] = useState(account?.name ?? '')
+  const [type, setType] = useState<AccountType>(account?.type ?? 'RETAIL')
+  const [includeInBalance, setIncludeInBalance] = useState(account?.includeInBalance ?? true)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  function handleSave() {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onSave(trimmed, type, includeInBalance)
+  }
+
+  function handleDelete() {
+    if (!account) return
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+    onDelete(account.id)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-semibold text-on-surface">
+            {isEdit ? t('settings.editAccount') : t('settings.addAccount')}
+          </h2>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface/40"
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Account Name */}
+        <div className="mb-5">
+          <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+            {t('settings.accountName')}
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave()
+            }}
+            placeholder={t('settings.accountNamePlaceholder')}
+            className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            autoFocus
+          />
+        </div>
+
+        {/* Bank / Institution grid */}
+        <div className="mb-5">
+          <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-3">
+            {t('settings.bankInstitution')}
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {ACCOUNT_TYPES.map(({ type: t_, icon }) => (
+              <button
+                key={t_}
+                onClick={() => setType(t_)}
+                className={cn(
+                  'flex flex-col items-center gap-1.5 rounded-2xl border-2 py-3 px-1 transition-all',
+                  type === t_
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-transparent bg-surface-container-low text-on-surface/50 hover:border-outline-variant'
+                )}
+              >
+                {icon}
+                <span className="text-[9px] font-semibold uppercase tracking-wide leading-none">
+                  {t_}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Include in balance toggle */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-on-surface/70">{t('settings.includeInBalance')}</span>
+          </div>
+          <button
+            onClick={() => setIncludeInBalance((v) => !v)}
+            className={cn(
+              'relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200',
+              includeInBalance ? 'bg-primary' : 'bg-surface-container-high'
+            )}
+          >
+            <span
+              className={cn(
+                'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 mt-0.5',
+                includeInBalance ? 'translate-x-5' : 'translate-x-0.5'
+              )}
+            />
+          </button>
+        </div>
+
+        {/* Actions */}
+        <button
+          onClick={handleSave}
+          disabled={!name.trim()}
+          className="mb-2 flex w-full items-center justify-center rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {t('settings.saveAccount')}
+        </button>
+        <button
+          onClick={onClose}
+          className="flex w-full items-center justify-center rounded-2xl bg-surface-container-low py-3 text-sm font-semibold text-on-surface/70 hover:bg-surface-container-high transition-all"
+        >
+          {t('common.cancel')}
+        </button>
+
+        {/* Delete (edit mode only) */}
+        {isEdit && (
+          <button
+            onClick={handleDelete}
+            className={cn(
+              'mt-4 flex w-full items-center justify-center text-sm font-semibold transition-colors',
+              confirmDelete ? 'text-tertiary underline' : 'text-tertiary/60 hover:text-tertiary'
+            )}
+          >
+            {confirmDelete
+              ? `Confirmar exclusão de "${account.name}"`
+              : t('settings.deleteAccount')}
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── AddCategoryModal ─────────────────────────────────────────────────────────
+
+function AddCategoryModal({
+  category,
+  topLevelCategories,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  category: Category | null
+  topLevelCategories: Category[]
+  onSave: (name: string, icon: string, parentId: string | null, type: CategoryType) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const isEdit = category !== null
+
+  const [name, setName] = useState(category?.name ?? '')
+  const [icon, setIcon] = useState(category?.icon ?? 'tag')
+  const [parentId, setParentId] = useState<string | null>(category?.parentId ?? null)
+  const [type, setType] = useState<CategoryType>(category?.type ?? 'EXPENSE')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  function handleParentChange(value: string) {
+    const pid = value === '' ? null : value
+    setParentId(pid)
+    if (pid) {
+      const parent = topLevelCategories.find((c) => c.id === pid)
+      if (parent) setType(parent.type)
+    }
+  }
+
+  function handleSave() {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onSave(trimmed, icon, parentId, type)
+  }
+
+  function handleDelete() {
+    if (!category) return
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+    onDelete(category.id)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h2 className="text-base font-semibold text-on-surface">
+              {isEdit ? t('settings.editCategory') : t('settings.addCategory')}
+            </h2>
+            <p className="text-xs text-on-surface/40 mt-0.5">{t('settings.addCategorySub')}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface/40"
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Category Name */}
+        <div className="mb-5">
+          <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+            {t('settings.categoryName')}
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave()
+            }}
+            placeholder={t('settings.categoryNamePlaceholder')}
+            className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            autoFocus
+          />
+        </div>
+
+        {/* Icon Picker */}
+        <div className="mb-5">
+          <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-3">
+            {t('settings.iconPicker')}
+          </label>
+          <div className="grid grid-cols-6 gap-2">
+            {CATEGORY_ICONS.map(({ name: iconName, icon: iconEl }) => (
+              <button
+                key={iconName}
+                onClick={() => setIcon(iconName)}
+                className={cn(
+                  'flex items-center justify-center rounded-2xl p-3 transition-all',
+                  icon === iconName
+                    ? 'bg-primary text-white'
+                    : 'bg-surface-container-low text-on-surface/50 hover:bg-surface-container-high'
+                )}
+              >
+                {iconEl}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Parent Category */}
+        <div className="mb-5">
+          <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+            {t('settings.parentCategory')}
+          </label>
+          <select
+            value={parentId ?? ''}
+            onChange={(e) => handleParentChange(e.target.value)}
+            className="w-full appearance-none rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">{t('settings.noneTopLevel')}</option>
+            {topLevelCategories
+              .filter((c) => !isEdit || c.id !== category?.id)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </select>
+        </div>
+
+        {/* Type toggle (top-level only) */}
+        {parentId === null && (
+          <div className="mb-5">
+            <div className="flex overflow-hidden rounded-xl border border-outline-variant">
+              <button
+                onClick={() => setType('EXPENSE')}
+                className={cn(
+                  'flex-1 py-2.5 text-sm font-medium transition-colors',
+                  type === 'EXPENSE'
+                    ? 'bg-primary text-white'
+                    : 'bg-surface text-on-surface/50 hover:bg-surface-container-low'
+                )}
+              >
+                {t('settings.categoryTypeExpense')}
+              </button>
+              <button
+                onClick={() => setType('INCOME')}
+                className={cn(
+                  'flex-1 py-2.5 text-sm font-medium transition-colors',
+                  type === 'INCOME'
+                    ? 'bg-primary text-white'
+                    : 'bg-surface text-on-surface/50 hover:bg-surface-container-low'
+                )}
+              >
+                {t('settings.categoryTypeIncome')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <button
+          onClick={handleSave}
+          disabled={!name.trim()}
+          className="mb-2 flex w-full items-center justify-center rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {t('common.save')}
+        </button>
+        <button
+          onClick={onClose}
+          className="flex w-full items-center justify-center rounded-2xl bg-surface-container-low py-3 text-sm font-semibold text-on-surface/70 hover:bg-surface-container-high transition-all"
+        >
+          {t('common.cancel')}
+        </button>
+
+        {/* Delete (edit mode only) */}
+        {isEdit && (
+          <button
+            onClick={handleDelete}
+            className={cn(
+              'mt-4 flex w-full items-center justify-center text-sm font-semibold transition-colors',
+              confirmDelete ? 'text-tertiary underline' : 'text-tertiary/60 hover:text-tertiary'
+            )}
+          >
+            {confirmDelete
+              ? `Confirmar exclusão de "${category.name}"`
+              : t('settings.deleteCategory')}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Page sub-components ──────────────────────────────────────────────────────
 
 function SidebarGroup({
   label,

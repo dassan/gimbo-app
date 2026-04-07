@@ -4,7 +4,14 @@ import { makeDataFile } from '../fixtures/dataFile'
 import type { Account, Category, Tag, Transaction } from '@/types'
 
 function makeAccount(overrides: Partial<Account> = {}): Account {
-  return { id: 'acc-1', name: 'Checking', type: 'CHECKING', balance: 0, ...overrides }
+  return {
+    id: 'acc-1',
+    name: 'Checking',
+    type: 'RETAIL',
+    balance: 0,
+    includeInBalance: true,
+    ...overrides,
+  }
 }
 
 function makeCategory(overrides: Partial<Category> = {}): Category {

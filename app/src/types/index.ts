@@ -1,6 +1,14 @@
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export type AccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT_CARD'
+export type AccountType =
+  | 'RETAIL'
+  | 'SAVINGS'
+  | 'CREDIT'
+  | 'CRYPTO'
+  | 'FOREX'
+  | 'ASSET'
+  | 'STOCKS'
+  | 'OTHER'
 export type CategoryType = 'INCOME' | 'EXPENSE'
 export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER'
 
@@ -27,6 +35,7 @@ export interface Account {
   name: string
   type: AccountType
   balance: number
+  includeInBalance: boolean
 }
 
 export interface Category {

@@ -7,6 +7,7 @@
 | B-01 | Tela de Relatórios: gráfico de projeção de fluxo de caixa não exibe dados | alta       | aberto |
 | B-02 | Tela de Relatórios: gráfico de Receitas por Categoria não exibe dados     | alta       | aberto |
 | B-03 | Tela de Relatórios: gráfico de Despesas por Categoria não exibe dados     | alta       | aberto |
+| B-04 | Na página de Configurações, na aba Contas, o saldo de cada conta não está sendo calculado corretamente | alta       | aberto |
 
 ## Melhorias
 
