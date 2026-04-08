@@ -9,7 +9,8 @@ import type {
   AuditAction,
   AuditEntity,
 } from '@/types'
-import { saveDataFile } from '@/lib/storage/fileSystem'
+import { saveDataFile, readCurrentDataFile } from '@/lib/storage/fileSystem'
+import { mergeDataFiles } from '@/lib/storage/merge'
 import { saveToIdb } from '@/lib/storage/indexedDb'
 import { applyRetention } from '@/lib/storage/schema'
 import { uuid, now } from '@/lib/utils'
@@ -300,8 +301,10 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const { data } = get()
     if (!data) return false
     const updated = { ...data, settings: { ...data.settings, fileUpdatedAt: now() } }
-    const ok = await saveDataFile(updated)
-    if (ok) set({ unsyncedCount: 0 })
+    const diskData = await readCurrentDataFile()
+    const toSave = diskData ? mergeDataFiles(updated, diskData) : updated
+    const ok = await saveDataFile(toSave)
+    if (ok) set({ data: toSave, unsyncedCount: 0 })
     return ok
   },
 }))

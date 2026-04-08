@@ -513,6 +513,75 @@ settings.importFileError  — mensagem exibida quando o arquivo importado falha 
 
 ---
 
+## Fase 11 — Sincronização: Read-Before-Write (M-09)
+
+### TASK-23: Read-before-write com merge por UUID
+
+#### Problema resolvido
+O `persist()` anterior fazia um overwrite cego do arquivo JSON no disco. Se o IndexedDB sofresse eviction parcial durante uma ausência do usuário, ao sincronizar o app sobrescreveria o arquivo com dados incompletos, destruindo entidades que existiam apenas no disco.
+
+#### `src/lib/storage/fileSystem.ts` — nova função `readCurrentDataFile()`
+```typescript
+export async function readCurrentDataFile(): Promise<DataFile | null>
+```
+- Lê o arquivo do `_dataHandle` em cache sem abrir nenhum picker
+- Reutiliza `validateDataFile()` do Zod para garantir que o arquivo lido é válido
+- Retorna `null` em qualquer falha (sem handle, JSON inválido, falha Zod, arquivo movido)
+- Falhas são não-fatais: o caller prossegue com o save sem merge
+
+#### `src/lib/storage/merge.ts` — novo módulo com `mergeDataFiles()`
+Função pura de merge em memória:
+```typescript
+export function mergeDataFiles(local: DataFile, disk: DataFile): DataFile
+```
+
+Estratégia de merge por entidade:
+| Entidade | Regra |
+|----------|-------|
+| `user` | `local` vence |
+| `settings` | `local` vence, exceto `fileCreatedAt` que vem do `disk` |
+| `accounts`, `categories`, `tags`, `transactions` | union por `id`; item do `local` tem precedência em colisão; itens exclusivos do `disk` são adicionados (recovery path) |
+| `auditLog` | union por `id`, ordenado por `timestamp` asc, `applyRetention` aplicado |
+
+#### `src/store/useDataStore.ts` — `persist()` atualizado
+```typescript
+persist: async () => {
+  const { data } = get()
+  if (!data) return false
+  const updated = { ...data, settings: { ...data.settings, fileUpdatedAt: now() } }
+  const diskData = await readCurrentDataFile()              // lê o disco
+  const toSave = diskData ? mergeDataFiles(updated, diskData) : updated  // merge
+  const ok = await saveDataFile(toSave)
+  if (ok) set({ data: toSave, unsyncedCount: 0 })          // store reflete o merge
+  return ok
+}
+```
+- O store em memória é atualizado com `toSave` após sucesso, para que um segundo sync imediato não perca os itens recuperados do disco
+
+#### `src/components/Navbar.tsx` — tooltip no botão de sync
+- Atributo `title` com `t('sync.tooltip', { count: unsyncedCount })` quando `unsyncedCount > 0`
+
+#### `src/lib/i18n/locales/{pt-BR,en-US}.json` — novas chaves
+```
+sync.tooltip         — "{{count}} alteração não salva"
+sync.tooltip_plural  — "{{count}} alterações não salvas"
+```
+
+#### Testes
+- `src/test/lib/storage/merge.test.ts` — novo arquivo: 15 casos cobrindo user, settings, cada entidade (local-only, disk-only, colisão), auditLog (deduplicação, ordenação, retention), idempotência
+- `src/test/lib/storage/fileSystem.test.ts` — 5 novos casos para `readCurrentDataFile`: handle válido retorna DataFile, sem handle não abre picker, JSON inválido retorna null, Zod inválido retorna null, `getFile()` throw retorna null
+- `src/test/store/useDataStore.persist.test.ts` — novo arquivo com `vi.mock('@/lib/storage/fileSystem')` hoistado: 6 casos cobrindo guard (null data), reset de unsyncedCount, sem reset em falha de save, merge de disk-only em save, atualização do store em memória, fallback sem handle
+- `app/e2e/persistence.spec.ts` — helper `seedIdb` extraído; novo teste de badge: sem mutação o badge não aparece; após edição o badge torna-se visível
+
+#### Decisão técnica registrada
+| Decisão | Escolha | Motivo |
+|---------|---------|--------|
+| Merge no caller (`persist()`) vs. dentro de `saveDataFile()` | Caller | `fileSystem.ts` é responsável por I/O, não por lógica de domínio; `merge.ts` é função pura testável de forma isolada |
+| `readCurrentDataFile` retorna `null` em falha vs. lança erro | Retorna `null` | O merge é um best-effort: se o disco não pode ser lido, o save local prossegue sem perda; evitar que falha de leitura bloqueie o fluxo de escrita |
+| Atualizar store em memória após merge | Sim (`set({ data: toSave })`) | Garante que um segundo sync imediato não perde itens recuperados do disco; mantém IDB e store coerentes |
+
+---
+
 ## Fora do Escopo (alinhado ao PRD)
 
 - `X-1` Criptografia do `data.json`

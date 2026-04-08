@@ -159,6 +159,67 @@ describe('saveDataFile', () => {
   })
 })
 
+describe('readCurrentDataFile', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('returns DataFile when handle is injected and file is valid', async () => {
+    const handle = makeHandle()
+    const { setDataHandle, readCurrentDataFile } = await import('@/lib/storage/fileSystem')
+    setDataHandle(handle as unknown as FileSystemFileHandle)
+
+    const result = await readCurrentDataFile()
+    expect(result).not.toBeNull()
+    expect(result!.user.name).toBe('Test User')
+  })
+
+  it('returns null when no handle is cached (does not open a picker)', async () => {
+    const spy = vi.fn()
+    vi.stubGlobal('showOpenFilePicker', spy)
+    vi.stubGlobal('showSaveFilePicker', spy)
+
+    const { readCurrentDataFile } = await import('@/lib/storage/fileSystem')
+    expect(await readCurrentDataFile()).toBeNull()
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the file contains invalid JSON', async () => {
+    const badHandle = {
+      ...makeHandle(),
+      getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue('not-json') }),
+    }
+    const { setDataHandle, readCurrentDataFile } = await import('@/lib/storage/fileSystem')
+    setDataHandle(badHandle as unknown as FileSystemFileHandle)
+
+    expect(await readCurrentDataFile()).toBeNull()
+  })
+
+  it('returns null when the parsed JSON fails Zod validation', async () => {
+    const corruptHandle = {
+      ...makeHandle(),
+      getFile: vi.fn().mockResolvedValue({
+        text: vi.fn().mockResolvedValue(JSON.stringify({ user: null })),
+      }),
+    }
+    const { setDataHandle, readCurrentDataFile } = await import('@/lib/storage/fileSystem')
+    setDataHandle(corruptHandle as unknown as FileSystemFileHandle)
+
+    expect(await readCurrentDataFile()).toBeNull()
+  })
+
+  it('returns null when getFile throws (e.g. file moved or deleted)', async () => {
+    const brokenHandle = {
+      ...makeHandle(),
+      getFile: vi.fn().mockRejectedValue(new Error('NotFoundError')),
+    }
+    const { setDataHandle, readCurrentDataFile } = await import('@/lib/storage/fileSystem')
+    setDataHandle(brokenHandle as unknown as FileSystemFileHandle)
+
+    expect(await readCurrentDataFile()).toBeNull()
+  })
+})
+
 describe('setDataHandle', () => {
   beforeEach(() => {
     vi.resetModules()

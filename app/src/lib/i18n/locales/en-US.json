@@ -164,7 +164,9 @@
     "syncNow": "Sync now",
     "unsaved": "unsaved change",
     "unsaved_plural": "unsaved changes",
-    "syncing": "Syncing..."
+    "syncing": "Syncing...",
+    "tooltip": "{{count}} unsaved change",
+    "tooltip_plural": "{{count}} unsaved changes"
   },
   "audit": {
     "title": "Recent Changes",

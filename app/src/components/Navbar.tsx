@@ -79,6 +79,7 @@ export default function Navbar({ initials = 'U', unsyncedCount, onSync }: Navbar
         {/* Sync icon with unsaved-changes badge */}
         <button
           aria-label={t('sync.syncNow')}
+          title={unsyncedCount > 0 ? t('sync.tooltip', { count: unsyncedCount }) : undefined}
           onClick={() => void handleSync()}
           disabled={syncing}
           className="relative flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low hover:text-on-surface/70 transition-colors disabled:cursor-default"

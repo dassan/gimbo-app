@@ -164,7 +164,9 @@
     "syncNow": "Sincronizar agora",
     "unsaved": "alteração não salva",
     "unsaved_plural": "alterações não salvas",
-    "syncing": "Sincronizando..."
+    "syncing": "Sincronizando...",
+    "tooltip": "{{count}} alteração não salva",
+    "tooltip_plural": "{{count}} alterações não salvas"
   },
   "audit": {
     "title": "Modificações Recentes",

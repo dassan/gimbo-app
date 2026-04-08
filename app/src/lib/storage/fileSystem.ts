@@ -1,4 +1,5 @@
 import type { DataFile, WorkspaceFile } from '@/types'
+import { validateDataFile } from '@/lib/storage/schema'
 
 // showOpenFilePicker / showSaveFilePicker are part of the File System Access API
 // and may not yet be in every TS DOM lib version — we augment Window minimally.
@@ -63,6 +64,23 @@ export async function createNewDataFile(
     await writable.close()
     _dataHandle = handle
     return handle
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Read the current data file from the cached handle without opening a picker.
+ * Returns null if no handle is cached, the file cannot be read, or validation fails.
+ * Failures are non-fatal — the caller should proceed without merging.
+ */
+export async function readCurrentDataFile(): Promise<DataFile | null> {
+  if (!_dataHandle) return null
+  try {
+    const file = await _dataHandle.getFile()
+    const text = await file.text()
+    const parsed = JSON.parse(text) as unknown
+    return validateDataFile(parsed)
   } catch {
     return null
   }
