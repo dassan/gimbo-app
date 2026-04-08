@@ -9,31 +9,71 @@ declare global {
   }
 }
 
-// ─── data.json ────────────────────────────────────────────────────────────────
+// ─── data file ────────────────────────────────────────────────────────────────
 
+// In-memory cache of the active handle. Restored from IDB on startup via
+// setDataHandle(), or acquired fresh through createNewDataFile() / openDataFile().
 let _dataHandle: FileSystemFileHandle | null = null
 
-/** Open an existing data.json via the File System Access API. */
-export async function openDataFile(): Promise<DataFile | null> {
+/** Inject a previously-persisted handle (e.g. restored from IndexedDB on startup). */
+export function setDataHandle(handle: FileSystemFileHandle): void {
+  _dataHandle = handle
+}
+
+/**
+ * Open an existing data file via the File System Access API.
+ * Returns the handle alongside the parsed DataFile so the caller
+ * can persist the handle to IndexedDB.
+ */
+export async function openDataFile(): Promise<{
+  handle: FileSystemFileHandle
+  data: DataFile
+} | null> {
   try {
     const [handle] = await window.showOpenFilePicker({
       types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
     })
-    _dataHandle = handle
-    const file = await _dataHandle.getFile()
+    const file = await handle.getFile()
     const text = await file.text()
-    return JSON.parse(text) as DataFile
+    const data = JSON.parse(text) as DataFile
+    _dataHandle = handle
+    return { handle, data }
   } catch {
     return null
   }
 }
 
-/** Save DataFile to disk. Opens a save dialog on first call. */
+/**
+ * Create a brand-new data file on disk.
+ * Opens showSaveFilePicker so the user can choose the filename and location.
+ * Writes the initial DataFile JSON immediately and returns the handle.
+ * Returns null if the user cancels.
+ */
+export async function createNewDataFile(
+  data: DataFile,
+  suggestedName = 'nexus-finances.json'
+): Promise<FileSystemFileHandle | null> {
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName,
+      types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
+    })
+    const writable = await handle.createWritable()
+    await writable.write(JSON.stringify(data, null, 2))
+    await writable.close()
+    _dataHandle = handle
+    return handle
+  } catch {
+    return null
+  }
+}
+
+/** Save DataFile to the cached handle. If no handle exists, opens showSaveFilePicker. */
 export async function saveDataFile(data: DataFile): Promise<boolean> {
   try {
     if (!_dataHandle) {
       _dataHandle = await window.showSaveFilePicker({
-        suggestedName: 'data.json',
+        suggestedName: 'nexus-finances.json',
         types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
       })
     }
@@ -46,13 +86,13 @@ export async function saveDataFile(data: DataFile): Promise<boolean> {
   }
 }
 
-/** Fallback: trigger a browser download of data.json. */
-export function downloadDataFile(data: DataFile): void {
+/** Fallback: trigger a browser download of the data file. */
+export function downloadDataFile(data: DataFile, filename = 'nexus-finances.json'): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'data.json'
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
 }

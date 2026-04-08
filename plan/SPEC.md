@@ -416,6 +416,9 @@ GESTÃO DE DADOS          APLICATIVO
 | Retenção padrão do audit log | 200 entradas ou 90 dias | Equilibra rastreabilidade e tamanho do arquivo; usuários avançados podem optar por retenção ilimitada com aviso de performance |
 | `summary` do audit log gerado em pt-BR | String fixa no momento da mutação | Evita complexidade de tradução retroativa; o idioma do summary reflete o idioma ativo no momento da ação |
 | `unsyncedCount` | Estado Zustand (não exportado) | É estado de UI, não dado financeiro; zera ao sincronizar e ao importar |
+| `FileSystemFileHandle` persistido no IDB | Object store `handles` no `nexus-db` | Handles não são serializáveis como JSON (não cabem em `localStorage`); IDB é o único mecanismo de persistência que suporta o structured clone algorithm necessário para handles nativos |
+| Nome do arquivo padrão | `nexus-finances.json` | Nome mais descritivo que o `data.json` original; o usuário sempre pode alterar no picker |
+| `openDataFile()` retorna `{ handle, data }` | Tupla em vez de só `DataFile` | O chamador precisa do handle para persistir no IDB; retornar ambos elimina a necessidade de uma segunda chamada ou estado global extra |
 | CRUD de contas/categorias/tags | Modal com discriminated union (`{ open: false } \| { open: true; entity \| null }`) | `null` = criar, objeto = editar — uma única estrutura de estado para os dois modos, sem flags extras |
 | Confirmação de exclusão | Two-click inline (sem dialog separado) | Mantém a árvore de componentes plana; primeiro clique muda o texto/cor, segundo executa a ação |
 | Ícones de tipo de conta | Array `ACCOUNT_TYPES` constante de módulo | Compartilhado entre o grid do modal e o helper `accountTypeIcon()` da lista — fonte única de verdade |
@@ -423,6 +426,50 @@ GESTÃO DE DADOS          APLICATIVO
 | Cores de tags | Paleta fixa de 8 hex no front-end | Simplifica a UX e garante coerência visual sem color picker genérico |
 | `AccountType` expandido | 8 valores vs. 3 originais | Cobre os principais instrumentos financeiros do público-alvo (investidores/tech); extensível no futuro |
 | `includeInBalance` em `Account` | Campo boolean por conta | Permite excluir cartões de crédito ou contas de investimento do saldo consolidado exibido no dashboard |
+
+---
+
+## Fase 9 — Sincronização: Cold Start (M-07)
+
+### TASK-21: Cold Start Sync
+
+#### `src/lib/storage/indexedDb.ts` — DB v2 + handles store
+- `DB_VERSION` bumped de `1` → `2`
+- Novo object store `handles` criado no `upgrade` callback (sem `keyPath`)
+- Novas funções exportadas:
+  - `saveFileHandle(handle: FileSystemFileHandle): Promise<void>` — persiste com chave `'data'`
+  - `loadFileHandle(): Promise<FileSystemFileHandle | null>`
+  - `clearFileHandle(): Promise<void>`
+- `FileSystemFileHandle` é serializável para IDB por spec (structured clone algorithm)
+
+#### `src/lib/storage/fileSystem.ts` — novas funções
+- `setDataHandle(handle)` — injeta o handle no cache em memória do módulo; chamado no startup
+- `openDataFile()` — retorno alterado para `{ handle, data } | null` (expõe o handle ao chamador)
+- `createNewDataFile(data, suggestedName?)` — abre `showSaveFilePicker`, escreve o JSON inicial, retorna o handle; suggestedName padrão: `'nexus-finances.json'`
+- `downloadDataFile(data, filename?)` — `filename` agora aceita parâmetro opcional (padrão `'nexus-finances.json'`)
+
+#### `src/App.tsx` — restauração de handle no startup
+- `loadFromIdb()` e `loadFileHandle()` executados em paralelo via `Promise.all`
+- Se handle existir, `setDataHandle(handle)` é chamado antes do render para que `saveDataFile` reuse o handle sem abrir um novo picker
+
+#### `src/pages/Onboarding/index.tsx` — dois fluxos com file picker
+- **"Criar novo":** `createNewDataFile()` é chamado dentro do handler do botão (garante user gesture); se retornar `null` (usuário cancelou), exibe mensagem via `fileError` e permanece na tela; se confirmar, salva handle no IDB via `saveFileHandle()`, chama `loadData()` e navega
+- **"Importar via picker":** usa o novo retorno de `openDataFile()`, chama `clearIdb()` antes de popular o IDB, persiste handle com `saveFileHandle()`
+- **"Importar via drag-and-drop / file input":** mantém comportamento anterior + adiciona `clearIdb()` antes de popular o IDB; sem handle (File API não expõe FileSystemFileHandle)
+- Estado `fileError` exibido em ambas as abas para feedback de cancelamento/arquivo inválido
+
+#### `src/lib/i18n/locales/{pt-BR,en-US}.json` — novas chaves
+```
+onboarding.createFilePickerHint  — hint abaixo dos campos de criação
+onboarding.createFileCancelled   — mensagem quando picker é cancelado
+onboarding.importFileError       — mensagem quando arquivo é inválido
+```
+
+#### Testes
+- `src/test/lib/storage/indexedDb.test.ts` — cobre `saveToIdb/loadFromIdb/clearIdb` (existentes) + `saveFileHandle/loadFileHandle/clearFileHandle` + isolamento entre stores
+- `src/test/lib/storage/fileSystem.test.ts` — cobre `openDataFile`, `createNewDataFile`, `saveDataFile`, `setDataHandle` com mocks de `showSaveFilePicker` / `showOpenFilePicker`
+- `app/e2e/onboarding.spec.ts` — 5 cenários: criação com mock do picker, cancelamento do picker, importação por arquivo, importação com arquivo inválido, importação via picker de abertura
+- `vitest.config.ts` — `indexedDb.ts` e `fileSystem.ts` adicionados ao `coverage.include`
 
 ---
 

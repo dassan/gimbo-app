@@ -13,6 +13,8 @@ export default mergeConfig(
         provider: 'v8',
         include: [
           'src/lib/storage/schema.ts',
+          'src/lib/storage/indexedDb.ts',
+          'src/lib/storage/fileSystem.ts',
           'src/lib/utils.ts',
           'src/store/useDataStore.ts',
         ],

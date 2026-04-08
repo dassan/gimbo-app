@@ -5,7 +5,8 @@ import { ShieldCheck, Lock, ArrowRight, RefreshCw, FileJson } from 'lucide-react
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { createEmptyDataFile, validateDataFile } from '@/lib/storage/schema'
-import { openDataFile } from '@/lib/storage/fileSystem'
+import { openDataFile, createNewDataFile } from '@/lib/storage/fileSystem'
+import { saveToIdb, clearIdb, saveFileHandle } from '@/lib/storage/indexedDb'
 import { cn } from '@/lib/utils'
 import type { Locale } from '@/types'
 
@@ -22,11 +23,26 @@ export default function Onboarding() {
   const [email, setEmail] = useState('')
   const [locale, setLocaleState] = useState<Locale>('pt-BR')
   const [dragging, setDragging] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!name.trim()) return
+    setFileError(null)
+
     const data = createEmptyDataFile(name.trim(), email.trim())
+
+    // Open the save picker so the user can choose filename and location.
+    // Must be called directly inside the click handler to satisfy the
+    // user-gesture requirement of the File System Access API.
+    const handle = await createNewDataFile(data)
+    if (!handle) {
+      // User cancelled the picker — stay on onboarding.
+      setFileError(t('onboarding.createFileCancelled'))
+      return
+    }
+
+    await saveFileHandle(handle)
     loadData(data)
     setLocale(locale)
     void i18n.changeLanguage(locale)
@@ -34,21 +50,36 @@ export default function Onboarding() {
   }
 
   async function handleImportFile(file: File) {
+    setFileError(null)
     try {
       const text = await file.text()
       const data = validateDataFile(JSON.parse(text) as unknown)
+      await clearIdb()
+      await saveToIdb(data)
       loadData(data)
+      // No handle available from <input type="file"> — sync icon will prompt
+      // the user to re-link a file on first save attempt.
       void navigate('/dashboard')
     } catch {
-      // Invalid file — silently ignore
+      setFileError(t('onboarding.importFileError'))
     }
   }
 
   async function handleImportPicker() {
-    const data = await openDataFile()
-    if (data) {
+    setFileError(null)
+    try {
+      const result = await openDataFile()
+      if (!result) return // User cancelled picker
+
+      const { handle, data } = result
+      validateDataFile(data) // throws if invalid
+      await clearIdb()
+      await saveToIdb(data)
+      await saveFileHandle(handle)
       loadData(data)
       void navigate('/dashboard')
+    } catch {
+      setFileError(t('onboarding.importFileError'))
     }
   }
 
@@ -125,10 +156,10 @@ export default function Onboarding() {
           >
             {/* Tabs */}
             <div className="flex rounded-full bg-surface-container-low p-1 mb-8">
-              <TabButton active={tab === 'new'} onClick={() => setTab('new')}>
+              <TabButton active={tab === 'new'} onClick={() => { setTab('new'); setFileError(null) }}>
                 {t('onboarding.tabNew')}
               </TabButton>
-              <TabButton active={tab === 'import'} onClick={() => setTab('import')}>
+              <TabButton active={tab === 'import'} onClick={() => { setTab('import'); setFileError(null) }}>
                 {t('onboarding.tabImport')}
               </TabButton>
             </div>
@@ -145,7 +176,7 @@ export default function Onboarding() {
                     placeholder={t('onboarding.namePlaceholder')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                    onKeyDown={(e) => e.key === 'Enter' && void handleCreate()}
                     className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
@@ -159,7 +190,7 @@ export default function Onboarding() {
                     placeholder={t('onboarding.emailPlaceholder')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                    onKeyDown={(e) => e.key === 'Enter' && void handleCreate()}
                     className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
@@ -187,8 +218,16 @@ export default function Onboarding() {
                   </div>
                 </div>
 
+                <p className="text-xs text-on-surface/40 pt-1">
+                  {t('onboarding.createFilePickerHint')}
+                </p>
+
+                {fileError && (
+                  <p className="text-xs text-red-500">{fileError}</p>
+                )}
+
                 <button
-                  onClick={handleCreate}
+                  onClick={() => void handleCreate()}
                   disabled={!name.trim()}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
                 >
@@ -236,6 +275,10 @@ export default function Onboarding() {
                     }}
                   />
                 </div>
+
+                {fileError && (
+                  <p className="text-xs text-red-500">{fileError}</p>
+                )}
 
                 <button
                   onClick={() => void handleImportPicker()}

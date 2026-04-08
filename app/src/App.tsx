@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { useDataStore } from '@/store/useDataStore'
-import { loadFromIdb } from '@/lib/storage/indexedDb'
+import { loadFromIdb, loadFileHandle } from '@/lib/storage/indexedDb'
+import { setDataHandle } from '@/lib/storage/fileSystem'
 import AppLayout from '@/components/AppLayout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import Onboarding from '@/pages/Onboarding'
@@ -22,8 +23,9 @@ export default function App() {
     async function init() {
       try {
         initWorkspace()
-        const saved = await loadFromIdb()
+        const [saved, handle] = await Promise.all([loadFromIdb(), loadFileHandle()])
         if (saved) loadData(saved)
+        if (handle) setDataHandle(handle)
       } catch (err) {
         setInitError(err instanceof Error ? err.message : 'Erro ao carregar dados locais')
       } finally {
