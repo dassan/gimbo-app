@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Landmark,
-  Tag,
+  Tag as TagIcon,
   FolderTree,
   User,
   Sliders,
@@ -46,6 +46,7 @@ import type {
   AccountType,
   Category,
   CategoryType,
+  Tag,
   Locale,
   Theme,
   AuditAction,
@@ -80,11 +81,26 @@ const CATEGORY_ICONS: { name: string; icon: React.ReactNode }[] = [
   { name: 'wrench', icon: <Wrench size={18} strokeWidth={1.5} /> },
   { name: 'briefcase', icon: <Briefcase size={18} strokeWidth={1.5} /> },
   { name: 'gift', icon: <Gift size={18} strokeWidth={1.5} /> },
-  { name: 'tag', icon: <Tag size={18} strokeWidth={1.5} /> },
+  { name: 'tag', icon: <TagIcon size={18} strokeWidth={1.5} /> },
+]
+
+// ─── Tag color palette ────────────────────────────────────────────────────────
+
+const TAG_COLORS = [
+  '#22c55e',
+  '#3b82f6',
+  '#f97316',
+  '#a855f7',
+  '#ef4444',
+  '#06b6d4',
+  '#6b7280',
+  '#1f2937',
 ]
 
 function categoryIcon(name: string): React.ReactNode {
-  return CATEGORY_ICONS.find((i) => i.name === name)?.icon ?? <Tag size={18} strokeWidth={1.5} />
+  return (
+    CATEGORY_ICONS.find((i) => i.name === name)?.icon ?? <TagIcon size={18} strokeWidth={1.5} />
+  )
 }
 
 function accountTypeIcon(type: AccountType): React.ReactNode {
@@ -97,6 +113,7 @@ function accountTypeIcon(type: AccountType): React.ReactNode {
 
 type ModalState = { open: false } | { open: true; account: Account | null }
 type CategoryModalState = { open: false } | { open: true; category: Category | null }
+type TagModalState = { open: false } | { open: true; tag: Tag | null }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,7 +138,7 @@ const DATA_SECTIONS: { key: Section; icon: React.ReactNode; labelKey: string }[]
     icon: <FolderTree size={16} strokeWidth={1.5} />,
     labelKey: 'settings.categories',
   },
-  { key: 'tags', icon: <Tag size={16} strokeWidth={1.5} />, labelKey: 'settings.tags' },
+  { key: 'tags', icon: <TagIcon size={16} strokeWidth={1.5} />, labelKey: 'settings.tags' },
 ]
 const APP_SECTIONS: { key: Section; icon: React.ReactNode; labelKey: string }[] = [
   { key: 'profile', icon: <User size={16} strokeWidth={1.5} />, labelKey: 'settings.profile' },
@@ -151,6 +168,8 @@ export default function Settings() {
     updateCategory,
     deleteCategory,
     addTag,
+    updateTag,
+    deleteTag,
     updateUser,
     setRetentionLimit,
   } = useDataStore()
@@ -162,6 +181,7 @@ export default function Settings() {
   const [profileEmail, setProfileEmail] = useState(data?.user.email ?? '')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [categoryModal, setCategoryModal] = useState<CategoryModalState>({ open: false })
+  const [tagModal, setTagModal] = useState<TagModalState>({ open: false })
 
   function handleSaveProfile() {
     if (!data) return
@@ -218,8 +238,18 @@ export default function Settings() {
     setCategoryModal({ open: false })
   }
 
-  function handleAddTag() {
-    addTag({ id: uuid(), name: 'nova-tag', color: '#6B7280' })
+  function handleSaveTag(name: string, color: string) {
+    if (tagModal.open && tagModal.tag) {
+      updateTag({ ...tagModal.tag, name, color })
+    } else {
+      addTag({ id: uuid(), name, color })
+    }
+    setTagModal({ open: false })
+  }
+
+  function handleDeleteTag(id: string) {
+    deleteTag(id)
+    setTagModal({ open: false })
   }
 
   const isUnlimited = data?.settings.auditLogRetentionLimit === null
@@ -396,17 +426,18 @@ export default function Settings() {
                     <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
                   )}
                   {data.tags.map((tag) => (
-                    <span
+                    <button
                       key={tag.id}
-                      className="rounded-full px-4 py-1.5 text-sm font-medium text-white"
+                      onClick={() => setTagModal({ open: true, tag })}
+                      className="rounded-full px-4 py-1.5 text-sm font-medium text-white hover:brightness-90 transition-all"
                       style={{ backgroundColor: tag.color }}
                     >
                       #{tag.name}
-                    </span>
+                    </button>
                   ))}
                 </div>
                 <button
-                  onClick={handleAddTag}
+                  onClick={() => setTagModal({ open: true, tag: null })}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
                 >
                   <Plus size={16} strokeWidth={2.5} />
@@ -633,6 +664,16 @@ export default function Settings() {
           onClose={() => setCategoryModal({ open: false })}
         />
       )}
+
+      {/* ── Add / Edit Tag Modal ─────────────────────────────────────────────── */}
+      {tagModal.open && (
+        <AddTagModal
+          tag={tagModal.tag}
+          onSave={handleSaveTag}
+          onDelete={handleDeleteTag}
+          onClose={() => setTagModal({ open: false })}
+        />
+      )}
     </>
   )
 }
@@ -788,6 +829,146 @@ function AddAccountModal({
               : t('settings.deleteAccount')}
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── AddTagModal ──────────────────────────────────────────────────────────────
+
+function AddTagModal({
+  tag,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  tag: Tag | null
+  onSave: (name: string, color: string) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const isEdit = tag !== null
+
+  const [name, setName] = useState(tag?.name ?? '')
+  const [color, setColor] = useState(tag?.color ?? TAG_COLORS[0])
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  function handleSave() {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onSave(trimmed, color)
+  }
+
+  function handleDelete() {
+    if (!tag) return
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+    onDelete(tag.id)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h2 className="text-base font-semibold text-on-surface">
+              {isEdit ? t('settings.editTag') : t('settings.addTag')}
+            </h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface/30 mt-0.5">
+              {t('settings.newTag')}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface/40"
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Tag Name */}
+        <div className="mb-5">
+          <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+            {t('settings.tagName')}
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave()
+            }}
+            placeholder={t('settings.tagNamePlaceholder')}
+            className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            autoFocus
+          />
+        </div>
+
+        {/* Accent Color */}
+        <div className="mb-6">
+          <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-3">
+            {t('settings.accentColor')}
+          </label>
+          <div className="flex gap-3">
+            {TAG_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                className="h-8 w-8 rounded-full transition-transform hover:scale-110"
+                style={{
+                  backgroundColor: c,
+                  outline: color === c ? `2px solid ${c}` : 'none',
+                  outlineOffset: '3px',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-3">
+          {isEdit && (
+            <button
+              onClick={handleDelete}
+              className={cn(
+                'text-sm font-semibold transition-colors',
+                confirmDelete ? 'text-tertiary underline' : 'text-tertiary/60 hover:text-tertiary'
+              )}
+            >
+              {confirmDelete ? 'Confirmar?' : t('settings.deleteTag')}
+            </button>
+          )}
+          <div className="flex flex-1 gap-2 justify-end">
+            <button
+              onClick={onClose}
+              className="rounded-2xl bg-surface-container-low px-5 py-2.5 text-sm font-semibold text-on-surface/70 hover:bg-surface-container-high transition-all"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!name.trim()}
+              className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {t('common.save')}
+            </button>
+          </div>
+        </div>
+
+        {/* Footer hint */}
+        <div className="mt-4 flex items-start gap-2">
+          <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+          <p className="text-[11px] text-on-surface/40">{t('settings.tagHint')}</p>
+        </div>
       </div>
     </div>
   )
