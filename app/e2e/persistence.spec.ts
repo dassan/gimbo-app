@@ -10,10 +10,11 @@ test('data persists after page reload', async ({ page }) => {
   // Seed IndexedDB with fixture data
   await page.addInitScript((data) => {
     indexedDB.deleteDatabase('nexus-db')
-    const req = indexedDB.open('nexus-db', 1)
+    const req = indexedDB.open('nexus-db', 2)
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result
       if (!db.objectStoreNames.contains('ledger')) db.createObjectStore('ledger')
+      if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles')
     }
     req.onsuccess = (e) => {
       const db = (e.target as IDBOpenDBRequest).result

@@ -42,7 +42,13 @@ export default function Onboarding() {
       return
     }
 
-    await saveFileHandle(handle)
+    // Best-effort: persist the handle so future sessions can reuse it.
+    // Silently ignored if the runtime can't clone the handle (e.g. in tests).
+    try {
+      await saveFileHandle(handle)
+    } catch {
+      // Non-fatal — the app functions without a persisted handle.
+    }
     loadData(data)
     setLocale(locale)
     void i18n.changeLanguage(locale)
@@ -75,7 +81,12 @@ export default function Onboarding() {
       validateDataFile(data) // throws if invalid
       await clearIdb()
       await saveToIdb(data)
-      await saveFileHandle(handle)
+      // Best-effort: persist the handle so future sessions can reuse it.
+      try {
+        await saveFileHandle(handle)
+      } catch {
+        // Non-fatal — the app functions without a persisted handle.
+      }
       loadData(data)
       void navigate('/dashboard')
     } catch {
