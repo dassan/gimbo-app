@@ -123,7 +123,8 @@ describe('saveDataFile', () => {
 
   it('writes to the injected handle without opening a picker', async () => {
     const handle = makeHandle()
-    vi.stubGlobal('showSaveFilePicker', vi.fn())
+    const pickerSpy = vi.fn()
+    vi.stubGlobal('showSaveFilePicker', pickerSpy)
 
     const { setDataHandle, saveDataFile } = await import('@/lib/storage/fileSystem')
     setDataHandle(handle as unknown as FileSystemFileHandle)
@@ -132,7 +133,7 @@ describe('saveDataFile', () => {
     const ok = await saveDataFile(data)
 
     expect(ok).toBe(true)
-    expect(window.showSaveFilePicker).not.toHaveBeenCalled()
+    expect(pickerSpy).not.toHaveBeenCalled()
     expect(handle._writable.write).toHaveBeenCalledWith(JSON.stringify(data, null, 2))
   })
 

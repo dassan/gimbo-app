@@ -33,7 +33,7 @@ export default function App() {
       }
     }
     void init()
-  }, [])
+  }, [initWorkspace, loadData])
 
   // Avoid flash of onboarding while IDB is loading
   if (!hydrated) return null

@@ -261,7 +261,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
       mutate(s, (d) => {
         const tx = d.transactions.find((t) => t.id === id)
         const name =
-          tx?.description || d.categories.find((c) => c.id === tx?.categoryId)?.name || id
+          tx?.description ?? d.categories.find((c) => c.id === tx?.categoryId)?.name ?? id
         d.transactions = d.transactions.filter((t) => t.id !== id)
         addAudit(
           d,

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { fileURLToPath } from 'url'
+import { readFileSync } from 'fs'
 import path from 'path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -138,10 +139,7 @@ test('import JSON: invalid file shows error and stays on onboarding', async ({ p
 // ─── Import flow (File System Access API picker) ──────────────────────────────
 
 test('import via picker: loads data, saves handle, navigates to dashboard', async ({ page }) => {
-  const fixtureJson = require('fs').readFileSync(
-    path.join(__dirname, 'fixtures/dataFile.json'),
-    'utf-8'
-  )
+  const fixtureJson = readFileSync(path.join(__dirname, 'fixtures/dataFile.json'), 'utf-8')
   await mockFileSystemApi(page, fixtureJson)
   await page.goto('/onboarding')
 

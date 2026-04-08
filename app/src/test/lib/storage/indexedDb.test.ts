@@ -9,15 +9,17 @@ const _stores: Store = {}
 
 function makeDb(stores: Store) {
   return {
-    put: vi.fn(async (storeName: string, value: unknown, key: string) => {
+    put: vi.fn((storeName: string, value: unknown, key: string) => {
       stores[storeName] ??= {}
       stores[storeName][key] = value
+      return Promise.resolve()
     }),
-    get: vi.fn(async (storeName: string, key: string) => {
-      return stores[storeName]?.[key]
+    get: vi.fn((storeName: string, key: string) => {
+      return Promise.resolve(stores[storeName]?.[key])
     }),
-    delete: vi.fn(async (storeName: string, key: string) => {
+    delete: vi.fn((storeName: string, key: string) => {
       if (stores[storeName]) delete stores[storeName][key]
+      return Promise.resolve()
     }),
   }
 }

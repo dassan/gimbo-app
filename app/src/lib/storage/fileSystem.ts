@@ -71,12 +71,10 @@ export async function createNewDataFile(
 /** Save DataFile to the cached handle. If no handle exists, opens showSaveFilePicker. */
 export async function saveDataFile(data: DataFile): Promise<boolean> {
   try {
-    if (!_dataHandle) {
-      _dataHandle = await window.showSaveFilePicker({
-        suggestedName: 'nexus-finances.json',
-        types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
-      })
-    }
+    _dataHandle ??= await window.showSaveFilePicker({
+      suggestedName: 'nexus-finances.json',
+      types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
+    })
     const writable = await _dataHandle.createWritable()
     await writable.write(JSON.stringify(data, null, 2))
     await writable.close()

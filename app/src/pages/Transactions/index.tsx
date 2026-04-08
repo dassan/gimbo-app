@@ -278,6 +278,7 @@ function TxRow({
           </span>
         </div>
         <p className="text-sm font-semibold text-on-surface truncate">
+          {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
           {tx.description || cat?.name || '—'}
         </p>
         <div className="flex items-center gap-2 mt-0.5">

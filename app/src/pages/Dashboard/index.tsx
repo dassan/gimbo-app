@@ -362,6 +362,7 @@ function TransactionRow({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-on-surface truncate">
+          {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
           {tx.description || cat?.name || '—'}
         </p>
         <p className="text-xs text-on-surface/40 mt-0.5">
