@@ -156,10 +156,22 @@ export default function Onboarding() {
           >
             {/* Tabs */}
             <div className="flex rounded-full bg-surface-container-low p-1 mb-8">
-              <TabButton active={tab === 'new'} onClick={() => { setTab('new'); setFileError(null) }}>
+              <TabButton
+                active={tab === 'new'}
+                onClick={() => {
+                  setTab('new')
+                  setFileError(null)
+                }}
+              >
                 {t('onboarding.tabNew')}
               </TabButton>
-              <TabButton active={tab === 'import'} onClick={() => { setTab('import'); setFileError(null) }}>
+              <TabButton
+                active={tab === 'import'}
+                onClick={() => {
+                  setTab('import')
+                  setFileError(null)
+                }}
+              >
                 {t('onboarding.tabImport')}
               </TabButton>
             </div>
@@ -222,9 +234,7 @@ export default function Onboarding() {
                   {t('onboarding.createFilePickerHint')}
                 </p>
 
-                {fileError && (
-                  <p className="text-xs text-red-500">{fileError}</p>
-                )}
+                {fileError && <p className="text-xs text-red-500">{fileError}</p>}
 
                 <button
                   onClick={() => void handleCreate()}
@@ -276,9 +286,7 @@ export default function Onboarding() {
                   />
                 </div>
 
-                {fileError && (
-                  <p className="text-xs text-red-500">{fileError}</p>
-                )}
+                {fileError && <p className="text-xs text-red-500">{fileError}</p>}
 
                 <button
                   onClick={() => void handleImportPicker()}

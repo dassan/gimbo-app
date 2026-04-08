@@ -47,7 +47,9 @@ export async function saveFileHandle(handle: FileSystemFileHandle): Promise<void
 
 export async function loadFileHandle(): Promise<FileSystemFileHandle | null> {
   const db = await getDb()
-  return ((await db.get(STORE_HANDLES, KEY_DATA_HANDLE)) as FileSystemFileHandle | undefined) ?? null
+  return (
+    ((await db.get(STORE_HANDLES, KEY_DATA_HANDLE)) as FileSystemFileHandle | undefined) ?? null
+  )
 }
 
 export async function clearFileHandle(): Promise<void> {
