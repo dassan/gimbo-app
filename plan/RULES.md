@@ -85,17 +85,24 @@ raiz/
 
 ---
 
-### Fase 2 — Ciclo de qualidade (periódico, não contínuo)
+### Fase 2 — Ciclo de qualidade (obrigatório a cada feature)
 
-Executar a cada 3–5 features, ou antes de uma entrega importante:
+Executar **antes de cada commit**, sem exceção. O pipeline CI replica exatamente estes comandos — se passam localmente, passam no CI:
+
+| Ordem | Check | Comando | O que buscar |
+|---|---|---|---|
+| 1 | Formatação | `npm run format:check` | Qualquer arquivo fora do padrão Prettier |
+| 2 | Lint | `npm run lint` | Zero erros; warnings devem ser corrigidos ou suprimidos com justificativa |
+| 3 | Tipos | `npx tsc -b --noEmit` | Zero erros de tipo |
+| 4 | Testes unitários | `npx vitest run --coverage` | Arquivos críticos abaixo do threshold de 80% |
+| 5 | E2E | `npx playwright test` | Fluxos críticos quebrados silenciosamente |
+
+Adicionalmente, a cada 3–5 features ou antes de uma entrega importante:
 
 | Check | Comando | O que buscar |
 |---|---|---|
-| Cobertura de testes | `npx vitest run --coverage` | Arquivos críticos abaixo do threshold |
-| Warnings acumulados | `npm run lint` | Warnings que viraram ruído — corrigir ou promover a erro |
 | Dependências | `npm audit` | Vulnerabilidades high/critical |
 | Bundle size | `npm run build` | Crescimento inesperado |
-| E2E | `npx playwright test` | Fluxos críticos quebrados silenciosamente |
 
 **Regra:** warnings não são inofensivos — eles anestesiam. Se uma regra gera warnings que ninguém vai corrigir, mude para `off`. Se é importante, mude para `error`.
 
