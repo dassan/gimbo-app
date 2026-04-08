@@ -126,6 +126,7 @@
     "tagHint": "Tags help categorize transactions across categories for deeper analytics.",
     "exportData": "Export Data",
     "importData": "Import Data",
+    "importFileError": "Invalid or corrupted file. Make sure it was exported from Nexus.",
     "saveProfile": "Save Profile",
     "localFirst": "Nexus operates as a Local-First application. Your financial data is stored in the data.json file on your device.",
     "privacyGuarantee": "End-to-end privacy guaranteed",

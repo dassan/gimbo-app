@@ -40,7 +40,7 @@ import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { downloadDataFile, openDataFile } from '@/lib/storage/fileSystem'
 import { clearIdb, saveToIdb, saveFileHandle } from '@/lib/storage/indexedDb'
 import { formatCurrency, cn, uuid, now } from '@/lib/utils'
-import { AUDIT_RETENTION_DEFAULT } from '@/lib/storage/schema'
+import { AUDIT_RETENTION_DEFAULT, validateDataFile } from '@/lib/storage/schema'
 import type {
   Account,
   AccountType,
@@ -182,6 +182,7 @@ export default function Settings() {
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [categoryModal, setCategoryModal] = useState<CategoryModalState>({ open: false })
   const [tagModal, setTagModal] = useState<TagModalState>({ open: false })
+  const [importError, setImportError] = useState<string | null>(null)
 
   function handleSaveProfile() {
     if (!data) return
@@ -198,13 +199,23 @@ export default function Settings() {
   }
 
   async function handleImport() {
+    setImportError(null)
     const result = await openDataFile()
     if (!result) return
     const { handle, data: imported } = result
-    await clearIdb()
-    await saveToIdb(imported)
-    await saveFileHandle(handle)
-    loadData(imported)
+    try {
+      const validated = validateDataFile(imported)
+      await clearIdb()
+      await saveToIdb(validated)
+      try {
+        await saveFileHandle(handle)
+      } catch {
+        // Non-fatal — the app functions without a persisted handle.
+      }
+      loadData(validated)
+    } catch {
+      setImportError(t('settings.importFileError'))
+    }
   }
 
   function handleSaveAccount(name: string, type: AccountType, includeInBalance: boolean) {
@@ -587,6 +598,7 @@ export default function Settings() {
                     </span>
                   </button>
                 </div>
+                {importError && <p className="mt-3 text-xs text-red-500">{importError}</p>}
               </Section>
             )}
 

@@ -1,8 +1,87 @@
+import { z } from 'zod'
 import type { DataFile, WorkspaceFile } from '@/types'
 import { uuid, now } from '@/lib/utils'
 
 export const AUDIT_RETENTION_DEFAULT = 200
 export const AUDIT_RETENTION_DAYS = 90
+
+// ─── Zod schemas ──────────────────────────────────────────────────────────────
+
+const UserSchema = z.object({
+  name: z.string(),
+  email: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+const SettingsSchema = z.object({
+  fileCreatedAt: z.string(),
+  fileUpdatedAt: z.string(),
+  auditLogRetentionLimit: z.number().nullable(),
+})
+
+const AccountSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['RETAIL', 'SAVINGS', 'CREDIT', 'CRYPTO', 'FOREX', 'ASSET', 'STOCKS', 'OTHER']),
+  balance: z.number(),
+  includeInBalance: z.boolean(),
+})
+
+const CategorySchema = z.object({
+  id: z.string(),
+  parentId: z.string().nullable(),
+  name: z.string(),
+  icon: z.string(),
+  color: z.string(),
+  type: z.enum(['INCOME', 'EXPENSE']),
+})
+
+const TagSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string(),
+})
+
+const TransactionSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  categoryId: z.string(),
+  amount: z.number(),
+  type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER']),
+  date: z.string(),
+  description: z.string(),
+  isPaid: z.boolean(),
+  tags: z.array(z.string()),
+})
+
+const AuditEntrySchema = z.object({
+  id: z.string(),
+  timestamp: z.string(),
+  action: z.enum(['CREATE', 'UPDATE', 'DELETE']),
+  entity: z.enum(['account', 'category', 'tag', 'transaction', 'user']),
+  entityId: z.string(),
+  summary: z.string(),
+})
+
+export const DataFileSchema = z.object({
+  user: UserSchema,
+  settings: SettingsSchema,
+  accounts: z.array(AccountSchema),
+  categories: z.array(CategorySchema),
+  tags: z.array(TagSchema),
+  transactions: z.array(TransactionSchema),
+  auditLog: z.array(AuditEntrySchema),
+})
+
+// ─── Validation ───────────────────────────────────────────────────────────────
+
+/** Validate and cast an unknown JSON payload as DataFile. Throws if invalid. */
+export function validateDataFile(data: unknown): DataFile {
+  return DataFileSchema.parse(data) as DataFile
+}
+
+// ─── Factories ────────────────────────────────────────────────────────────────
 
 export function createEmptyDataFile(name: string, email: string): DataFile {
   const ts = now()
@@ -88,28 +167,6 @@ function getDefaultCategories() {
       type: 'EXPENSE' as const,
     },
   ]
-}
-
-/** Validate and cast an unknown JSON payload as DataFile. Throws with a descriptive message if invalid. */
-export function validateDataFile(data: unknown): DataFile {
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-    throw new Error('Invalid data file: root must be an object')
-  }
-  const d = data as Record<string, unknown>
-  if (typeof d['user'] !== 'object' || d['user'] === null)
-    throw new Error('Invalid data file: missing "user"')
-  if (!Array.isArray(d['accounts']))
-    throw new Error('Invalid data file: "accounts" must be an array')
-  if (!Array.isArray(d['categories']))
-    throw new Error('Invalid data file: "categories" must be an array')
-  if (!Array.isArray(d['tags'])) throw new Error('Invalid data file: "tags" must be an array')
-  if (!Array.isArray(d['transactions']))
-    throw new Error('Invalid data file: "transactions" must be an array')
-  if (!Array.isArray(d['auditLog']))
-    throw new Error('Invalid data file: "auditLog" must be an array')
-  if (typeof d['settings'] !== 'object' || d['settings'] === null)
-    throw new Error('Invalid data file: missing "settings"')
-  return data as DataFile
 }
 
 /** Apply retention policy to the audit log in-place. */

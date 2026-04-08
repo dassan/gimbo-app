@@ -473,6 +473,46 @@ onboarding.importFileError       — mensagem quando arquivo é inválido
 
 ---
 
+## Fase 10 — Sincronização: Hidratação (M-08)
+
+### TASK-22: Hydration Sync — Validação Zod do DataFile
+
+#### `package.json` — nova dependência
+- `zod` adicionado como dependência de produção (validação em runtime)
+
+#### `src/lib/storage/schema.ts` — schemas Zod
+- Schemas individuais para cada entidade: `UserSchema`, `SettingsSchema`, `AccountSchema`, `CategorySchema`, `TagSchema`, `TransactionSchema`, `AuditEntrySchema`
+- `DataFileSchema` compõe todos os schemas acima
+- `validateDataFile(data: unknown): DataFile` reimplementado com `DataFileSchema.parse(data)` — mesma assinatura, lança `ZodError` em vez de `Error` manual
+- `DataFileSchema` exportado para reutilização em testes (e.g. `.shape.categories.element` para validar entidades individuais)
+- Todos os outros exports mantidos sem alteração: `createEmptyDataFile`, `createDefaultWorkspace`, `applyRetention`, constantes
+
+#### `src/pages/Settings/index.tsx` — correção de gap de validação
+- `handleImport` antes gravava no IDB sem validar o arquivo importado
+- Agora: chama `validateDataFile(imported)` após `openDataFile()`; em caso de erro Zod, exibe mensagem via estado `importError` sem tocar o IDB
+- `saveFileHandle` movido para dentro do bloco `try/catch` não-fatal (padrão alinhado com Onboarding)
+- Novo estado: `const [importError, setImportError] = useState<string | null>(null)`
+- Mensagem de erro renderizada abaixo do grid de export/import na seção "Arquivo de Dados"
+
+#### `src/lib/i18n/locales/{pt-BR,en-US}.json` — nova chave
+```
+settings.importFileError  — mensagem exibida quando o arquivo importado falha na validação Zod
+```
+
+#### Testes
+- `src/test/lib/storage/schema.test.ts` — reescrito para Zod:
+  - `applyRetention` — 4 casos mantidos sem alteração
+  - `createEmptyDataFile` — 5 casos: shape, categorias padrão, round-trip Zod, arrays vazios, cada categoria passa no schema individual
+  - `validateDataFile` — 13 casos: DataFile válido mínimo, entidades aninhadas completas, `auditLogRetentionLimit` null, rejeição de não-objeto, campo `user` ausente, arrays com tipo errado, enum `AccountType` inválido, enum `TransactionType` inválido, enum `AuditAction` inválido, `auditLogRetentionLimit` como string, enum `CategoryType` inválido
+
+#### Decisão técnica registrada
+| Decisão | Escolha | Motivo |
+|---------|---------|--------|
+| Biblioteca de validação | `zod` | Validação declarativa com inferência de tipos; eliminação do validador manual que só checava presença de campos top-level sem verificar tipos internos, enums ou estruturas aninhadas |
+| Local da validação | Caller (Onboarding / Settings) | `fileSystem.ts` é responsável por acesso a arquivos, não por validação de domínio; mantém separação de responsabilidades clara |
+
+---
+
 ## Fora do Escopo (alinhado ao PRD)
 
 - `X-1` Criptografia do `data.json`
