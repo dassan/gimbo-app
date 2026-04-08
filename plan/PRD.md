@@ -31,7 +31,7 @@ O Nexus é um aplicativo web (PWA Client-side) de gestão de finanças pessoais 
 
 ### Dentro do Escopo (Must-have - Construiremos agora)
 * **F-1:** Criação simples de perfil de usuário (Apenas metadados de Nome, E-mail, com rastreio de datas de edição).
-* **F-2:** Sistema completo de Gestão de Contas (Corrente, Espécie, Cartão).
+* **F-2:** Sistema completo de Gestão de Contas com 8 tipos (Banco/Corrente, Poupança, Cartão de Crédito, Criptomoedas, Câmbio/Forex, Ativos/Fundo, Ações, Outros) e flag `includeInBalance` por conta.
 * **F-3:** Gestão de Categorias com suporte a hierarquia de Sub-categorias via "ParentId".
 * **F-4:** Sistema de Tags personalizáveis e associáveis a múltiplas transações.
 * **F-5:** CRUD rápido de Transações (Receitas, Despesas, Transferências).
@@ -76,8 +76,9 @@ Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
     {
       "id": "UUID",
       "name": "String",
-      "type": "Enum(CHECKING, SAVINGS, CREDIT_CARD)",
-      "balance": "Float"
+      "type": "Enum(RETAIL, SAVINGS, CREDIT, CRYPTO, FOREX, ASSET, STOCKS, OTHER)",
+      "balance": "Float",
+      "includeInBalance": "Boolean (default: true)"
     }
   ],
   "categories": [

@@ -52,7 +52,10 @@ Mapear as cores, sombras e fontes do design system para variáveis CSS via `@the
 ### TASK-04: Tipos TypeScript (`src/types/index.ts`)
 Definir todas as entidades do `data.json` e `workspace.json` conforme o PRD:
 - `User`, `Settings`, `Account`, `Category`, `Tag`, `Transaction`
-- Enums: `AccountType`, `CategoryType`, `TransactionType`
+- Enums:
+  - `AccountType`: `'RETAIL' | 'SAVINGS' | 'CREDIT' | 'CRYPTO' | 'FOREX' | 'ASSET' | 'STOCKS' | 'OTHER'`
+  - `CategoryType`, `TransactionType`
+- `Account` inclui `includeInBalance: boolean` — indica se a conta entra no saldo consolidado do dashboard
 - `DataFile` (root de `data.json`) e `WorkspaceFile` (root de `workspace.json`)
 - `Theme` e `Locale` para o workspace
 - `AuditEntry` e `AuditAction` / `AuditEntity` (F-13):
@@ -345,17 +348,23 @@ GESTÃO DE DADOS          APLICATIVO
 - Ícones Lucide thin-stroke
 
 **Seção Contas:**
-- Lista de contas com ícone, nome, tipo e saldo
-- Botão "Nova Conta" (cria conta com valores padrão via `addAccount`)
+- Lista de contas como `<button>` clicáveis: ícone do tipo + nome + tipo (i18n) + saldo
+- Botão "Nova Conta" abre `AddAccountModal` em modo criação; clicar numa conta abre em modo edição
+- **`AddAccountModal`:** campo nome, grid 4×2 com os 8 tipos de conta (cada tipo mapeado a um ícone Lucide; selecionado com `border-primary bg-primary/5`), toggle "Incluir no saldo total", botão Salvar/Cancelar e link "Excluir Conta" com confirmação de 2 cliques
+- Estado modal: `type ModalState = { open: false } | { open: true; account: Account | null }` — `null` = criar, `Account` = editar
 
 **Seção Categorias:**
 - Pro Tip card em `bg-primary` com texto branco
-- Hierarquia pai/filho: filhos recuados com `ml-6` e dot indicator
-- Botão "Nova Categoria"
+- Lista de categorias top-level como `<button>` com ícone Lucide + nome + tipo; subcategorias recuadas com `ml-6` e dot indicator, também clicáveis
+- Botão "Nova Categoria" abre `AddCategoryModal` em modo criação; clicar numa categoria abre em modo edição
+- **`AddCategoryModal`:** campo nome, icon picker (grid 6 colunas, 12 ícones Lucide; selecionado com `bg-primary text-white`), dropdown Categoria Pai (populado com top-levels; ao selecionar pai, herda tipo automaticamente), toggle DESPESA/RECEITA (visível apenas quando `parentId === null`), botão Salvar/Cancelar e link "Excluir Categoria" com confirmação de 2 cliques
+- Ícone na lista renderizado via helper `categoryIcon(name)` com fallback para `TagIcon`
+- `TAG_COLORS` constante de módulo com 12 nomes de ícones mapeados a componentes Lucide
 
 **Seção Tags:**
-- Chips coloridos com `#nome`
-- Botão "Nova Tag"
+- Pills coloridos como `<button>` clicáveis com `#nome`; clicar abre `AddTagModal` em modo edição
+- Botão "Nova Tag" abre `AddTagModal` em modo criação
+- **`AddTagModal`:** campo nome, paleta de 8 círculos de cor (selecionado com `outline` inline na própria cor + `outlineOffset: 3px`), botões Cancel/Save horizontais, botão Delete à esquerda (2 cliques), rodapé informativo com bullet verde
 
 **Seção Perfil:**
 - Inputs de Nome e E-mail com "Salvar Perfil" → atualiza `data.user` via `loadData`
@@ -407,6 +416,13 @@ GESTÃO DE DADOS          APLICATIVO
 | Retenção padrão do audit log | 200 entradas ou 90 dias | Equilibra rastreabilidade e tamanho do arquivo; usuários avançados podem optar por retenção ilimitada com aviso de performance |
 | `summary` do audit log gerado em pt-BR | String fixa no momento da mutação | Evita complexidade de tradução retroativa; o idioma do summary reflete o idioma ativo no momento da ação |
 | `unsyncedCount` | Estado Zustand (não exportado) | É estado de UI, não dado financeiro; zera ao sincronizar e ao importar |
+| CRUD de contas/categorias/tags | Modal com discriminated union (`{ open: false } \| { open: true; entity \| null }`) | `null` = criar, objeto = editar — uma única estrutura de estado para os dois modos, sem flags extras |
+| Confirmação de exclusão | Two-click inline (sem dialog separado) | Mantém a árvore de componentes plana; primeiro clique muda o texto/cor, segundo executa a ação |
+| Ícones de tipo de conta | Array `ACCOUNT_TYPES` constante de módulo | Compartilhado entre o grid do modal e o helper `accountTypeIcon()` da lista — fonte única de verdade |
+| Ícones de categoria | Nomes string (`'utensils'`, `'car'` …) armazenados no `data.json` | Desacopla o dado do componente; `categoryIcon(name)` resolve o Lucide no runtime |
+| Cores de tags | Paleta fixa de 8 hex no front-end | Simplifica a UX e garante coerência visual sem color picker genérico |
+| `AccountType` expandido | 8 valores vs. 3 originais | Cobre os principais instrumentos financeiros do público-alvo (investidores/tech); extensível no futuro |
+| `includeInBalance` em `Account` | Campo boolean por conta | Permite excluir cartões de crédito ou contas de investimento do saldo consolidado exibido no dashboard |
 
 ---
 
