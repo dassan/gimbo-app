@@ -38,7 +38,7 @@ import {
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { downloadDataFile, openDataFile } from '@/lib/storage/fileSystem'
-import { clearIdb, saveToIdb } from '@/lib/storage/indexedDb'
+import { clearIdb, saveToIdb, saveFileHandle } from '@/lib/storage/indexedDb'
 import { formatCurrency, cn, uuid, now } from '@/lib/utils'
 import { AUDIT_RETENTION_DEFAULT } from '@/lib/storage/schema'
 import type {
@@ -198,10 +198,12 @@ export default function Settings() {
   }
 
   async function handleImport() {
-    const imported = await openDataFile()
-    if (!imported) return
+    const result = await openDataFile()
+    if (!result) return
+    const { handle, data: imported } = result
     await clearIdb()
     await saveToIdb(imported)
+    await saveFileHandle(handle)
     loadData(imported)
   }
 
