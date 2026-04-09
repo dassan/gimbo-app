@@ -32,6 +32,14 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/test/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+    },
+  },
+  {
     files: ['e2e/**/*.ts', 'playwright.config.ts', 'vitest.config.ts'],
     extends: [js.configs.recommended, tseslint.configs.recommended, prettier],
     languageOptions: {

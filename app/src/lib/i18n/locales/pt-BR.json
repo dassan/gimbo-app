@@ -166,7 +166,13 @@
     "unsaved_plural": "alterações não salvas",
     "syncing": "Sincronizando...",
     "tooltip": "{{count}} alteração não salva",
-    "tooltip_plural": "{{count}} alterações não salvas"
+    "tooltip_plural": "{{count}} alterações não salvas",
+    "conflictTitle": "Conflito detectado",
+    "conflictMessage": "O arquivo foi modificado externamente desde o último sync. Escolha como deseja prosseguir.",
+    "overwrite": "Sobrescrever arquivo",
+    "overwriteHint": "Mantém suas alterações locais e sobrescreve o conteúdo atual do arquivo.",
+    "loadCloud": "Carregar do arquivo",
+    "loadCloudHint": "Descarta suas alterações locais e carrega o conteúdo atual do arquivo."
   },
   "audit": {
     "title": "Modificações Recentes",

@@ -16,9 +16,21 @@ declare global {
 // setDataHandle(), or acquired fresh through createNewDataFile() / openDataFile().
 let _dataHandle: FileSystemFileHandle | null = null
 
+// File.lastModified timestamp recorded after each successful write to disk.
+// Used by persist() to detect external modifications between syncs:
+// if the current File.lastModified > _lastWrittenModified, the file was changed
+// externally (another device, cloud sync, manual edit) since our last write.
+// Stored as Unix ms (same unit as File.lastModified) to avoid ISO string precision issues.
+let _lastWrittenModified: number | null = null
+
 /** Inject a previously-persisted handle (e.g. restored from IndexedDB on startup). */
 export function setDataHandle(handle: FileSystemFileHandle): void {
   _dataHandle = handle
+}
+
+/** Return the File.lastModified timestamp recorded after the last successful write, or null. */
+export function getLastWrittenModified(): number | null {
+  return _lastWrittenModified
 }
 
 /**
@@ -71,22 +83,31 @@ export async function createNewDataFile(
 
 /**
  * Read the current data file from the cached handle without opening a picker.
- * Returns null if no handle is cached, the file cannot be read, or validation fails.
- * Failures are non-fatal — the caller should proceed without merging.
+ * Returns { data, lastModified } on success, or null if no handle is cached,
+ * the file cannot be read, or Zod validation fails.
+ * Failures are non-fatal — the caller should proceed without merging / conflict check.
  */
-export async function readCurrentDataFile(): Promise<DataFile | null> {
+export async function readCurrentDataFile(): Promise<{
+  data: DataFile
+  lastModified: number
+} | null> {
   if (!_dataHandle) return null
   try {
     const file = await _dataHandle.getFile()
     const text = await file.text()
     const parsed = JSON.parse(text) as unknown
-    return validateDataFile(parsed)
+    const data = validateDataFile(parsed)
+    return { data, lastModified: file.lastModified }
   } catch {
     return null
   }
 }
 
-/** Save DataFile to the cached handle. If no handle exists, opens showSaveFilePicker. */
+/**
+ * Save DataFile to the cached handle. If no handle exists, opens showSaveFilePicker.
+ * On success, records File.lastModified (post-write OS timestamp) in _lastWrittenModified
+ * so that the next persist() can detect external modifications via conflict detection.
+ */
 export async function saveDataFile(data: DataFile): Promise<boolean> {
   try {
     _dataHandle ??= await window.showSaveFilePicker({
@@ -96,6 +117,17 @@ export async function saveDataFile(data: DataFile): Promise<boolean> {
     const writable = await _dataHandle.createWritable()
     await writable.write(JSON.stringify(data, null, 2))
     await writable.close()
+    // Record the OS-assigned lastModified AFTER the write completes.
+    // We cannot use the ISO string embedded in the JSON (fileUpdatedAt) because
+    // the OS timestamp is always slightly newer — comparing them would produce
+    // a false conflict on every subsequent sync.
+    try {
+      const written = await _dataHandle.getFile()
+      _lastWrittenModified = written.lastModified
+    } catch {
+      // Non-fatal: if we cannot read back, conflict detection will be skipped
+      // for the next sync (getLastWrittenModified returns null).
+    }
     return true
   } catch {
     return false

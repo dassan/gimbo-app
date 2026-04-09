@@ -68,3 +68,98 @@ test('sync badge appears after a mutation and is hidden when count is zero', asy
   // After the mutation the badge should show at least 1 unsynced change
   await expect(syncButton.locator('span')).toBeVisible({ timeout: 3000 })
 })
+
+test('conflict modal appears when file is externally modified between syncs', async ({ page }) => {
+  const T_FIRST = 1_700_000_000_000
+  const T_EXTERNAL = T_FIRST + 60_000 // 60 s newer — simulates an external write
+
+  // Seed IDB and inject a mock file system handle with controllable lastModified.
+  await page.addInitScript(
+    (args: { data: Record<string, unknown>; tFirst: number; tExternal: number }) => {
+      const { data, tFirst, tExternal } = args
+
+      // Seed IDB
+      indexedDB.deleteDatabase('nexus-db')
+      const req = indexedDB.open('nexus-db', 2)
+      req.onupgradeneeded = (e) => {
+        const db = (e.target as IDBOpenDBRequest).result
+        if (!db.objectStoreNames.contains('ledger')) db.createObjectStore('ledger')
+        if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles')
+      }
+      req.onsuccess = (e) => {
+        const db = (e.target as IDBOpenDBRequest).result
+        const tx = db.transaction('ledger', 'readwrite')
+        tx.objectStore('ledger').put(data, 'current')
+      }
+
+      // In-memory "disk" state for the fake handle
+      let lastWritten = JSON.stringify(data)
+      let simulateConflict = false
+
+      class FakeWritable {
+        chunks: string[] = []
+        write(d: string) {
+          this.chunks.push(d)
+          return Promise.resolve()
+        }
+        close() {
+          lastWritten = this.chunks.join('')
+          return Promise.resolve()
+        }
+      }
+
+      const saveHandle = {
+        kind: 'file' as const,
+        name: 'nexus-finances.json',
+        createWritable: () => Promise.resolve(new FakeWritable()),
+        getFile: () =>
+          Promise.resolve({
+            text: () => Promise.resolve(lastWritten),
+            get lastModified() {
+              return simulateConflict ? tExternal : tFirst
+            },
+          }),
+      }
+
+      window.showSaveFilePicker = () =>
+        Promise.resolve(saveHandle as unknown as FileSystemFileHandle)
+
+      // Expose a flag setter so Playwright can trigger the conflict simulation
+      ;(window as unknown as Record<string, unknown>).__setConflict = (v: boolean) => {
+        simulateConflict = v
+      }
+    },
+    { data: dataFile, tFirst: T_FIRST, tExternal: T_EXTERNAL }
+  )
+
+  await page.goto('/settings')
+  await page.getByText('Perfil').click()
+
+  const syncButton = page.getByRole('button', { name: /sincronizar agora/i })
+  const nameInput = page.locator('input[type="text"]').first()
+
+  // First mutation + sync to establish _lastWrittenModified = T_FIRST
+  await nameInput.fill('Nome Inicial')
+  await page.getByRole('button', { name: /salvar perfil/i }).click()
+  await expect(syncButton.locator('span')).toBeVisible({ timeout: 3000 })
+  await syncButton.click()
+  await expect(syncButton.locator('span')).not.toBeVisible({ timeout: 5000 })
+
+  // Simulate external modification — next getFile() will return T_EXTERNAL
+  await page.evaluate(() => {
+    ;(window as unknown as Record<string, unknown>).__setConflict(true)
+  })
+
+  // Second mutation so unsyncedCount > 0 again
+  await nameInput.fill('Nome Conflito')
+  await page.getByRole('button', { name: /salvar perfil/i }).click()
+  await expect(syncButton.locator('span')).toBeVisible({ timeout: 3000 })
+
+  // Second sync attempt — conflict should be detected
+  await syncButton.click()
+  await expect(page.getByText('Conflito detectado')).toBeVisible({ timeout: 3000 })
+
+  // Resolve via "Carregar do arquivo" — modal should close
+  await page.getByRole('button', { name: /carregar do arquivo/i }).click()
+  await expect(page.getByText('Conflito detectado')).not.toBeVisible({ timeout: 3000 })
+})

@@ -9,7 +9,7 @@ import type {
   AuditAction,
   AuditEntity,
 } from '@/types'
-import { saveDataFile, readCurrentDataFile } from '@/lib/storage/fileSystem'
+import { saveDataFile, readCurrentDataFile, getLastWrittenModified } from '@/lib/storage/fileSystem'
 import { mergeDataFiles } from '@/lib/storage/merge'
 import { saveToIdb } from '@/lib/storage/indexedDb'
 import { applyRetention } from '@/lib/storage/schema'
@@ -64,9 +64,11 @@ function makeEntry(
 interface DataStore {
   data: DataFile | null
   unsyncedCount: number
+  conflictData: { local: DataFile; disk: DataFile } | null
 
   loadData: (data: DataFile) => void
   clearData: () => void
+  resolveConflict: (resolution: 'overwrite' | 'load-cloud') => Promise<void>
 
   addAccount: (account: Account) => void
   updateAccount: (account: Account) => void
@@ -93,9 +95,21 @@ interface DataStore {
 export const useDataStore = create<DataStore>((set, get) => ({
   data: null,
   unsyncedCount: 0,
+  conflictData: null,
 
   loadData: (data) => set({ data, unsyncedCount: 0 }),
   clearData: () => set({ data: null, unsyncedCount: 0 }),
+
+  resolveConflict: async (resolution) => {
+    const { conflictData } = get()
+    if (!conflictData) return
+    if (resolution === 'overwrite') {
+      const ok = await saveDataFile(conflictData.local)
+      if (ok) set({ data: conflictData.local, unsyncedCount: 0, conflictData: null })
+    } else {
+      set({ data: conflictData.disk, unsyncedCount: 0, conflictData: null })
+    }
+  },
 
   // ── Accounts ──────────────────────────────────────────────────────────────
 
@@ -301,8 +315,17 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const { data } = get()
     if (!data) return false
     const updated = { ...data, settings: { ...data.settings, fileUpdatedAt: now() } }
-    const diskData = await readCurrentDataFile()
-    const toSave = diskData ? mergeDataFiles(updated, diskData) : updated
+    const diskSnapshot = await readCurrentDataFile()
+    const lastWritten = getLastWrittenModified()
+
+    // Conflict detection: if the disk file was modified after our last write
+    // (by another device, cloud sync, or manual edit), pause and ask the user.
+    if (diskSnapshot !== null && lastWritten !== null && diskSnapshot.lastModified > lastWritten) {
+      set({ conflictData: { local: updated, disk: diskSnapshot.data } })
+      return false
+    }
+
+    const toSave = diskSnapshot ? mergeDataFiles(updated, diskSnapshot.data) : updated
     const ok = await saveDataFile(toSave)
     if (ok) set({ data: toSave, unsyncedCount: 0 })
     return ok

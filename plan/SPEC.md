@@ -582,6 +582,85 @@ sync.tooltip_plural  — "{{count}} alterações não salvas"
 
 ---
 
+## Fase 12 — Sincronização: Conflitos (M-10)
+
+### TASK-24: Detecção e resolução de conflitos de arquivo externo
+
+#### Problema resolvido
+O `persist()` do M-09 fazia merge por UUID sem verificar se o arquivo havia sido modificado por um agente externo (outro dispositivo via iCloud/GDrive, edição manual) desde o último sync da sessão. Isso poderia resultar em sobrescrita silenciosa de dados que estavam no disco mas não no IDB local.
+
+#### Por que não usar `settings.fileUpdatedAt` como baseline de comparação
+`fileUpdatedAt` é definido com `now()` **antes** de `saveDataFile()` ser chamado. O SO atribui `File.lastModified` ao arquivo **após** a escrita terminar — sistematicamente mais novo em alguns milissegundos. Comparação direta geraria um falso conflito em todo sync subsequente.
+
+**Solução correta**: após cada escrita bem-sucedida, ler `(await handle.getFile()).lastModified` e armazená-lo como baseline. O próximo sync compara `diskSnapshot.lastModified` vs esse baseline — ambos em Unix ms, sem conversão.
+
+#### `src/lib/storage/fileSystem.ts` — três adições
+
+```
+let _lastWrittenModified: number | null = null
+```
+- `saveDataFile()` — após `writable.close()` bem-sucedido, lê `_dataHandle.getFile().lastModified` e armazena em `_lastWrittenModified`. A leitura pós-escrita é wrapped em `try/catch` não-fatal (se falhar, `_lastWrittenModified` permanece null e a detecção de conflito é desabilitada para o próximo sync)
+- `readCurrentDataFile()` — tipo de retorno alterado de `DataFile | null` para `{ data: DataFile; lastModified: number } | null`
+- `getLastWrittenModified(): number | null` — nova export
+
+#### `src/store/useDataStore.ts` — três adições
+
+```typescript
+conflictData: { local: DataFile; disk: DataFile } | null
+```
+
+**`persist()` atualizado:**
+```typescript
+if (diskSnapshot !== null && lastWritten !== null && diskSnapshot.lastModified > lastWritten) {
+  set({ conflictData: { local: updated, disk: diskSnapshot.data } })
+  return false   // não escreve — aguarda escolha do usuário
+}
+```
+
+**`resolveConflict(resolution)`:**
+- `'overwrite'`: escreve `conflictData.local` no disco, seta `{ data: local, unsyncedCount: 0, conflictData: null }`
+- `'load-cloud'`: seta `{ data: disk, unsyncedCount: 0, conflictData: null }` sem escrever
+
+#### `src/components/ConflictModal.tsx` — novo componente
+Modal seguindo padrão visual do projeto (overlay `fixed inset-0 z-50`, card `rounded-3xl`):
+- Ícone `AlertTriangle` em destaque
+- Mensagem clara com `sync.conflictTitle` e `sync.conflictMessage`
+- Botão primário: `sync.overwrite` (escuro) + hint `sync.overwriteHint`
+- Botão secundário: `sync.loadCloud` (outline) + hint `sync.loadCloudHint`
+
+#### `src/components/AppLayout.tsx`
+Subscrito a `conflictData` e `resolveConflict` do store. Renderiza `<ConflictModal>` quando `conflictData !== null`.
+
+#### `src/lib/i18n/locales/{pt-BR,en-US}.json` — 6 novas chaves
+```
+sync.conflictTitle    — "Conflito detectado"
+sync.conflictMessage  — "O arquivo foi modificado externamente..."
+sync.overwrite        — "Sobrescrever arquivo"
+sync.overwriteHint    — descritivo do que a ação faz
+sync.loadCloud        — "Carregar do arquivo"
+sync.loadCloudHint    — descritivo do que a ação faz
+```
+
+#### Testes
+- `src/test/lib/storage/fileSystem.test.ts` — atualizado:
+  - `makeHandle` agora inclui `lastModified: FAKE_LAST_MODIFIED` no mock do File object
+  - 5 casos de `readCurrentDataFile` atualizados para checar `result.data.*` e `result.lastModified`
+  - Novo describe `getLastWrittenModified`: null antes de write, número após write bem-sucedido, null após falha
+- `src/test/store/useDataStore.persist.test.ts` — atualizado: mock de `readCurrentDataFile` retorna `{ data, lastModified }`, `getLastWrittenModified` mockado por padrão como "sem conflito"
+- `src/test/store/useDataStore.conflict.test.ts` — novo arquivo: 12 casos cobrindo: sem conflito na primeira sync (lastWritten null), sem conflito com mesmo timestamp, conflito detectado (lastModified > lastWritten), `conflictData` setado corretamente, `saveDataFile` não chamado em conflito, unsyncedCount preservado; `resolveConflict('overwrite')` escreve local e limpa estado, não limpa se save falha; `resolveConflict('load-cloud')` carrega disco sem write, no-op se conflictData null
+- `src/test/components/ConflictModal.test.tsx` — novo arquivo: 5 casos de render + interação
+- `app/e2e/persistence.spec.ts` — novo teste de conflito com mock `getFile()` + flag `__setConflict`
+
+#### Decisões técnicas registradas
+| Decisão | Escolha | Motivo |
+|---------|---------|--------|
+| Baseline de conflito | `_lastWrittenModified` (File.lastModified pós-write) | Evita falso conflito sistemático que ocorreria ao comparar com `fileUpdatedAt` (ISO pré-write) |
+| `conflictData` como estado Zustand vs. callback em `persist()` | Estado Zustand | Permite que `AppLayout` renderize o modal de forma declarativa sem alterar a assinatura de `persist()`; o modal persiste entre re-renders |
+| `resolveConflict('overwrite')` não faz merge | Overwrite puro | O usuário declarou explicitamente "meus dados prevalecem" — merge seria incoerente com a intenção declarada |
+| Não conflito quando `lastWritten === null` | Pass-through | Primeira sync da sessão não tem baseline; assumir conflito bloquearia o onboarding e a primeira sincronização |
+
+---
+
 ## Fora do Escopo (alinhado ao PRD)
 
 - `X-1` Criptografia do `data.json`

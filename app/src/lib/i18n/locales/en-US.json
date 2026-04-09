@@ -166,7 +166,13 @@
     "unsaved_plural": "unsaved changes",
     "syncing": "Syncing...",
     "tooltip": "{{count}} unsaved change",
-    "tooltip_plural": "{{count}} unsaved changes"
+    "tooltip_plural": "{{count}} unsaved changes",
+    "conflictTitle": "Conflict detected",
+    "conflictMessage": "The file was modified externally since the last sync. Choose how to proceed.",
+    "overwrite": "Overwrite file",
+    "overwriteHint": "Keeps your local changes and overwrites the current file contents.",
+    "loadCloud": "Load from file",
+    "loadCloudHint": "Discards your local changes and loads the current file contents."
   },
   "audit": {
     "title": "Recent Changes",

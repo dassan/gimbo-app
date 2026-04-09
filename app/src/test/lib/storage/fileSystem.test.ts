@@ -10,6 +10,8 @@ function makeWritable() {
   }
 }
 
+const FAKE_LAST_MODIFIED = 1_700_000_000_000
+
 function makeHandle(name = 'nexus-finances.json') {
   const writable = makeWritable()
   return {
@@ -18,6 +20,7 @@ function makeHandle(name = 'nexus-finances.json') {
     name,
     getFile: vi.fn().mockResolvedValue({
       text: vi.fn().mockResolvedValue(JSON.stringify(makeDataFile())),
+      lastModified: FAKE_LAST_MODIFIED,
     }),
     createWritable: vi.fn().mockResolvedValue(writable),
   }
@@ -164,14 +167,15 @@ describe('readCurrentDataFile', () => {
     vi.resetModules()
   })
 
-  it('returns DataFile when handle is injected and file is valid', async () => {
+  it('returns { data, lastModified } when handle is injected and file is valid', async () => {
     const handle = makeHandle()
     const { setDataHandle, readCurrentDataFile } = await import('@/lib/storage/fileSystem')
     setDataHandle(handle as unknown as FileSystemFileHandle)
 
     const result = await readCurrentDataFile()
     expect(result).not.toBeNull()
-    expect(result!.user.name).toBe('Test User')
+    expect(result!.data.user.name).toBe('Test User')
+    expect(result!.lastModified).toBe(FAKE_LAST_MODIFIED)
   })
 
   it('returns null when no handle is cached (does not open a picker)', async () => {
@@ -187,7 +191,9 @@ describe('readCurrentDataFile', () => {
   it('returns null when the file contains invalid JSON', async () => {
     const badHandle = {
       ...makeHandle(),
-      getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue('not-json') }),
+      getFile: vi
+        .fn()
+        .mockResolvedValue({ text: vi.fn().mockResolvedValue('not-json'), lastModified: 0 }),
     }
     const { setDataHandle, readCurrentDataFile } = await import('@/lib/storage/fileSystem')
     setDataHandle(badHandle as unknown as FileSystemFileHandle)
@@ -200,6 +206,7 @@ describe('readCurrentDataFile', () => {
       ...makeHandle(),
       getFile: vi.fn().mockResolvedValue({
         text: vi.fn().mockResolvedValue(JSON.stringify({ user: null })),
+        lastModified: 0,
       }),
     }
     const { setDataHandle, readCurrentDataFile } = await import('@/lib/storage/fileSystem')
@@ -217,6 +224,39 @@ describe('readCurrentDataFile', () => {
     setDataHandle(brokenHandle as unknown as FileSystemFileHandle)
 
     expect(await readCurrentDataFile()).toBeNull()
+  })
+})
+
+describe('getLastWrittenModified', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('returns null before any write has occurred', async () => {
+    const { getLastWrittenModified } = await import('@/lib/storage/fileSystem')
+    expect(getLastWrittenModified()).toBeNull()
+  })
+
+  it('returns the lastModified from the file after a successful write', async () => {
+    const handle = makeHandle()
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+
+    const { saveDataFile, getLastWrittenModified } = await import('@/lib/storage/fileSystem')
+    await saveDataFile(makeDataFile())
+
+    expect(getLastWrittenModified()).toBe(FAKE_LAST_MODIFIED)
+  })
+
+  it('remains null after a failed write', async () => {
+    const handle = makeHandle()
+    handle.createWritable = vi.fn().mockRejectedValue(new Error('Disk full'))
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+
+    const { saveDataFile, getLastWrittenModified } = await import('@/lib/storage/fileSystem')
+    const ok = await saveDataFile(makeDataFile())
+
+    expect(ok).toBe(false)
+    expect(getLastWrittenModified()).toBeNull()
   })
 })
 

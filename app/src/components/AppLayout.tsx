@@ -4,6 +4,7 @@ import { useDataStore } from '@/store/useDataStore'
 import Navbar from '@/components/Navbar'
 import FAB from '@/components/FAB'
 import TransactionDrawer from '@/components/TransactionDrawer'
+import ConflictModal from '@/components/ConflictModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const NO_FAB_ROUTES = ['/settings']
@@ -15,6 +16,8 @@ export default function AppLayout() {
   const data = useDataStore((s) => s.data)
   const unsyncedCount = useDataStore((s) => s.unsyncedCount)
   const persist = useDataStore((s) => s.persist)
+  const conflictData = useDataStore((s) => s.conflictData)
+  const resolveConflict = useDataStore((s) => s.resolveConflict)
 
   const showFAB = !NO_FAB_ROUTES.some((r) => location.pathname.startsWith(r))
 
@@ -46,6 +49,13 @@ export default function AppLayout() {
       {showFAB && <FAB onClick={() => setDrawerOpen(true)} />}
 
       <TransactionDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+      {conflictData && (
+        <ConflictModal
+          onOverwrite={() => resolveConflict('overwrite')}
+          onLoadCloud={() => void resolveConflict('load-cloud')}
+        />
+      )}
     </div>
   )
 }

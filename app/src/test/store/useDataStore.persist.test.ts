@@ -2,10 +2,9 @@
  * Tests for useDataStore.persist() in isolation.
  *
  * vi.mock is hoisted to the top of the module by Vitest, so the store's static
- * import of saveDataFile / readCurrentDataFile receives the mocked versions.
- * This is the only pattern that correctly intercepts calls made inside the
- * Zustand store's closures — vi.resetModules() + dynamic imports would not work
- * because the store singleton is already bound to the original references.
+ * import of saveDataFile / readCurrentDataFile / getLastWrittenModified receives
+ * the mocked versions. This is the only pattern that correctly intercepts calls
+ * made inside the Zustand store's closures.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useDataStore } from '@/store/useDataStore'
@@ -17,6 +16,7 @@ import type { Account } from '@/types'
 vi.mock('@/lib/storage/fileSystem', () => ({
   saveDataFile: vi.fn(),
   readCurrentDataFile: vi.fn(),
+  getLastWrittenModified: vi.fn(),
   setDataHandle: vi.fn(),
   openDataFile: vi.fn(),
   createNewDataFile: vi.fn(),
@@ -33,9 +33,15 @@ vi.mock('@/lib/storage/indexedDb', () => ({
   loadFileHandle: vi.fn(),
 }))
 
-import { saveDataFile, readCurrentDataFile } from '@/lib/storage/fileSystem'
+import { saveDataFile, readCurrentDataFile, getLastWrittenModified } from '@/lib/storage/fileSystem'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const LAST_WRITTEN = 1_700_000_000_000
+
+function diskSnapshot(overrides = {}) {
+  return { data: makeDataFile(overrides), lastModified: LAST_WRITTEN }
+}
 
 function diskOnlyAccount(id = 'acc-disk'): Account {
   return { id, name: 'Disk Account', type: 'RETAIL', balance: 0, includeInBalance: true }
@@ -48,8 +54,10 @@ function localAccount(id = 'acc-local'): Account {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  useDataStore.setState({ data: null, unsyncedCount: 0 })
+  useDataStore.setState({ data: null, unsyncedCount: 0, conflictData: null })
   vi.resetAllMocks()
+  // By default, simulate "no conflict": lastWritten === disk lastModified
+  vi.mocked(getLastWrittenModified).mockReturnValue(LAST_WRITTEN)
 })
 
 describe('persist — guard', () => {
@@ -84,7 +92,7 @@ describe('persist — save result', () => {
 describe('persist — read-before-write merge', () => {
   it('merges disk-only accounts into the saved payload', async () => {
     vi.mocked(readCurrentDataFile).mockResolvedValue(
-      makeDataFile({ accounts: [diskOnlyAccount()] })
+      diskSnapshot({ accounts: [diskOnlyAccount()] })
     )
     vi.mocked(saveDataFile).mockResolvedValue(true)
 
@@ -97,7 +105,7 @@ describe('persist — read-before-write merge', () => {
 
   it('updates in-memory store to reflect the merged result', async () => {
     vi.mocked(readCurrentDataFile).mockResolvedValue(
-      makeDataFile({ accounts: [diskOnlyAccount()] })
+      diskSnapshot({ accounts: [diskOnlyAccount()] })
     )
     vi.mocked(saveDataFile).mockResolvedValue(true)
 
@@ -113,7 +121,7 @@ describe('persist — read-before-write merge', () => {
     const diskVersion = diskOnlyAccount('acc-shared')
     diskVersion.name = 'Disk Name'
 
-    vi.mocked(readCurrentDataFile).mockResolvedValue(makeDataFile({ accounts: [diskVersion] }))
+    vi.mocked(readCurrentDataFile).mockResolvedValue(diskSnapshot({ accounts: [diskVersion] }))
     vi.mocked(saveDataFile).mockResolvedValue(true)
 
     useDataStore.setState({ data: makeDataFile({ accounts: [localVersion] }), unsyncedCount: 1 })
@@ -138,14 +146,13 @@ describe('persist — read-before-write merge', () => {
 
   it('does not update in-memory store when save fails even after merge', async () => {
     vi.mocked(readCurrentDataFile).mockResolvedValue(
-      makeDataFile({ accounts: [diskOnlyAccount()] })
+      diskSnapshot({ accounts: [diskOnlyAccount()] })
     )
     vi.mocked(saveDataFile).mockResolvedValue(false)
 
     useDataStore.setState({ data: makeDataFile({ accounts: [] }), unsyncedCount: 1 })
     await useDataStore.getState().persist()
 
-    // Store should remain unchanged (empty accounts) because save failed
     expect(useDataStore.getState().data?.accounts).toHaveLength(0)
     expect(useDataStore.getState().unsyncedCount).toBe(1)
   })
