@@ -172,7 +172,9 @@
     "overwrite": "Overwrite file",
     "overwriteHint": "Keeps your local changes and overwrites the current file contents.",
     "loadCloud": "Load from file",
-    "loadCloudHint": "Discards your local changes and loads the current file contents."
+    "loadCloudHint": "Discards your local changes and loads the current file contents.",
+    "fileLostTooltip": "File not found. Click to re-associate.",
+    "fileLostBadge": "!"
   },
   "audit": {
     "title": "Recent Changes",

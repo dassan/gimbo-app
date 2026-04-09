@@ -172,7 +172,9 @@
     "overwrite": "Sobrescrever arquivo",
     "overwriteHint": "Mantém suas alterações locais e sobrescreve o conteúdo atual do arquivo.",
     "loadCloud": "Carregar do arquivo",
-    "loadCloudHint": "Descarta suas alterações locais e carrega o conteúdo atual do arquivo."
+    "loadCloudHint": "Descarta suas alterações locais e carrega o conteúdo atual do arquivo.",
+    "fileLostTooltip": "Arquivo não encontrado. Clique para re-associar.",
+    "fileLostBadge": "!"
   },
   "audit": {
     "title": "Modificações Recentes",

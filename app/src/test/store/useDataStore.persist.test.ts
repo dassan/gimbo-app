@@ -17,6 +17,7 @@ vi.mock('@/lib/storage/fileSystem', () => ({
   saveDataFile: vi.fn(),
   readCurrentDataFile: vi.fn(),
   getLastWrittenModified: vi.fn(),
+  isHandleLost: vi.fn(),
   setDataHandle: vi.fn(),
   openDataFile: vi.fn(),
   createNewDataFile: vi.fn(),
@@ -33,7 +34,12 @@ vi.mock('@/lib/storage/indexedDb', () => ({
   loadFileHandle: vi.fn(),
 }))
 
-import { saveDataFile, readCurrentDataFile, getLastWrittenModified } from '@/lib/storage/fileSystem'
+import {
+  saveDataFile,
+  readCurrentDataFile,
+  getLastWrittenModified,
+  isHandleLost,
+} from '@/lib/storage/fileSystem'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,9 +60,10 @@ function localAccount(id = 'acc-local'): Account {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  useDataStore.setState({ data: null, unsyncedCount: 0, conflictData: null })
+  useDataStore.setState({ data: null, unsyncedCount: 0, conflictData: null, fileHandleLost: false })
   vi.resetAllMocks()
-  // By default, simulate "no conflict": lastWritten === disk lastModified
+  // By default: no file-lost state, no conflict
+  vi.mocked(isHandleLost).mockReturnValue(false)
   vi.mocked(getLastWrittenModified).mockReturnValue(LAST_WRITTEN)
 })
 
@@ -155,5 +162,60 @@ describe('persist — read-before-write merge', () => {
 
     expect(useDataStore.getState().data?.accounts).toHaveLength(0)
     expect(useDataStore.getState().unsyncedCount).toBe(1)
+  })
+})
+
+describe('persist — file lost', () => {
+  it('sets fileHandleLost and returns false when readCurrentDataFile detects NotFoundError', async () => {
+    // readCurrentDataFile returns null (NotFoundError consumed internally),
+    // and isHandleLost() flips to true after the call.
+    vi.mocked(readCurrentDataFile).mockImplementation(() => {
+      vi.mocked(isHandleLost).mockReturnValue(true)
+      return Promise.resolve(null)
+    })
+
+    useDataStore.setState({ data: makeDataFile(), unsyncedCount: 1 })
+    const ok = await useDataStore.getState().persist()
+
+    expect(ok).toBe(false)
+    expect(useDataStore.getState().fileHandleLost).toBe(true)
+    expect(saveDataFile).not.toHaveBeenCalled()
+  })
+
+  it('skips disk read and calls saveDataFile directly on recovery click (isHandleLost true)', async () => {
+    vi.mocked(isHandleLost).mockReturnValue(true)
+    vi.mocked(saveDataFile).mockResolvedValue(true)
+
+    useDataStore.setState({ data: makeDataFile(), unsyncedCount: 1, fileHandleLost: true })
+    const ok = await useDataStore.getState().persist()
+
+    expect(ok).toBe(true)
+    expect(readCurrentDataFile).not.toHaveBeenCalled()
+    expect(saveDataFile).toHaveBeenCalledOnce()
+  })
+
+  it('clears fileHandleLost after a successful recovery save', async () => {
+    vi.mocked(isHandleLost).mockReturnValue(true)
+    vi.mocked(saveDataFile).mockResolvedValue(true)
+
+    useDataStore.setState({ data: makeDataFile(), unsyncedCount: 1, fileHandleLost: true })
+    await useDataStore.getState().persist()
+
+    expect(useDataStore.getState().fileHandleLost).toBe(false)
+    expect(useDataStore.getState().unsyncedCount).toBe(0)
+  })
+
+  it('sets fileHandleLost when saveDataFile itself encounters NotFoundError', async () => {
+    vi.mocked(readCurrentDataFile).mockResolvedValue(null)
+    vi.mocked(saveDataFile).mockImplementation(() => {
+      vi.mocked(isHandleLost).mockReturnValue(true)
+      return Promise.resolve(false)
+    })
+
+    useDataStore.setState({ data: makeDataFile(), unsyncedCount: 1 })
+    const ok = await useDataStore.getState().persist()
+
+    expect(ok).toBe(false)
+    expect(useDataStore.getState().fileHandleLost).toBe(true)
   })
 })

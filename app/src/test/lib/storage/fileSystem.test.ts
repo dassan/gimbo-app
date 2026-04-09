@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeDataFile } from '@/test/fixtures/dataFile'
 
+function notFoundError() {
+  return Object.assign(new Error('NotFoundError'), { name: 'NotFoundError' })
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeWritable() {
@@ -160,6 +164,43 @@ describe('saveDataFile', () => {
     const { saveDataFile } = await import('@/lib/storage/fileSystem')
     expect(await saveDataFile(makeDataFile())).toBe(false)
   })
+
+  it('sets isHandleLost when createWritable throws NotFoundError', async () => {
+    const handle = makeHandle()
+    handle.createWritable = vi.fn().mockRejectedValue(notFoundError())
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+
+    const { setDataHandle, saveDataFile, isHandleLost } = await import('@/lib/storage/fileSystem')
+    setDataHandle(handle as unknown as FileSystemFileHandle)
+
+    await saveDataFile(makeDataFile())
+
+    expect(isHandleLost()).toBe(true)
+  })
+
+  it('clears isHandleLost after a successful write', async () => {
+    const handle = makeHandle()
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+
+    const { saveDataFile, isHandleLost } = await import('@/lib/storage/fileSystem')
+
+    // Simulate a prior lost state by forcing a failed write first via a bad handle,
+    // then a good one via the picker.
+    const badHandle = {
+      ...makeHandle(),
+      createWritable: vi.fn().mockRejectedValue(notFoundError()),
+    }
+    vi.stubGlobal(
+      'showSaveFilePicker',
+      vi.fn().mockResolvedValueOnce(badHandle).mockResolvedValue(handle)
+    )
+
+    await saveDataFile(makeDataFile()) // loses handle
+    expect(isHandleLost()).toBe(true)
+
+    await saveDataFile(makeDataFile()) // recovery — picker returns good handle
+    expect(isHandleLost()).toBe(false)
+  })
 })
 
 describe('readCurrentDataFile', () => {
@@ -224,6 +265,45 @@ describe('readCurrentDataFile', () => {
     setDataHandle(brokenHandle as unknown as FileSystemFileHandle)
 
     expect(await readCurrentDataFile()).toBeNull()
+  })
+
+  it('sets isHandleLost when getFile throws NotFoundError', async () => {
+    const brokenHandle = {
+      ...makeHandle(),
+      getFile: vi.fn().mockRejectedValue(notFoundError()),
+    }
+    const { setDataHandle, readCurrentDataFile, isHandleLost } =
+      await import('@/lib/storage/fileSystem')
+    setDataHandle(brokenHandle as unknown as FileSystemFileHandle)
+
+    await readCurrentDataFile()
+
+    expect(isHandleLost()).toBe(true)
+  })
+
+  it('does NOT set isHandleLost for non-NotFoundError failures', async () => {
+    const brokenHandle = {
+      ...makeHandle(),
+      getFile: vi.fn().mockRejectedValue(new Error('PermissionDenied')),
+    }
+    const { setDataHandle, readCurrentDataFile, isHandleLost } =
+      await import('@/lib/storage/fileSystem')
+    setDataHandle(brokenHandle as unknown as FileSystemFileHandle)
+
+    await readCurrentDataFile()
+
+    expect(isHandleLost()).toBe(false)
+  })
+})
+
+describe('isHandleLost', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('returns false initially (no lost state)', async () => {
+    const { isHandleLost } = await import('@/lib/storage/fileSystem')
+    expect(isHandleLost()).toBe(false)
   })
 })
 

@@ -18,6 +18,7 @@ export default function AppLayout() {
   const persist = useDataStore((s) => s.persist)
   const conflictData = useDataStore((s) => s.conflictData)
   const resolveConflict = useDataStore((s) => s.resolveConflict)
+  const fileHandleLost = useDataStore((s) => s.fileHandleLost)
 
   const showFAB = !NO_FAB_ROUTES.some((r) => location.pathname.startsWith(r))
 
@@ -35,6 +36,7 @@ export default function AppLayout() {
       <Navbar
         initials={initials}
         unsyncedCount={unsyncedCount}
+        fileHandleLost={fileHandleLost}
         onSync={async () => {
           await persist()
         }}

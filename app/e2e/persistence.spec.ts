@@ -163,3 +163,86 @@ test('conflict modal appears when file is externally modified between syncs', as
   await page.getByRole('button', { name: /carregar do arquivo/i }).click()
   await expect(page.getByText('Conflito detectado')).not.toBeVisible({ timeout: 3000 })
 })
+
+test('file-lost: alert badge appears and recovery re-opens picker', async ({ page }) => {
+  // Inject a mock save handle whose createWritable() throws NotFoundError on the first
+  // sync call (simulating the file having been deleted or moved), then succeeds on the
+  // second call (recovery after picker re-association).
+  await page.addInitScript((data: Record<string, unknown>) => {
+    // Seed IDB
+    indexedDB.deleteDatabase('nexus-db')
+    const req = indexedDB.open('nexus-db', 2)
+    req.onupgradeneeded = (e) => {
+      const db = (e.target as IDBOpenDBRequest).result
+      if (!db.objectStoreNames.contains('ledger')) db.createObjectStore('ledger')
+      if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles')
+    }
+    req.onsuccess = (e) => {
+      const db = (e.target as IDBOpenDBRequest).result
+      const tx = db.transaction('ledger', 'readwrite')
+      tx.objectStore('ledger').put(data, 'current')
+    }
+
+    class FakeWritable {
+      chunks: string[] = []
+      write(d: string) {
+        this.chunks.push(d)
+        return Promise.resolve()
+      }
+      close() {
+        return Promise.resolve()
+      }
+    }
+
+    // Handle that fails with NotFoundError on createWritable
+    const lostHandle = {
+      kind: 'file' as const,
+      name: 'nexus-finances.json',
+      createWritable: () =>
+        Promise.reject(Object.assign(new Error('NotFoundError'), { name: 'NotFoundError' })),
+      getFile: () =>
+        Promise.reject(Object.assign(new Error('NotFoundError'), { name: 'NotFoundError' })),
+    }
+
+    // Handle that succeeds — returned by picker on recovery click
+    const goodHandle = {
+      kind: 'file' as const,
+      name: 'nexus-finances.json',
+      createWritable: () => Promise.resolve(new FakeWritable()),
+      getFile: () =>
+        Promise.resolve({
+          text: () => Promise.resolve(JSON.stringify(data)),
+          lastModified: Date.now(),
+        }),
+    }
+
+    let callCount = 0
+    window.showSaveFilePicker = () => {
+      callCount++
+      // First call (initial sync attempt): return lost handle
+      // Second call (recovery): return good handle
+      return Promise.resolve(
+        (callCount === 1 ? lostHandle : goodHandle) as unknown as FileSystemFileHandle
+      )
+    }
+  }, dataFile)
+
+  await page.goto('/settings')
+  await page.getByText('Perfil').click()
+
+  const syncButton = page.getByRole('button', { name: /sincronizar agora/i })
+  const nameInput = page.locator('input[type="text"]').first()
+
+  // Trigger a mutation so unsyncedCount > 0
+  await nameInput.fill('Nome Teste')
+  await page.getByRole('button', { name: /salvar perfil/i }).click()
+  await expect(syncButton.locator('span')).toBeVisible({ timeout: 3000 })
+
+  // First sync — handle is missing, badge should switch to "!"
+  await syncButton.click()
+  await expect(syncButton.locator('span')).toHaveText('!', { timeout: 3000 })
+
+  // Second sync (recovery click) — picker opens with good handle, badge clears
+  await syncButton.click()
+  await expect(syncButton.locator('span')).not.toBeVisible({ timeout: 5000 })
+})

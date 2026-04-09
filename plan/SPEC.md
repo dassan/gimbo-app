@@ -661,6 +661,101 @@ sync.loadCloudHint    — descritivo do que a ação faz
 
 ---
 
+## Fase 13 — Sincronização: Arquivo Perdido (M-11)
+
+### TASK-25: Detecção e recuperação de arquivo perdido
+
+#### Contexto
+O handle do arquivo armazenado no IndexedDB pode se tornar inválido se o arquivo for deletado, movido ou se o volume/pasta for desmontado. A File System Access API lança `NotFoundError` (com `err.name === 'NotFoundError'`) ao chamar `getFile()` ou `createWritable()` nessa situação. A app precisa tolerar esse estado sem travar e oferecer um caminho de recuperação.
+
+#### `src/lib/storage/fileSystem.ts`
+Novo estado de módulo e getter:
+```typescript
+let _handleLost = false
+export function isHandleLost(): boolean { return _handleLost }
+```
+
+**`readCurrentDataFile()`** — catch diferenciado:
+```typescript
+} catch (err) {
+  if (err instanceof Error && err.name === 'NotFoundError') {
+    _handleLost = true
+    _dataHandle = null   // descarta handle viciado
+  }
+  return null
+}
+```
+
+**`saveDataFile()`** — reset em sucesso + detecção em falha:
+```typescript
+// no caminho de sucesso, antes de return true:
+_handleLost = false
+
+// no catch externo:
+} catch (err) {
+  if (err instanceof Error && err.name === 'NotFoundError') {
+    _handleLost = true
+    _dataHandle = null
+  }
+  return false
+}
+```
+
+#### `src/store/useDataStore.ts`
+- Novo campo `fileHandleLost: boolean` (default `false`) na interface e estado inicial
+- Import de `isHandleLost` de `fileSystem`
+- `persist()` com dois novos caminhos:
+
+**Recovery path** (início de `persist()`, quando `isHandleLost()` já é `true` ao entrar):
+```
+→ Pula disk read e conflict check
+→ Chama saveDataFile() diretamente (handle é null → abre showSaveFilePicker)
+→ Se ok: set({ data, unsyncedCount: 0, fileHandleLost: false })
+```
+
+**Detection path** (após `readCurrentDataFile()` ou `saveDataFile()` retornar `false`):
+```
+→ Se isHandleLost() ficou true durante a call:
+     set({ fileHandleLost: true })
+     return false  (sem abrir picker prematuro)
+```
+
+#### `src/components/Navbar.tsx`
+- Nova prop `fileHandleLost?: boolean`
+- Guard do click: `if (syncing || (unsyncedCount === 0 && !fileHandleLost)) return`
+- Badge: exibe `!` (via `sync.fileLostBadge`) quando `fileHandleLost`, numérico caso contrário
+- Ícone `RefreshCw`: cor `text-tertiary` quando `fileHandleLost`, `text-on-surface/40` caso contrário
+- `title`: usa `sync.fileLostTooltip` quando `fileHandleLost`
+
+#### `src/components/AppLayout.tsx`
+Subscrito a `fileHandleLost` e passa como prop ao `<Navbar>`.
+
+#### `src/lib/i18n/locales/{pt-BR,en-US}.json` — 2 novas chaves
+```
+sync.fileLostTooltip — "Arquivo não encontrado. Clique para re-associar." / "File not found. Click to re-associate."
+sync.fileLostBadge   — "!"
+```
+
+#### Testes
+- `src/test/lib/storage/fileSystem.test.ts` — novos casos:
+  - `readCurrentDataFile`: `isHandleLost()` torna-se `true` após `NotFoundError`; permanece `false` para outros erros
+  - `saveDataFile`: `isHandleLost()` torna-se `true` após `NotFoundError` em `createWritable()`; reseta para `false` após write bem-sucedido
+  - Novo describe `isHandleLost`: retorna `false` inicialmente
+- `src/test/store/useDataStore.persist.test.ts` — `isHandleLost` adicionado ao mock; 4 novos casos em `describe('persist — file lost')`: detecção via `readCurrentDataFile`, recovery path, limpeza de `fileHandleLost` após sucesso, detecção via `saveDataFile`
+- `src/test/store/useDataStore.conflict.test.ts` — `isHandleLost` adicionado ao mock factory e `beforeEach`
+- `src/test/components/Navbar.test.tsx` — novo arquivo: 5 casos cobrindo badge `!`, badge numérico, ausência de badge, click permitido com `fileHandleLost`, click bloqueado sem `fileHandleLost` e sem `unsyncedCount`
+- `app/e2e/persistence.spec.ts` — novo teste: handle que falha com `NotFoundError` na 1ª sync → badge `!`; 2ª sync (recovery) com handle funcional → badge desaparece
+
+#### Decisões técnicas registradas
+| Decisão | Escolha | Motivo |
+|---------|---------|--------|
+| Dois cliques para recuperar (detecção → recovery) | Fluxo assíncrono de 2 fases | O picker não pode ser aberto automaticamente — exige gesto do usuário (user gesture). Abrir no mesmo evento que detectou o erro é tecnicamente possível mas semanticamente errado: o usuário precisa ver o estado de alerta antes de confirmar a re-associação |
+| Limpar `_dataHandle = null` junto com `_handleLost = true` | Sim | Descarta o handle viciado imediatamente; evita que `createWritable()` seja chamado novamente no handle quebrado durante a recovery |
+| Recovery sem `readCurrentDataFile()` | Correto | Handle é `null` após `NotFoundError`; chamá-lo retornaria `null` sem efeito; o caminho direto para `saveDataFile()` é mais claro e abre o picker |
+| `fileHandleLost` em Zustand vs. prop local | Estado Zustand | Navbar precisa do estado para mudar visual e comportamento; mantê-lo no store evita prop drilling por múltiplas camadas |
+
+---
+
 ## Fora do Escopo (alinhado ao PRD)
 
 - `X-1` Criptografia do `data.json`

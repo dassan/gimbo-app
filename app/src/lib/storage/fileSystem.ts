@@ -23,6 +23,11 @@ let _dataHandle: FileSystemFileHandle | null = null
 // Stored as Unix ms (same unit as File.lastModified) to avoid ISO string precision issues.
 let _lastWrittenModified: number | null = null
 
+// Set to true when a NotFoundError is thrown by getFile() or createWritable().
+// Indicates the file associated with the handle no longer exists on disk (deleted,
+// moved, or unmounted). Cleared back to false after a successful write.
+let _handleLost = false
+
 /** Inject a previously-persisted handle (e.g. restored from IndexedDB on startup). */
 export function setDataHandle(handle: FileSystemFileHandle): void {
   _dataHandle = handle
@@ -31,6 +36,11 @@ export function setDataHandle(handle: FileSystemFileHandle): void {
 /** Return the File.lastModified timestamp recorded after the last successful write, or null. */
 export function getLastWrittenModified(): number | null {
   return _lastWrittenModified
+}
+
+/** Return true if the last file operation failed with NotFoundError (file deleted/moved). */
+export function isHandleLost(): boolean {
+  return _handleLost
 }
 
 /**
@@ -98,7 +108,11 @@ export async function readCurrentDataFile(): Promise<{
     const parsed = JSON.parse(text) as unknown
     const data = validateDataFile(parsed)
     return { data, lastModified: file.lastModified }
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'NotFoundError') {
+      _handleLost = true
+      _dataHandle = null
+    }
     return null
   }
 }
@@ -128,8 +142,13 @@ export async function saveDataFile(data: DataFile): Promise<boolean> {
       // Non-fatal: if we cannot read back, conflict detection will be skipped
       // for the next sync (getLastWrittenModified returns null).
     }
+    _handleLost = false
     return true
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'NotFoundError') {
+      _handleLost = true
+      _dataHandle = null
+    }
     return false
   }
 }

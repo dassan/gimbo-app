@@ -9,7 +9,12 @@ import type {
   AuditAction,
   AuditEntity,
 } from '@/types'
-import { saveDataFile, readCurrentDataFile, getLastWrittenModified } from '@/lib/storage/fileSystem'
+import {
+  saveDataFile,
+  readCurrentDataFile,
+  getLastWrittenModified,
+  isHandleLost,
+} from '@/lib/storage/fileSystem'
 import { mergeDataFiles } from '@/lib/storage/merge'
 import { saveToIdb } from '@/lib/storage/indexedDb'
 import { applyRetention } from '@/lib/storage/schema'
@@ -65,6 +70,7 @@ interface DataStore {
   data: DataFile | null
   unsyncedCount: number
   conflictData: { local: DataFile; disk: DataFile } | null
+  fileHandleLost: boolean
 
   loadData: (data: DataFile) => void
   clearData: () => void
@@ -96,6 +102,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
   data: null,
   unsyncedCount: 0,
   conflictData: null,
+  fileHandleLost: false,
 
   loadData: (data) => set({ data, unsyncedCount: 0 }),
   clearData: () => set({ data: null, unsyncedCount: 0 }),
@@ -315,7 +322,24 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const { data } = get()
     if (!data) return false
     const updated = { ...data, settings: { ...data.settings, fileUpdatedAt: now() } }
+
+    // Recovery path: the handle was previously lost (NotFoundError). Skip disk
+    // read and conflict check — go straight to saveDataFile() which will open
+    // showSaveFilePicker() (handle is null) so the user can re-associate the file.
+    if (isHandleLost()) {
+      const ok = await saveDataFile(updated)
+      if (ok) set({ data: updated, unsyncedCount: 0, fileHandleLost: false })
+      return ok
+    }
+
     const diskSnapshot = await readCurrentDataFile()
+
+    // Check if readCurrentDataFile() detected a missing file mid-flight.
+    if (isHandleLost()) {
+      set({ fileHandleLost: true })
+      return false
+    }
+
     const lastWritten = getLastWrittenModified()
 
     // Conflict detection: if the disk file was modified after our last write
@@ -327,7 +351,11 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
     const toSave = diskSnapshot ? mergeDataFiles(updated, diskSnapshot.data) : updated
     const ok = await saveDataFile(toSave)
-    if (ok) set({ data: toSave, unsyncedCount: 0 })
+    if (ok) {
+      set({ data: toSave, unsyncedCount: 0, fileHandleLost: false })
+    } else if (isHandleLost()) {
+      set({ fileHandleLost: true })
+    }
     return ok
   },
 }))

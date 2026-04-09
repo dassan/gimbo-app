@@ -13,22 +13,29 @@ const NAV_ITEMS = [
 interface NavbarProps {
   initials?: string
   unsyncedCount: number
+  fileHandleLost?: boolean
   onSync: () => Promise<void>
 }
 
-export default function Navbar({ initials = 'U', unsyncedCount, onSync }: NavbarProps) {
+export default function Navbar({
+  initials = 'U',
+  unsyncedCount,
+  fileHandleLost = false,
+  onSync,
+}: NavbarProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [syncing, setSyncing] = useState(false)
 
   async function handleSync() {
-    if (syncing || unsyncedCount === 0) return
+    if (syncing || (unsyncedCount === 0 && !fileHandleLost)) return
     setSyncing(true)
     await onSync()
     setSyncing(false)
   }
 
-  const badgeLabel = unsyncedCount > 99 ? '99+' : String(unsyncedCount)
+  const badgeLabel = fileHandleLost ? '!' : unsyncedCount > 99 ? '99+' : String(unsyncedCount)
+  const showBadge = fileHandleLost || (unsyncedCount > 0 && !syncing)
 
   return (
     <header
@@ -79,13 +86,26 @@ export default function Navbar({ initials = 'U', unsyncedCount, onSync }: Navbar
         {/* Sync icon with unsaved-changes badge */}
         <button
           aria-label={t('sync.syncNow')}
-          title={unsyncedCount > 0 ? t('sync.tooltip', { count: unsyncedCount }) : undefined}
+          title={
+            fileHandleLost
+              ? t('sync.fileLostTooltip')
+              : unsyncedCount > 0
+                ? t('sync.tooltip', { count: unsyncedCount })
+                : undefined
+          }
           onClick={() => void handleSync()}
           disabled={syncing}
-          className="relative flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low hover:text-on-surface/70 transition-colors disabled:cursor-default"
+          className="relative flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:cursor-default hover:bg-surface-container-low hover:text-on-surface/70"
         >
-          <RefreshCw size={18} strokeWidth={1.5} className={cn(syncing && 'animate-spin')} />
-          {unsyncedCount > 0 && !syncing && (
+          <RefreshCw
+            size={18}
+            strokeWidth={1.5}
+            className={cn(
+              syncing && 'animate-spin',
+              fileHandleLost ? 'text-tertiary' : 'text-on-surface/40'
+            )}
+          />
+          {showBadge && (
             <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-tertiary px-1 text-[9px] font-bold leading-none text-white">
               {badgeLabel}
             </span>

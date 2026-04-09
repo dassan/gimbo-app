@@ -14,6 +14,7 @@ vi.mock('@/lib/storage/fileSystem', () => ({
   saveDataFile: vi.fn(),
   readCurrentDataFile: vi.fn(),
   getLastWrittenModified: vi.fn(),
+  isHandleLost: vi.fn(),
   setDataHandle: vi.fn(),
   openDataFile: vi.fn(),
   createNewDataFile: vi.fn(),
@@ -30,7 +31,12 @@ vi.mock('@/lib/storage/indexedDb', () => ({
   loadFileHandle: vi.fn(),
 }))
 
-import { saveDataFile, readCurrentDataFile, getLastWrittenModified } from '@/lib/storage/fileSystem'
+import {
+  saveDataFile,
+  readCurrentDataFile,
+  getLastWrittenModified,
+  isHandleLost,
+} from '@/lib/storage/fileSystem'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,8 +50,9 @@ function diskAccount(id = 'acc-disk'): Account {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  useDataStore.setState({ data: null, unsyncedCount: 0, conflictData: null })
+  useDataStore.setState({ data: null, unsyncedCount: 0, conflictData: null, fileHandleLost: false })
   vi.resetAllMocks()
+  vi.mocked(isHandleLost).mockReturnValue(false)
 })
 
 // ── Conflict detection ────────────────────────────────────────────────────────
