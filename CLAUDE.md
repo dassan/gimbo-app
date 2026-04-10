@@ -342,6 +342,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | CRUD de categorias (hierarquia pai/filho) | M-04 | ✅ |
 | CRUD de tags (paleta de cores) | M-05 | ✅ |
 | CRUD de transações (Income/Expense/Transfer) | — | ✅ |
+| Editar/remover transação ao clicar na linha | M-02 | ✅ |
 | Dashboard com cards mensais | — | ✅ |
 | Gráfico de fluxo de caixa (±3 meses) | — | ⚠️ (B-01: sem dados) |
 | Gráfico de despesas por categoria (donut) | — | ⚠️ (B-02, B-03: sem dados) |
@@ -371,7 +372,6 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 | ID | Descrição | Prioridade |
 |----|-----------|-----------|
-| M-02 | Editar transação ao clicar (popular drawer com dados existentes) | alta |
 | M-12 | Tratar arquivos JSON corrompidos com mensagem amigável | alta |
 | M-01 | Versionar data.json para compatibilidade de schema | média |
 | M-13 | Detectar múltiplas abas abertas (BroadcastChannel) | média |
