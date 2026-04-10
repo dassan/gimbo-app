@@ -14,6 +14,7 @@ interface NavbarProps {
   initials?: string
   unsyncedCount: number
   fileHandleLost?: boolean
+  permissionNeeded?: boolean
   onSync: () => Promise<void>
 }
 
@@ -21,6 +22,7 @@ export default function Navbar({
   initials = 'U',
   unsyncedCount,
   fileHandleLost = false,
+  permissionNeeded = false,
   onSync,
 }: NavbarProps) {
   const { t } = useTranslation()
@@ -28,7 +30,7 @@ export default function Navbar({
   const [syncing, setSyncing] = useState(false)
 
   async function handleSync() {
-    if (syncing || (unsyncedCount === 0 && !fileHandleLost)) return
+    if (syncing || (unsyncedCount === 0 && !fileHandleLost && !permissionNeeded)) return
     setSyncing(true)
     await onSync()
     setSyncing(false)
@@ -89,9 +91,11 @@ export default function Navbar({
           title={
             fileHandleLost
               ? t('sync.fileLostTooltip')
-              : unsyncedCount > 0
-                ? t('sync.tooltip', { count: unsyncedCount })
-                : undefined
+              : permissionNeeded
+                ? t('sync.permissionNeededTooltip')
+                : unsyncedCount > 0
+                  ? t('sync.tooltip', { count: unsyncedCount })
+                  : undefined
           }
           onClick={() => void handleSync()}
           disabled={syncing}
@@ -102,7 +106,11 @@ export default function Navbar({
             strokeWidth={1.5}
             className={cn(
               syncing && 'animate-spin',
-              fileHandleLost ? 'text-tertiary' : 'text-on-surface/40'
+              fileHandleLost
+                ? 'text-tertiary'
+                : permissionNeeded
+                  ? 'text-primary'
+                  : 'text-on-surface/40'
             )}
           />
           {showBadge && (

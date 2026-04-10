@@ -174,7 +174,8 @@
     "loadCloud": "Carregar do arquivo",
     "loadCloudHint": "Descarta suas alterações locais e carrega o conteúdo atual do arquivo.",
     "fileLostTooltip": "Arquivo não encontrado. Clique para re-associar.",
-    "fileLostBadge": "!"
+    "fileLostBadge": "!",
+    "permissionNeededTooltip": "Permissão expirada. Clique para re-autorizar o arquivo."
   },
   "audit": {
     "title": "Modificações Recentes",

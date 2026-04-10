@@ -19,6 +19,7 @@ export default function AppLayout() {
   const conflictData = useDataStore((s) => s.conflictData)
   const resolveConflict = useDataStore((s) => s.resolveConflict)
   const fileHandleLost = useDataStore((s) => s.fileHandleLost)
+  const permissionNeeded = useDataStore((s) => s.permissionNeeded)
 
   const showFAB = !NO_FAB_ROUTES.some((r) => location.pathname.startsWith(r))
 
@@ -37,6 +38,7 @@ export default function AppLayout() {
         initials={initials}
         unsyncedCount={unsyncedCount}
         fileHandleLost={fileHandleLost}
+        permissionNeeded={permissionNeeded}
         onSync={async () => {
           await persist()
         }}

@@ -164,6 +164,85 @@ test('conflict modal appears when file is externally modified between syncs', as
   await expect(page.getByText('Conflito detectado')).not.toBeVisible({ timeout: 3000 })
 })
 
+test('permission-prompt: sync click requests permission and proceeds to save', async ({
+  page,
+}) => {
+  // Inject a mock FileSystemFileHandle into the IDB handles store.
+  // Because IDB serialises via structured clone (which drops functions), we
+  // monkey-patch IDBObjectStore.prototype.get so that when the app reads
+  // the 'data' key from the 'handles' store it receives our fake handle
+  // instead of whatever is physically stored.
+  await page.addInitScript((data: Record<string, unknown>) => {
+    // Seed ledger
+    indexedDB.deleteDatabase('nexus-db')
+    const req = indexedDB.open('nexus-db', 2)
+    req.onupgradeneeded = (e) => {
+      const db = (e.target as IDBOpenDBRequest).result
+      if (!db.objectStoreNames.contains('ledger')) db.createObjectStore('ledger')
+      if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles')
+    }
+    req.onsuccess = (e) => {
+      const db = (e.target as IDBOpenDBRequest).result
+      const tx = db.transaction('ledger', 'readwrite')
+      tx.objectStore('ledger').put(data, 'current')
+    }
+
+    class FakeWritable {
+      chunks: string[] = []
+      write(d: string) {
+        this.chunks.push(d)
+        return Promise.resolve()
+      }
+      close() {
+        return Promise.resolve()
+      }
+    }
+
+    // The idb library wraps the return value of IDBObjectStore.prototype.get via
+    // its internal wrap() function. For non-IDBRequest objects, wrap() returns
+    // the value as-is, so our promptHandle flows directly through to
+    // loadFileHandle(). This lets checkHandlePermission() find queryPermission()
+    // on the returned object without any fake-IDBRequest plumbing.
+    const promptHandle = {
+      kind: 'file' as const,
+      name: 'nexus-finances.json',
+      queryPermission: (_descriptor?: unknown) => Promise.resolve('prompt' as PermissionState),
+      requestPermission: (_descriptor?: unknown) => Promise.resolve('granted' as PermissionState),
+      createWritable: () => Promise.resolve(new FakeWritable()),
+      getFile: () =>
+        Promise.resolve({
+          text: () => Promise.resolve(JSON.stringify(data)),
+          lastModified: Date.now(),
+        }),
+    }
+
+    const _origGet = IDBObjectStore.prototype.get
+    IDBObjectStore.prototype.get = function (this: IDBObjectStore, key: IDBValidKey) {
+      if (this.name === 'handles' && key === 'data') {
+        // Return promptHandle directly. idb's wrap() sees a plain object (not an
+        // IDBRequest) and returns it as-is, so db.get() resolves to promptHandle.
+        return promptHandle as unknown as IDBRequest
+      }
+      return _origGet.call(this, key)
+    }
+  }, dataFile)
+
+  await page.goto('/settings')
+  await page.getByText('Perfil').click()
+
+  const syncButton = page.getByRole('button', { name: /sincronizar agora/i })
+  const nameInput = page.locator('input[type="text"]').first()
+
+  // Trigger a mutation — unsyncedCount becomes 1 and the badge appears
+  await nameInput.fill('Nome Permissão')
+  await page.getByRole('button', { name: /salvar perfil/i }).click()
+  await expect(syncButton.locator('span')).toBeVisible({ timeout: 3000 })
+
+  // Sync click: permission is granted → save succeeds → badge disappears
+  await syncButton.click()
+  await expect(syncButton.locator('span')).not.toBeVisible({ timeout: 5000 })
+})
+
 test('file-lost: alert badge appears and recovery re-opens picker', async ({ page }) => {
   // Inject a mock save handle whose createWritable() throws NotFoundError on the first
   // sync call (simulating the file having been deleted or moved), then succeeds on the

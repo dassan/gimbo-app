@@ -357,3 +357,144 @@ describe('setDataHandle', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 })
+
+// ─── Permission helpers ───────────────────────────────────────────────────────
+
+function makeHandleWithPermission(state: PermissionState) {
+  const handle = makeHandle()
+  return Object.assign(handle, {
+    queryPermission: vi.fn().mockResolvedValue(state),
+    requestPermission: vi.fn().mockResolvedValue(state),
+  })
+}
+
+describe('checkHandlePermission', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it("injects handle into _dataHandle when state is 'granted'", async () => {
+    const handle = makeHandleWithPermission('granted')
+    const spy = vi.fn()
+    vi.stubGlobal('showSaveFilePicker', spy)
+
+    const { checkHandlePermission, saveDataFile } = await import('@/lib/storage/fileSystem')
+    const state = await checkHandlePermission(handle as unknown as FileSystemFileHandle)
+
+    expect(state).toBe('granted')
+    // Handle is now cached: saveDataFile should NOT open the picker
+    await saveDataFile(makeDataFile())
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it("parks handle in _pendingHandle and does NOT inject _dataHandle when state is 'prompt'", async () => {
+    const handle = makeHandleWithPermission('prompt')
+    const spy = vi.fn().mockResolvedValue(makeHandle())
+    vi.stubGlobal('showSaveFilePicker', spy)
+
+    const { checkHandlePermission, isPermissionNeeded, saveDataFile } =
+      await import('@/lib/storage/fileSystem')
+    const state = await checkHandlePermission(handle as unknown as FileSystemFileHandle)
+
+    expect(state).toBe('prompt')
+    expect(isPermissionNeeded()).toBe(true)
+    // _dataHandle is NOT set — picker will open on save
+    await saveDataFile(makeDataFile())
+    expect(spy).toHaveBeenCalledOnce()
+  })
+
+  it("sets isHandleLost when state is 'denied'", async () => {
+    const handle = makeHandleWithPermission('denied')
+
+    const { checkHandlePermission, isHandleLost } = await import('@/lib/storage/fileSystem')
+    const state = await checkHandlePermission(handle as unknown as FileSystemFileHandle)
+
+    expect(state).toBe('denied')
+    expect(isHandleLost()).toBe(true)
+  })
+
+  it('sets isHandleLost and returns denied when queryPermission throws', async () => {
+    const handle = {
+      ...makeHandle(),
+      queryPermission: vi.fn().mockRejectedValue(new Error('stale handle')),
+    }
+
+    const { checkHandlePermission, isHandleLost } = await import('@/lib/storage/fileSystem')
+    const state = await checkHandlePermission(handle as unknown as FileSystemFileHandle)
+
+    expect(state).toBe('denied')
+    expect(isHandleLost()).toBe(true)
+  })
+})
+
+describe('requestHandlePermission', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('returns false immediately when no pending handle exists', async () => {
+    const { requestHandlePermission } = await import('@/lib/storage/fileSystem')
+    expect(await requestHandlePermission()).toBe(false)
+  })
+
+  it("promotes pending handle to _dataHandle on 'granted' and clears permissionNeeded", async () => {
+    const handle = makeHandleWithPermission('prompt')
+    // After requestPermission, we want it to return 'granted'
+    handle.requestPermission = vi.fn().mockResolvedValue('granted')
+    const spy = vi.fn()
+    vi.stubGlobal('showSaveFilePicker', spy)
+
+    const { checkHandlePermission, requestHandlePermission, isPermissionNeeded, saveDataFile } =
+      await import('@/lib/storage/fileSystem')
+
+    await checkHandlePermission(handle as unknown as FileSystemFileHandle)
+    expect(isPermissionNeeded()).toBe(true)
+
+    const ok = await requestHandlePermission()
+    expect(ok).toBe(true)
+    expect(isPermissionNeeded()).toBe(false)
+
+    // Handle is now promoted — picker should NOT be opened
+    await saveDataFile(makeDataFile())
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it("sets isHandleLost and returns false when requestPermission returns 'denied'", async () => {
+    const handle = makeHandleWithPermission('prompt')
+    handle.requestPermission = vi.fn().mockResolvedValue('denied')
+
+    const { checkHandlePermission, requestHandlePermission, isHandleLost } =
+      await import('@/lib/storage/fileSystem')
+
+    await checkHandlePermission(handle as unknown as FileSystemFileHandle)
+    const ok = await requestHandlePermission()
+
+    expect(ok).toBe(false)
+    expect(isHandleLost()).toBe(true)
+  })
+
+  it('sets isHandleLost and returns false when requestPermission throws', async () => {
+    const handle = makeHandleWithPermission('prompt')
+    handle.requestPermission = vi.fn().mockRejectedValue(new Error('denied'))
+
+    const { checkHandlePermission, requestHandlePermission, isHandleLost } =
+      await import('@/lib/storage/fileSystem')
+
+    await checkHandlePermission(handle as unknown as FileSystemFileHandle)
+    const ok = await requestHandlePermission()
+
+    expect(ok).toBe(false)
+    expect(isHandleLost()).toBe(true)
+  })
+})
+
+describe('isPermissionNeeded', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('returns false initially (no pending handle)', async () => {
+    const { isPermissionNeeded } = await import('@/lib/storage/fileSystem')
+    expect(isPermissionNeeded()).toBe(false)
+  })
+})

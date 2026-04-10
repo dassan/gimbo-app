@@ -8,6 +8,13 @@ declare global {
     showOpenFilePicker(opts?: object): Promise<FileSystemFileHandle[]>
     showSaveFilePicker(opts?: object): Promise<FileSystemFileHandle>
   }
+
+  // queryPermission / requestPermission are part of the File System Access API
+  // but not yet in the standard TS DOM lib.
+  interface FileSystemFileHandle {
+    queryPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>
+    requestPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>
+  }
 }
 
 // ─── data file ────────────────────────────────────────────────────────────────
@@ -15,6 +22,12 @@ declare global {
 // In-memory cache of the active handle. Restored from IDB on startup via
 // setDataHandle(), or acquired fresh through createNewDataFile() / openDataFile().
 let _dataHandle: FileSystemFileHandle | null = null
+
+// Handle restored from IDB whose permission state is 'prompt'. It is kept
+// separate from _dataHandle so that _dataHandle only ever contains a handle
+// that is known to be 'granted'. Promoted to _dataHandle by
+// requestHandlePermission() after the user explicitly clicks the sync button.
+let _pendingHandle: FileSystemFileHandle | null = null
 
 // File.lastModified timestamp recorded after each successful write to disk.
 // Used by persist() to detect external modifications between syncs:
@@ -31,6 +44,70 @@ let _handleLost = false
 /** Inject a previously-persisted handle (e.g. restored from IndexedDB on startup). */
 export function setDataHandle(handle: FileSystemFileHandle): void {
   _dataHandle = handle
+}
+
+/**
+ * Check the permission state of a handle restored from IndexedDB.
+ * Must be called on startup before any read/write attempt.
+ *
+ * - 'granted'  → injects into _dataHandle immediately; sync is ready.
+ * - 'prompt'   → parks the handle in _pendingHandle; isPermissionNeeded()
+ *                returns true so the UI can signal the user to click sync.
+ * - 'denied'   → sets _handleLost so the UI shows the red lost-file badge.
+ *
+ * Returns the resolved PermissionState for the caller to react to.
+ */
+export async function checkHandlePermission(
+  handle: FileSystemFileHandle
+): Promise<PermissionState> {
+  try {
+    const state = await handle.queryPermission({ mode: 'readwrite' })
+    if (state === 'granted') {
+      _dataHandle = handle
+    } else if (state === 'prompt') {
+      _pendingHandle = handle
+    } else {
+      // 'denied' — treat the same as a lost handle
+      _handleLost = true
+    }
+    return state
+  } catch {
+    // queryPermission itself failed (e.g. handle is stale / serialization error)
+    _handleLost = true
+    return 'denied'
+  }
+}
+
+/**
+ * Request permission for the pending handle.
+ * Must be called inside a user-gesture handler (e.g. the sync button click)
+ * because browsers enforce the user-activation requirement.
+ *
+ * - Returns true and promotes _pendingHandle → _dataHandle on 'granted'.
+ * - Returns false and sets _handleLost on any other outcome.
+ * - Returns false immediately if no pending handle exists.
+ */
+export async function requestHandlePermission(): Promise<boolean> {
+  if (!_pendingHandle) return false
+  try {
+    const state = await _pendingHandle.requestPermission({ mode: 'readwrite' })
+    if (state === 'granted') {
+      _dataHandle = _pendingHandle
+      _pendingHandle = null
+      _handleLost = false
+      return true
+    }
+  } catch {
+    // requestPermission threw — treat as denied
+  }
+  _pendingHandle = null
+  _handleLost = true
+  return false
+}
+
+/** Return true when a handle is awaiting explicit user permission (state 'prompt'). */
+export function isPermissionNeeded(): boolean {
+  return _pendingHandle !== null
 }
 
 /** Return the File.lastModified timestamp recorded after the last successful write, or null. */

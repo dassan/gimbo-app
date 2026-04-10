@@ -68,3 +68,29 @@ describe('Navbar — file handle lost state', () => {
     expect(onSync).not.toHaveBeenCalled()
   })
 })
+
+describe('Navbar — permission needed state', () => {
+  it('calls onSync when permissionNeeded is true even if unsyncedCount is 0', async () => {
+    const onSync = vi.fn().mockResolvedValue(undefined)
+    renderNavbar({ permissionNeeded: true, unsyncedCount: 0, onSync })
+
+    await userEvent.click(screen.getByRole('button', { name: 'sync.syncNow' }))
+
+    expect(onSync).toHaveBeenCalledOnce()
+  })
+
+  it('does NOT call onSync when permissionNeeded is false and unsyncedCount is 0', async () => {
+    const onSync = vi.fn().mockResolvedValue(undefined)
+    renderNavbar({ permissionNeeded: false, unsyncedCount: 0, onSync })
+
+    await userEvent.click(screen.getByRole('button', { name: 'sync.syncNow' }))
+
+    expect(onSync).not.toHaveBeenCalled()
+  })
+
+  it('does not show "!" badge when permissionNeeded is true (icon color is the signal)', () => {
+    renderNavbar({ permissionNeeded: true, unsyncedCount: 0 })
+
+    expect(screen.queryByText('!')).not.toBeInTheDocument()
+  })
+})

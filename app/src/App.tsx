@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { useDataStore } from '@/store/useDataStore'
 import { loadFromIdb, loadFileHandle } from '@/lib/storage/indexedDb'
-import { setDataHandle } from '@/lib/storage/fileSystem'
+import { checkHandlePermission } from '@/lib/storage/fileSystem'
 import AppLayout from '@/components/AppLayout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import Onboarding from '@/pages/Onboarding'
@@ -25,7 +25,15 @@ export default function App() {
         initWorkspace()
         const [saved, handle] = await Promise.all([loadFromIdb(), loadFileHandle()])
         if (saved) loadData(saved)
-        if (handle) setDataHandle(handle)
+        if (handle) {
+          const state = await checkHandlePermission(handle)
+          if (state === 'prompt') {
+            useDataStore.setState({ permissionNeeded: true })
+          } else if (state === 'denied') {
+            useDataStore.setState({ fileHandleLost: true })
+          }
+          // 'granted' → handle injected into _dataHandle by checkHandlePermission
+        }
       } catch (err) {
         setInitError(err instanceof Error ? err.message : 'Erro ao carregar dados locais')
       } finally {

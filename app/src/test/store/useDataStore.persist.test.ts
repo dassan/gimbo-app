@@ -18,7 +18,10 @@ vi.mock('@/lib/storage/fileSystem', () => ({
   readCurrentDataFile: vi.fn(),
   getLastWrittenModified: vi.fn(),
   isHandleLost: vi.fn(),
+  isPermissionNeeded: vi.fn(),
+  requestHandlePermission: vi.fn(),
   setDataHandle: vi.fn(),
+  checkHandlePermission: vi.fn(),
   openDataFile: vi.fn(),
   createNewDataFile: vi.fn(),
   downloadDataFile: vi.fn(),
@@ -39,6 +42,8 @@ import {
   readCurrentDataFile,
   getLastWrittenModified,
   isHandleLost,
+  isPermissionNeeded,
+  requestHandlePermission,
 } from '@/lib/storage/fileSystem'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,10 +65,17 @@ function localAccount(id = 'acc-local'): Account {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  useDataStore.setState({ data: null, unsyncedCount: 0, conflictData: null, fileHandleLost: false })
+  useDataStore.setState({
+    data: null,
+    unsyncedCount: 0,
+    conflictData: null,
+    fileHandleLost: false,
+    permissionNeeded: false,
+  })
   vi.resetAllMocks()
-  // By default: no file-lost state, no conflict
+  // By default: no file-lost state, no permission prompt, no conflict
   vi.mocked(isHandleLost).mockReturnValue(false)
+  vi.mocked(isPermissionNeeded).mockReturnValue(false)
   vi.mocked(getLastWrittenModified).mockReturnValue(LAST_WRITTEN)
 })
 
@@ -217,5 +229,36 @@ describe('persist — file lost', () => {
 
     expect(ok).toBe(false)
     expect(useDataStore.getState().fileHandleLost).toBe(true)
+  })
+})
+
+describe('persist — permission needed', () => {
+  it('clears permissionNeeded and proceeds with normal persist when permission is granted', async () => {
+    vi.mocked(isPermissionNeeded).mockReturnValue(true)
+    vi.mocked(requestHandlePermission).mockResolvedValue(true)
+    vi.mocked(readCurrentDataFile).mockResolvedValue(null)
+    vi.mocked(saveDataFile).mockResolvedValue(true)
+
+    useDataStore.setState({ data: makeDataFile(), unsyncedCount: 1, permissionNeeded: true })
+    const ok = await useDataStore.getState().persist()
+
+    expect(ok).toBe(true)
+    expect(useDataStore.getState().permissionNeeded).toBe(false)
+    expect(useDataStore.getState().unsyncedCount).toBe(0)
+    expect(saveDataFile).toHaveBeenCalledOnce()
+  })
+
+  it('sets fileHandleLost and clears permissionNeeded when permission is denied', async () => {
+    vi.mocked(isPermissionNeeded).mockReturnValue(true)
+    vi.mocked(requestHandlePermission).mockResolvedValue(false)
+
+    useDataStore.setState({ data: makeDataFile(), unsyncedCount: 1, permissionNeeded: true })
+    const ok = await useDataStore.getState().persist()
+
+    expect(ok).toBe(false)
+    expect(useDataStore.getState().permissionNeeded).toBe(false)
+    expect(useDataStore.getState().fileHandleLost).toBe(true)
+    expect(saveDataFile).not.toHaveBeenCalled()
+    expect(readCurrentDataFile).not.toHaveBeenCalled()
   })
 })

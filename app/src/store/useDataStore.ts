@@ -14,6 +14,8 @@ import {
   readCurrentDataFile,
   getLastWrittenModified,
   isHandleLost,
+  isPermissionNeeded,
+  requestHandlePermission,
 } from '@/lib/storage/fileSystem'
 import { mergeDataFiles } from '@/lib/storage/merge'
 import { saveToIdb } from '@/lib/storage/indexedDb'
@@ -71,6 +73,7 @@ interface DataStore {
   unsyncedCount: number
   conflictData: { local: DataFile; disk: DataFile } | null
   fileHandleLost: boolean
+  permissionNeeded: boolean
 
   loadData: (data: DataFile) => void
   clearData: () => void
@@ -103,6 +106,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
   unsyncedCount: 0,
   conflictData: null,
   fileHandleLost: false,
+  permissionNeeded: false,
 
   loadData: (data) => set({ data, unsyncedCount: 0 }),
   clearData: () => set({ data: null, unsyncedCount: 0 }),
@@ -322,6 +326,22 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const { data } = get()
     if (!data) return false
     const updated = { ...data, settings: { ...data.settings, fileUpdatedAt: now() } }
+
+    // Permission re-authorisation path: the handle was restored from IDB but its
+    // permission state is 'prompt'. requestHandlePermission() must be called here
+    // (inside the sync button click handler) to satisfy the user-activation
+    // requirement. If granted, clear the flag and fall through to normal persist.
+    // If denied, treat the same as a lost handle.
+    if (isPermissionNeeded()) {
+      const granted = await requestHandlePermission()
+      if (granted) {
+        set({ permissionNeeded: false })
+        // Fall through to normal persist flow below.
+      } else {
+        set({ fileHandleLost: true, permissionNeeded: false })
+        return false
+      }
+    }
 
     // Recovery path: the handle was previously lost (NotFoundError). Skip disk
     // read and conflict check — go straight to saveDataFile() which will open

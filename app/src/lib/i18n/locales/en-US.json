@@ -174,7 +174,8 @@
     "loadCloud": "Load from file",
     "loadCloudHint": "Discards your local changes and loads the current file contents.",
     "fileLostTooltip": "File not found. Click to re-associate.",
-    "fileLostBadge": "!"
+    "fileLostBadge": "!",
+    "permissionNeededTooltip": "Permission expired. Click to re-authorize the file."
   },
   "audit": {
     "title": "Recent Changes",

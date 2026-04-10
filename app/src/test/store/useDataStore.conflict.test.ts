@@ -15,7 +15,10 @@ vi.mock('@/lib/storage/fileSystem', () => ({
   readCurrentDataFile: vi.fn(),
   getLastWrittenModified: vi.fn(),
   isHandleLost: vi.fn(),
+  isPermissionNeeded: vi.fn(),
+  requestHandlePermission: vi.fn(),
   setDataHandle: vi.fn(),
+  checkHandlePermission: vi.fn(),
   openDataFile: vi.fn(),
   createNewDataFile: vi.fn(),
   downloadDataFile: vi.fn(),
@@ -36,6 +39,7 @@ import {
   readCurrentDataFile,
   getLastWrittenModified,
   isHandleLost,
+  isPermissionNeeded,
 } from '@/lib/storage/fileSystem'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -50,9 +54,16 @@ function diskAccount(id = 'acc-disk'): Account {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  useDataStore.setState({ data: null, unsyncedCount: 0, conflictData: null, fileHandleLost: false })
+  useDataStore.setState({
+    data: null,
+    unsyncedCount: 0,
+    conflictData: null,
+    fileHandleLost: false,
+    permissionNeeded: false,
+  })
   vi.resetAllMocks()
   vi.mocked(isHandleLost).mockReturnValue(false)
+  vi.mocked(isPermissionNeeded).mockReturnValue(false)
 })
 
 // ── Conflict detection ────────────────────────────────────────────────────────

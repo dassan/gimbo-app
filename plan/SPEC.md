@@ -756,6 +756,92 @@ sync.fileLostBadge   — "!"
 
 ---
 
+## Fase 14 — Sincronização: Re-permissão do FileHandle (M-14)
+
+### TASK-26: Verificação de permissão do FileHandle restaurado do IDB
+
+#### Contexto
+Browsers que implementam a File System Access API (Chrome/Edge) expiram as permissões de FileHandle entre sessões. O handle pode ser persistido no IDB sem problema, mas ao restaurá-lo no próximo startup, a permissão pode estar em estado `'prompt'` (requer interação do usuário) ou `'denied'`. Ignorar esse estado e injetar o handle diretamente em `_dataHandle` (comportamento anterior) fazia com que a primeira chamada a `createWritable()` falhasse silenciosamente sem feedback visual.
+
+#### Alterações realizadas
+
+**`src/lib/storage/fileSystem.ts`**
+- Augmentação de tipo para `FileSystemFileHandle`: adicionados `queryPermission` e `requestPermission` (não presentes no TS DOM lib padrão)
+- Novo estado de módulo: `let _pendingHandle: FileSystemFileHandle | null = null` — armazena handles em estado `'prompt'` separadamente de `_dataHandle` (que só contém handles com permissão `'granted'`)
+- **`checkHandlePermission(handle)`** — chama `handle.queryPermission({ mode: 'readwrite' })`:
+  - `'granted'` → `_dataHandle = handle`; retorna `'granted'`
+  - `'prompt'` → `_pendingHandle = handle`; retorna `'prompt'`
+  - `'denied'` → `_handleLost = true`; retorna `'denied'`
+  - Exceção no `queryPermission` → `_handleLost = true`; retorna `'denied'`
+- **`requestHandlePermission()`** — chama `_pendingHandle.requestPermission({ mode: 'readwrite' })`:
+  - `'granted'` → `_dataHandle = _pendingHandle`, `_pendingHandle = null`, `_handleLost = false`; retorna `true`
+  - Outro resultado ou exceção → `_pendingHandle = null`, `_handleLost = true`; retorna `false`
+  - Sem `_pendingHandle` → retorna `false` imediatamente
+- **`isPermissionNeeded()`** — retorna `_pendingHandle !== null`
+
+**`src/store/useDataStore.ts`**
+- Novo campo `permissionNeeded: boolean` no interface e estado inicial (`false`)
+- Importação de `isPermissionNeeded` e `requestHandlePermission`
+- Em `persist()`, bloco de re-autorização inserido ANTES de qualquer outra lógica (incluindo `isHandleLost()`) — obrigatório para manter o user-gesture context do clique do botão:
+  ```
+  if (isPermissionNeeded()) {
+    granted → set({ permissionNeeded: false }) e continua fluxo normal
+    denied  → set({ fileHandleLost: true, permissionNeeded: false }); return false
+  }
+  ```
+
+**`src/App.tsx`**
+- Substitui `setDataHandle(handle)` por `await checkHandlePermission(handle)` com tratamento dos 3 estados:
+  - `'granted'` → handle já injetado internamente
+  - `'prompt'` → `useDataStore.setState({ permissionNeeded: true })`
+  - `'denied'` → `useDataStore.setState({ fileHandleLost: true })`
+
+**`src/components/Navbar.tsx`**
+- Nova prop `permissionNeeded?: boolean` (default `false`)
+- Click guard: `syncing || (unsyncedCount === 0 && !fileHandleLost && !permissionNeeded)`
+- Ícone `RefreshCw` em `text-primary` (verde) quando `permissionNeeded` (sinaliza ação necessária, não crítica)
+- Tooltip: `t('sync.permissionNeededTooltip')` quando `permissionNeeded`
+- Badge numérico não exibido para `permissionNeeded` — o ícone colorido é o sinal visual suficiente
+
+**`src/components/AppLayout.tsx`**
+- Subscrição a `permissionNeeded` do store; propagada como prop para `<Navbar />`
+
+**`src/lib/i18n/locales/pt-BR.json`** e **`en-US.json`**
+- Nova chave `sync.permissionNeededTooltip`:
+  - pt-BR: `"Permissão expirada. Clique para re-autorizar o arquivo."`
+  - en-US: `"Permission expired. Click to re-authorize the file."`
+
+**`src/test/lib/storage/fileSystem.test.ts`**
+- Helper `makeHandleWithPermission(state)` retorna handle com `queryPermission` e `requestPermission` mockados
+- Novo describe `checkHandlePermission`: 4 casos — granted injeta `_dataHandle`, prompt injeta `_pendingHandle` (não `_dataHandle`), denied seta `_handleLost`, exceção seta `_handleLost`
+- Novo describe `requestHandlePermission`: 4 casos — sem pending retorna false, granted promove handle e limpa `isPermissionNeeded`, denied seta `_handleLost`, exceção seta `_handleLost`
+- Novo describe `isPermissionNeeded`: 1 caso — false inicialmente
+
+**`src/test/store/useDataStore.persist.test.ts`**
+- `isPermissionNeeded` e `requestHandlePermission` adicionados ao mock factory e imports
+- `permissionNeeded: false` adicionado ao `setState` do `beforeEach`
+- `isPermissionNeeded.mockReturnValue(false)` adicionado ao `beforeEach`
+- Novo describe `persist — permission needed`: 2 casos — permission concedida (prossegue, limpa flag), permission negada (seta `fileHandleLost`, limpa flag, não chama save)
+
+**`src/test/components/Navbar.test.tsx`**
+- Novo describe `Navbar — permission needed state`: 3 casos — onSync chamado com `permissionNeeded=true` e `unsyncedCount=0`, onSync não chamado com ambos false, badge `!` não exibido com `permissionNeeded=true`
+
+**`app/e2e/persistence.spec.ts`**
+- Novo teste `permission-prompt: sync click requests permission and proceeds to save`
+- Usa `IDBObjectStore.prototype.get` monkey-patch: retorna `promptHandle` diretamente (não um fake IDBRequest); a biblioteca `idb` chama internamente `wrap(storeGetResult)` — para objetos que não são `instanceof IDBRequest`, `wrap()` retorna o valor como está, então `db.get()` resolve para `promptHandle` via `Promise.all` no idb
+- Verifica que: mutation → badge visível → clique sync → permission granted → save succeed → badge desaparece
+
+#### Decisões técnicas registradas
+| Decisão | Escolha | Motivo |
+|---------|---------|--------|
+| `_pendingHandle` separado de `_dataHandle` | Sim | `_dataHandle` só deve conter handles com permissão confirmada; misturá-los causaria `createWritable()` inesperado antes do user-gesture |
+| Re-autorização no primeiro `await` de `persist()` | Obrigatório | Browsers ligam o user-gesture ao call stack síncrono do clique; qualquer `await` anterior quebraria a associação com o gesto, fazendo `requestPermission()` ser bloqueado pelo browser |
+| Ícone verde (`text-primary`) para `permissionNeeded` | Sim | Verde sinaliza "ação necessária mas recuperável" — em oposição ao vermelho (`text-tertiary`) de `fileHandleLost` que indica perda de dados iminente |
+| Nenhum badge `!` para `permissionNeeded` | Não exibir | O badge `!` é reservado para `fileHandleLost`; para permissão, o ícone colorido + tooltip são suficientes e evitam alarme desnecessário |
+| Fallback para `fileHandleLost` quando permissão negada | Sim | Semanticamente correto — o handle está inacessível; o mesmo UX de M-11 (badge vermelho `!`, tooltip, re-pick) é a resposta certa |
+
+---
+
 ## Fora do Escopo (alinhado ao PRD)
 
 - `X-1` Criptografia do `data.json`
