@@ -349,7 +349,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Exportar/Importar data.json | — | ✅ |
 | Seletor de idioma (pt-BR / en-US) | — | ✅ |
 | Onboarding (criar ou importar) | M-11 | ✅ |
-| Auto-save via IndexedDB (debounce 300ms) | M-12 | ✅ |
+| Auto-save via IndexedDB (debounce 300ms) | — | ✅ |
 | Log de auditoria com política de retenção | — | ✅ |
 | Badge de sync (contagem de não sincronizados) | — | ✅ |
 | Cold start sync (FileHandle persiste no IDB) | M-07 | ✅ |
@@ -358,6 +358,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Detecção e resolução de conflito | M-10 | ✅ |
 | Recuperação de arquivo perdido (NotFoundError) | M-11 | ✅ |
 | Re-permissão de FileHandle no startup | M-14 | ✅ |
+| Rejeição de JSON corrompido + exportação de emergência | M-12 | ✅ |
 
 ### Bugs abertos
 
@@ -372,7 +373,6 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 | ID | Descrição | Prioridade |
 |----|-----------|-----------|
-| M-12 | Tratar arquivos JSON corrompidos com mensagem amigável | alta |
 | M-01 | Versionar data.json para compatibilidade de schema | média |
 | M-13 | Detectar múltiplas abas abertas (BroadcastChannel) | média |
 | M-15 | Recuperação de erro de escrita com retry | média |

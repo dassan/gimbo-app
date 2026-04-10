@@ -130,6 +130,8 @@
     "exportData": "Exportar Dados",
     "importData": "Importar Dados",
     "importFileError": "Arquivo inválido ou corrompido. Verifique se é um arquivo exportado pelo Nexus.",
+    "exportLocalData": "Exportar Base Local",
+    "exportLocalDataHint": "Faça backup dos seus dados atuais antes de tentar uma nova importação.",
     "saveProfile": "Salvar Perfil",
     "localFirst": "O Nexus opera como uma aplicação Local-First. Seus dados financeiros são armazenados no arquivo data.json do seu dispositivo.",
     "privacyGuarantee": "Privacidade de ponta-a-ponta garantida",

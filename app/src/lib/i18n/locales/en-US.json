@@ -130,6 +130,8 @@
     "exportData": "Export Data",
     "importData": "Import Data",
     "importFileError": "Invalid or corrupted file. Make sure it was exported from Nexus.",
+    "exportLocalData": "Export Local Data",
+    "exportLocalDataHint": "Back up your current data before trying a new import.",
     "saveProfile": "Save Profile",
     "localFirst": "Nexus operates as a Local-First application. Your financial data is stored in the data.json file on your device.",
     "privacyGuarantee": "End-to-end privacy guaranteed",

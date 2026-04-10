@@ -598,7 +598,22 @@ export default function Settings() {
                     </span>
                   </button>
                 </div>
-                {importError && <p className="mt-3 text-xs text-red-500">{importError}</p>}
+                {importError && (
+                  <div className="mt-3 rounded-xl border border-tertiary/20 bg-tertiary/5 p-3 space-y-2">
+                    <p className="text-xs text-tertiary">{importError}</p>
+                    <p className="text-xs text-on-surface/40">
+                      {t('settings.exportLocalDataHint')}
+                    </p>
+                    <button
+                      onClick={handleExport}
+                      className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-on-surface hover:bg-surface-container-low transition-colors"
+                      style={{ boxShadow: '0px 1px 4px rgba(25,28,29,0.06)' }}
+                    >
+                      <Download size={12} strokeWidth={2} />
+                      {t('settings.exportLocalData')}
+                    </button>
+                  </div>
+                )}
               </Section>
             )}
 
