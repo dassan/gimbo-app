@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useOutletContext } from 'react-router-dom'
 import { Search, CheckCircle2, Clock, ChevronDown } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { formatCurrency, cn } from '@/lib/utils'
+import type { AppLayoutContext } from '@/components/AppLayout'
 import type { Transaction } from '@/types'
 
 type TimePeriod = 'today' | 'week' | 'month' | 'custom'
@@ -10,6 +12,7 @@ type TimePeriod = 'today' | 'week' | 'month' | 'custom'
 export default function Transactions() {
   const { t } = useTranslation()
   const data = useDataStore((s) => s.data)
+  const { openTransactionDrawer } = useOutletContext<AppLayoutContext>()
 
   const [period, setPeriod] = useState<TimePeriod>('month')
   const [search, setSearch] = useState('')
@@ -153,7 +156,13 @@ export default function Transactions() {
       ) : (
         <div className="space-y-6">
           {grouped.map(([dateKey, txs]) => (
-            <DateGroup key={dateKey} dateKey={dateKey} txs={txs} data={data} />
+            <DateGroup
+              key={dateKey}
+              dateKey={dateKey}
+              txs={txs}
+              data={data}
+              onEditTx={openTransactionDrawer}
+            />
           ))}
         </div>
       )}
@@ -199,10 +208,12 @@ function DateGroup({
   dateKey,
   txs,
   data,
+  onEditTx,
 }: {
   dateKey: string
   txs: Transaction[]
   data: NonNullable<ReturnType<typeof useDataStore.getState>['data']>
+  onEditTx: (tx: Transaction) => void
 }) {
   const date = new Date(dateKey + 'T12:00:00')
   const today = new Date()
@@ -227,7 +238,7 @@ function DateGroup({
         style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
       >
         {txs.map((tx, i) => (
-          <TxRow key={tx.id} tx={tx} data={data} isLast={i === txs.length - 1} />
+          <TxRow key={tx.id} tx={tx} data={data} isLast={i === txs.length - 1} onEdit={onEditTx} />
         ))}
       </div>
     </div>
@@ -240,10 +251,12 @@ function TxRow({
   tx,
   data,
   isLast,
+  onEdit,
 }: {
   tx: Transaction
   data: NonNullable<ReturnType<typeof useDataStore.getState>['data']>
   isLast: boolean
+  onEdit: (tx: Transaction) => void
 }) {
   const cat = data.categories.find((c) => c.id === tx.categoryId)
   const acc = data.accounts.find((a) => a.id === tx.accountId)
@@ -257,8 +270,12 @@ function TxRow({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onEdit(tx)}
+      onKeyDown={(e) => e.key === 'Enter' && onEdit(tx)}
       className={cn(
-        'flex items-center gap-4 px-5 py-4 hover:bg-surface-container-low transition-colors',
+        'flex items-center gap-4 px-5 py-4 hover:bg-surface-container-low transition-colors cursor-pointer',
         !isLast && 'border-b border-surface-container-low'
       )}
     >
@@ -307,13 +324,13 @@ function TxRow({
             {isIncome ? 'Depósito' : 'Débito'}
           </p>
         </div>
-        <button className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full">
           {tx.isPaid ? (
             <CheckCircle2 size={20} className="text-primary" strokeWidth={1.5} />
           ) : (
             <Clock size={20} className="text-on-surface/20" strokeWidth={1.5} />
           )}
-        </button>
+        </div>
       </div>
     </div>
   )

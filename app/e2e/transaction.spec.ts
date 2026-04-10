@@ -42,3 +42,80 @@ test('add transaction: opens FAB drawer and saves', async ({ page }) => {
   const backdrop = page.locator('.fixed.inset-0.z-50').first()
   await expect(backdrop).toHaveClass(/pointer-events-none/, { timeout: 3000 })
 })
+
+test('edit transaction: opens drawer pre-filled on row click', async ({ page }) => {
+  await page.goto('/transactions')
+  await expect(page).toHaveURL(/\/transactions/)
+
+  // The fixture has one transaction "Salário Janeiro" in January 2024 — switch to "custom" period to see it
+  await page.getByRole('button', { name: 'Personalizado' }).click()
+
+  // Click the transaction row
+  const txRow = page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })
+  await txRow.waitFor({ state: 'visible', timeout: 5000 })
+  await txRow.click()
+
+  // Drawer should open in edit mode
+  await expect(page.getByText('Editar Transação')).toBeVisible({ timeout: 3000 })
+
+  // Amount should be pre-filled (5000.00)
+  await expect(page.locator('input[placeholder="0,00"]')).toHaveValue('5000,00')
+
+  // Description should be pre-filled
+  await expect(page.locator('input[placeholder*="comprou"]')).toHaveValue('Salário Janeiro')
+
+  // Save-update button should be visible
+  await expect(page.getByRole('button', { name: 'Salvar Alterações →' })).toBeVisible()
+
+  // Delete button should be visible
+  await expect(page.getByRole('button', { name: 'Remover Transação' })).toBeVisible()
+})
+
+test('edit transaction: updates description and saves', async ({ page }) => {
+  await page.goto('/transactions')
+  await expect(page).toHaveURL(/\/transactions/)
+
+  await page.getByRole('button', { name: 'Personalizado' }).click()
+
+  const txRow = page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })
+  await txRow.waitFor({ state: 'visible', timeout: 5000 })
+  await txRow.click()
+
+  await expect(page.getByText('Editar Transação')).toBeVisible({ timeout: 3000 })
+
+  // Edit description
+  const descInput = page.locator('input[placeholder*="comprou"]')
+  await descInput.clear()
+  await descInput.fill('Salário Fevereiro')
+
+  await page.getByRole('button', { name: 'Salvar Alterações →' }).click()
+
+  // Drawer closes
+  const backdrop = page.locator('.fixed.inset-0.z-50').first()
+  await expect(backdrop).toHaveClass(/pointer-events-none/, { timeout: 3000 })
+
+  // Updated transaction appears in the list
+  await expect(page.locator('[role="button"]').filter({ hasText: 'Salário Fevereiro' })).toBeVisible()
+})
+
+test('delete transaction: removes the transaction from the list', async ({ page }) => {
+  await page.goto('/transactions')
+  await expect(page).toHaveURL(/\/transactions/)
+
+  await page.getByRole('button', { name: 'Personalizado' }).click()
+
+  const txRow = page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })
+  await txRow.waitFor({ state: 'visible', timeout: 5000 })
+  await txRow.click()
+
+  await expect(page.getByText('Editar Transação')).toBeVisible({ timeout: 3000 })
+
+  await page.getByRole('button', { name: 'Remover Transação' }).click()
+
+  // Drawer closes
+  const backdrop = page.locator('.fixed.inset-0.z-50').first()
+  await expect(backdrop).toHaveClass(/pointer-events-none/, { timeout: 3000 })
+
+  // Transaction no longer in the list
+  await expect(page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })).toHaveCount(0)
+})

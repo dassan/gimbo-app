@@ -49,6 +49,9 @@
   },
   "transactions": {
     "new": "Nova Transação",
+    "edit": "Editar Transação",
+    "saveUpdate": "Salvar Alterações",
+    "deleteTransaction": "Remover Transação",
     "income": "Receita",
     "expense": "Despesa",
     "transfer": "Transf.",

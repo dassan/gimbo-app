@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, ChevronDown, Calendar, Tag, Plus } from 'lucide-react'
+import { X, ChevronDown, Calendar, Tag, Plus, Trash2 } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
-import { cn, uuid, formatCurrency } from '@/lib/utils'
-import type { TransactionType } from '@/types'
+import { cn, uuid } from '@/lib/utils'
+import type { Transaction, TransactionType } from '@/types'
 
-interface TransactionDrawerProps {
+export interface TransactionDrawerProps {
   open: boolean
   onClose: () => void
+  transaction?: Transaction
 }
 
 type TxType = TransactionType
@@ -34,10 +35,14 @@ const TYPE_CONFIG: Record<TxType, { label: string; color: string; bg: string; bt
     },
   }
 
-export default function TransactionDrawer({ open, onClose }: TransactionDrawerProps) {
+export default function TransactionDrawer({ open, onClose, transaction }: TransactionDrawerProps) {
   const { t } = useTranslation()
   const data = useDataStore((s) => s.data)
   const addTransaction = useDataStore((s) => s.addTransaction)
+  const updateTransaction = useDataStore((s) => s.updateTransaction)
+  const deleteTransaction = useDataStore((s) => s.deleteTransaction)
+
+  const isEditMode = transaction !== undefined
 
   const [type, setType] = useState<TxType>('EXPENSE')
   const [amount, setAmount] = useState(0)
@@ -48,20 +53,31 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
   const [description, setDescription] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
-  // Reset on open — intentional setState-in-effect to initialise form fields
+  // Reset or pre-fill on open — intentional setState-in-effect to initialise form fields
   useEffect(() => {
     if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setType('EXPENSE')
-      setAmount(0)
-      setAmountStr('0,00')
-      setDate(new Date().toISOString().slice(0, 10))
-      setAccountId(data?.accounts[0]?.id ?? '')
-      setCategoryId('')
-      setDescription('')
-      setSelectedTags([])
+      if (transaction) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setType(transaction.type)
+        setAmount(transaction.amount)
+        setAmountStr(transaction.amount.toFixed(2).replace('.', ','))
+        setDate(transaction.date.slice(0, 10))
+        setAccountId(transaction.accountId)
+        setCategoryId(transaction.categoryId)
+        setDescription(transaction.description)
+        setSelectedTags(transaction.tags)
+      } else {
+        setType('EXPENSE')
+        setAmount(0)
+        setAmountStr('0,00')
+        setDate(new Date().toISOString().slice(0, 10))
+        setAccountId(data?.accounts[0]?.id ?? '')
+        setCategoryId('')
+        setDescription('')
+        setSelectedTags([])
+      }
     }
-  }, [open, data])
+  }, [open, transaction, data])
 
   function handleAmountInput(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/\D/g, '')
@@ -76,17 +92,28 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
 
   function handleSave() {
     if (!data || amount === 0) return
-    addTransaction({
-      id: uuid(),
+    const payload: Transaction = {
+      id: isEditMode ? transaction.id : uuid(),
       accountId: accountId || data.accounts[0]?.id || '',
       categoryId,
       amount,
       type,
       date,
       description,
-      isPaid: false,
+      isPaid: isEditMode ? transaction.isPaid : false,
       tags: selectedTags,
-    })
+    }
+    if (isEditMode) {
+      updateTransaction(payload)
+    } else {
+      addTransaction(payload)
+    }
+    onClose()
+  }
+
+  function handleDelete() {
+    if (!transaction) return
+    deleteTransaction(transaction.id)
     onClose()
   }
 
@@ -117,7 +144,9 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5">
-          <h2 className="text-base font-semibold text-on-surface">{t('transactions.new')}</h2>
+          <h2 className="text-base font-semibold text-on-surface">
+            {isEditMode ? t('transactions.edit') : t('transactions.new')}
+          </h2>
           <button
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low transition-colors"
@@ -275,10 +304,12 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
         </div>
 
         {/* Footer CTA */}
-        <div className="px-6 pb-8 pt-4 border-t border-surface-container-low">
-          <p className="text-center text-xs text-on-surface/30 mb-3">
-            {t('transactions.shortcutHint')}
-          </p>
+        <div className="px-6 pb-8 pt-4 border-t border-surface-container-low space-y-3">
+          {!isEditMode && (
+            <p className="text-center text-xs text-on-surface/30">
+              {t('transactions.shortcutHint')}
+            </p>
+          )}
           <button
             onClick={handleSave}
             disabled={amount === 0}
@@ -287,13 +318,21 @@ export default function TransactionDrawer({ open, onClose }: TransactionDrawerPr
               cfg.btnClass
             )}
           >
-            {t(`transactions.save.${type.toLowerCase()}`)} →
+            {isEditMode
+              ? `${t('transactions.saveUpdate')} →`
+              : `${t(`transactions.save.${type.toLowerCase()}`)} →`}
           </button>
+          {isEditMode && (
+            <button
+              onClick={handleDelete}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-tertiary hover:bg-tertiary/5 transition-colors"
+            >
+              <Trash2 size={15} />
+              {t('transactions.deleteTransaction')}
+            </button>
+          )}
         </div>
       </aside>
     </>
   )
 }
-
-// Suppress unused import warning — formatCurrency used externally
-void formatCurrency

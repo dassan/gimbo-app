@@ -49,6 +49,9 @@
   },
   "transactions": {
     "new": "New Transaction",
+    "edit": "Edit Transaction",
+    "saveUpdate": "Save Changes",
+    "deleteTransaction": "Delete Transaction",
     "income": "Income",
     "expense": "Expense",
     "transfer": "Transfer",

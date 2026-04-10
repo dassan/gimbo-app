@@ -6,11 +6,17 @@ import FAB from '@/components/FAB'
 import TransactionDrawer from '@/components/TransactionDrawer'
 import ConflictModal from '@/components/ConflictModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import type { Transaction } from '@/types'
+
+export interface AppLayoutContext {
+  openTransactionDrawer: (tx?: Transaction) => void
+}
 
 const NO_FAB_ROUTES = ['/settings']
 
 export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [editingTx, setEditingTx] = useState<Transaction | undefined>(undefined)
   const location = useLocation()
 
   const data = useDataStore((s) => s.data)
@@ -32,6 +38,16 @@ export default function AppLayout() {
         .toUpperCase()
     : 'U'
 
+  function openTransactionDrawer(tx?: Transaction) {
+    setEditingTx(tx)
+    setDrawerOpen(true)
+  }
+
+  function handleDrawerClose() {
+    setDrawerOpen(false)
+    setEditingTx(undefined)
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-surface">
       <Navbar
@@ -46,13 +62,13 @@ export default function AppLayout() {
 
       <main className="flex-1 pt-14">
         <ErrorBoundary fallback="card">
-          <Outlet />
+          <Outlet context={{ openTransactionDrawer } satisfies AppLayoutContext} />
         </ErrorBoundary>
       </main>
 
-      {showFAB && <FAB onClick={() => setDrawerOpen(true)} />}
+      {showFAB && <FAB onClick={() => openTransactionDrawer()} />}
 
-      <TransactionDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <TransactionDrawer open={drawerOpen} onClose={handleDrawerClose} transaction={editingTx} />
 
       {conflictData && (
         <ConflictModal
