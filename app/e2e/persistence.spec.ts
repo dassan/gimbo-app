@@ -206,8 +206,8 @@ test('permission-prompt: sync click requests permission and proceeds to save', a
     const promptHandle = {
       kind: 'file' as const,
       name: 'nexus-finances.json',
-      queryPermission: (_descriptor?: unknown) => Promise.resolve('prompt' as PermissionState),
-      requestPermission: (_descriptor?: unknown) => Promise.resolve('granted' as PermissionState),
+      queryPermission: () => Promise.resolve('prompt' as PermissionState),
+      requestPermission: () => Promise.resolve('granted' as PermissionState),
       createWritable: () => Promise.resolve(new FakeWritable()),
       getFile: () =>
         Promise.resolve({
