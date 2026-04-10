@@ -15,6 +15,8 @@ export default mergeConfig(
           'src/lib/storage/schema.ts',
           'src/lib/storage/indexedDb.ts',
           'src/lib/storage/fileSystem.ts',
+          'src/lib/storage/merge.ts',
+          'src/lib/storage/sync.ts',
           'src/lib/utils.ts',
           'src/store/useDataStore.ts',
         ],

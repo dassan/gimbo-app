@@ -377,7 +377,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | M-13 | Detectar múltiplas abas abertas (BroadcastChannel) | média |
 | M-15 | Recuperação de erro de escrita com retry | média |
 | M-16 | Tratamento de quota excedida no IndexedDB | média |
-| M-17 | Separar semântica de import vs. sync | média |
+| ~~M-17~~ | ~~Separar semântica de import vs. sync~~ | ~~média~~ ✅ |
 | M-18 | Fallback para browsers sem File System Access API | baixa |
 | M-19 | Persistir unsyncedCount no IndexedDB | baixa |
 

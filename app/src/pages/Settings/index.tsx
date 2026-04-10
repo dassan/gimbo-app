@@ -38,9 +38,10 @@ import {
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { downloadDataFile, openDataFile } from '@/lib/storage/fileSystem'
-import { clearIdb, saveToIdb, saveFileHandle } from '@/lib/storage/indexedDb'
+import { saveFileHandle } from '@/lib/storage/indexedDb'
 import { formatCurrency, cn, uuid, now } from '@/lib/utils'
-import { AUDIT_RETENTION_DEFAULT, validateDataFile } from '@/lib/storage/schema'
+import { AUDIT_RETENTION_DEFAULT } from '@/lib/storage/schema'
+import { importFileToIdb } from '@/lib/storage/sync'
 import type {
   Account,
   AccountType,
@@ -202,17 +203,16 @@ export default function Settings() {
     setImportError(null)
     const result = await openDataFile()
     if (!result) return
-    const { handle, data: imported } = result
+    const { handle, file } = result
     try {
-      const validated = validateDataFile(imported)
-      await clearIdb()
-      await saveToIdb(validated)
+      // importFileToIdb: validates via Zod, clears IDB, saves new data (total replace).
+      const data = await importFileToIdb(file)
       try {
         await saveFileHandle(handle)
       } catch {
         // Non-fatal — the app functions without a persisted handle.
       }
-      loadData(validated)
+      loadData(data)
     } catch {
       setImportError(t('settings.importFileError'))
     }

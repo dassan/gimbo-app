@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom'
 import { ShieldCheck, Lock, ArrowRight, RefreshCw, FileJson } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
-import { createEmptyDataFile, validateDataFile } from '@/lib/storage/schema'
+import { createEmptyDataFile } from '@/lib/storage/schema'
 import { openDataFile, createNewDataFile } from '@/lib/storage/fileSystem'
-import { saveToIdb, clearIdb, saveFileHandle } from '@/lib/storage/indexedDb'
+import { saveFileHandle } from '@/lib/storage/indexedDb'
+import { importFileToIdb } from '@/lib/storage/sync'
 import { cn } from '@/lib/utils'
 import type { Locale } from '@/types'
 
@@ -58,13 +59,11 @@ export default function Onboarding() {
   async function handleImportFile(file: File) {
     setFileError(null)
     try {
-      const text = await file.text()
-      const data = validateDataFile(JSON.parse(text) as unknown)
-      await clearIdb()
-      await saveToIdb(data)
-      loadData(data)
+      // importFileToIdb: validates via Zod, clears IDB, saves new data (total replace).
       // No handle available from <input type="file"> — sync icon will prompt
       // the user to re-link a file on first save attempt.
+      const data = await importFileToIdb(file)
+      loadData(data)
       void navigate('/dashboard')
     } catch {
       setFileError(t('onboarding.importFileError'))
@@ -77,10 +76,9 @@ export default function Onboarding() {
       const result = await openDataFile()
       if (!result) return // User cancelled picker
 
-      const { handle, data } = result
-      validateDataFile(data) // throws if invalid
-      await clearIdb()
-      await saveToIdb(data)
+      const { handle, file } = result
+      // importFileToIdb: validates via Zod, clears IDB, saves new data (total replace).
+      const data = await importFileToIdb(file)
       // Best-effort: persist the handle so future sessions can reuse it.
       try {
         await saveFileHandle(handle)

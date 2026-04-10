@@ -122,22 +122,22 @@ export function isHandleLost(): boolean {
 
 /**
  * Open an existing data file via the File System Access API.
- * Returns the handle alongside the parsed DataFile so the caller
- * can persist the handle to IndexedDB.
+ * Returns the handle alongside the raw File object so the caller
+ * can validate and import the data via importFileToIdb().
+ * Caches the handle in _dataHandle so future saveDataFile() calls
+ * can write without opening a picker.
  */
 export async function openDataFile(): Promise<{
   handle: FileSystemFileHandle
-  data: DataFile
+  file: File
 } | null> {
   try {
     const [handle] = await window.showOpenFilePicker({
       types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
     })
     const file = await handle.getFile()
-    const text = await file.text()
-    const data = JSON.parse(text) as DataFile
     _dataHandle = handle
-    return { handle, data }
+    return { handle, file }
   } catch {
     return null
   }

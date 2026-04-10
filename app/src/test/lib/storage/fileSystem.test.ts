@@ -37,7 +37,7 @@ describe('openDataFile', () => {
     vi.resetModules()
   })
 
-  it('returns handle and parsed DataFile on success', async () => {
+  it('returns handle and raw File object on success', async () => {
     const handle = makeHandle('my-finances.json')
     vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValue([handle]))
 
@@ -46,7 +46,21 @@ describe('openDataFile', () => {
 
     expect(result).not.toBeNull()
     expect(result!.handle).toBe(handle)
-    expect(result!.data.user.name).toBe('Test User')
+    // file is the object returned by handle.getFile() — caller validates via importFileToIdb
+    expect(typeof result!.file.text).toBe('function')
+  })
+
+  it('caches the handle so saveDataFile can write without opening a picker', async () => {
+    const handle = makeHandle()
+    const pickerSpy = vi.fn()
+    vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValue([handle]))
+    vi.stubGlobal('showSaveFilePicker', pickerSpy)
+
+    const { openDataFile, saveDataFile } = await import('@/lib/storage/fileSystem')
+    await openDataFile()
+    await saveDataFile(makeDataFile())
+
+    expect(pickerSpy).not.toHaveBeenCalled()
   })
 
   it('returns null when user cancels (AbortError)', async () => {

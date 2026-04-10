@@ -17,7 +17,7 @@ import {
   isPermissionNeeded,
   requestHandlePermission,
 } from '@/lib/storage/fileSystem'
-import { mergeDataFiles } from '@/lib/storage/merge'
+import { syncToFile } from '@/lib/storage/sync'
 import { saveToIdb } from '@/lib/storage/indexedDb'
 import { applyRetention } from '@/lib/storage/schema'
 import { uuid, now } from '@/lib/utils'
@@ -369,14 +369,14 @@ export const useDataStore = create<DataStore>((set, get) => ({
       return false
     }
 
-    const toSave = diskSnapshot ? mergeDataFiles(updated, diskSnapshot.data) : updated
-    const ok = await saveDataFile(toSave)
-    if (ok) {
-      set({ data: toSave, unsyncedCount: 0, fileHandleLost: false })
+    // syncToFile: merge by UUID + write to disk (never a total replace).
+    const merged = await syncToFile(updated, diskSnapshot)
+    if (merged) {
+      set({ data: merged, unsyncedCount: 0, fileHandleLost: false })
     } else if (isHandleLost()) {
       set({ fileHandleLost: true })
     }
-    return ok
+    return merged !== null
   },
 }))
 
