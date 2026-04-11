@@ -35,6 +35,7 @@ vi.mock('@/lib/storage/indexedDb', () => ({
   clearIdb: vi.fn(),
   saveFileHandle: vi.fn(),
   loadFileHandle: vi.fn(),
+  saveSyncMeta: vi.fn(),
 }))
 
 import {

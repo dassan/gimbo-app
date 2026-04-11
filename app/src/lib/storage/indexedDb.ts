@@ -6,6 +6,7 @@ const DB_VERSION = 2
 const STORE_LEDGER = 'ledger'
 const STORE_HANDLES = 'handles'
 const KEY_CURRENT = 'current'
+const KEY_SYNC_META = 'sync-meta'
 const KEY_DATA_HANDLE = 'data'
 
 async function getDb() {
@@ -36,6 +37,20 @@ export async function loadFromIdb(): Promise<DataFile | null> {
 export async function clearIdb(): Promise<void> {
   const db = await getDb()
   await db.delete(STORE_LEDGER, KEY_CURRENT)
+}
+
+// ─── Sync meta ────────────────────────────────────────────────────────────────
+
+export async function saveSyncMeta(unsyncedCount: number): Promise<void> {
+  const db = await getDb()
+  await db.put(STORE_LEDGER, { unsyncedCount }, KEY_SYNC_META)
+}
+
+export async function loadSyncMeta(): Promise<{ unsyncedCount: number } | null> {
+  const db = await getDb()
+  return (
+    ((await db.get(STORE_LEDGER, KEY_SYNC_META)) as { unsyncedCount: number } | undefined) ?? null
+  )
 }
 
 // ─── FileHandle ───────────────────────────────────────────────────────────────

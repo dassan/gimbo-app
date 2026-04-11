@@ -26,6 +26,7 @@ vi.mock('@/lib/storage/sync', () => ({
 
 vi.mock('@/lib/storage/indexedDb', () => ({
   saveFileHandle: vi.fn(),
+  saveSyncMeta: vi.fn(),
 }))
 
 // ─── Setup ────────────────────────────────────────────────────────────────────

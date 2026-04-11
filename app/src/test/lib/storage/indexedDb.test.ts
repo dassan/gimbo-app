@@ -46,6 +46,8 @@ import {
   saveFileHandle,
   loadFileHandle,
   clearFileHandle,
+  saveSyncMeta,
+  loadSyncMeta,
 } from '@/lib/storage/indexedDb'
 import { makeDataFile } from '@/test/fixtures/dataFile'
 
@@ -120,6 +122,27 @@ describe('clearFileHandle', () => {
 
   it('does not throw when called on an empty store', async () => {
     await expect(clearFileHandle()).resolves.toBeUndefined()
+  })
+})
+
+// ─── Sync meta ────────────────────────────────────────────────────────────────
+
+describe('saveSyncMeta / loadSyncMeta', () => {
+  it('persists and retrieves unsyncedCount', async () => {
+    await saveSyncMeta(5)
+    const meta = await loadSyncMeta()
+    expect(meta).toEqual({ unsyncedCount: 5 })
+  })
+
+  it('returns null when nothing has been saved', async () => {
+    expect(await loadSyncMeta()).toBeNull()
+  })
+
+  it('overwrites an existing entry', async () => {
+    await saveSyncMeta(3)
+    await saveSyncMeta(7)
+    const meta = await loadSyncMeta()
+    expect(meta?.unsyncedCount).toBe(7)
   })
 })
 

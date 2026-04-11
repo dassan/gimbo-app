@@ -5,7 +5,7 @@ import type { Transaction } from '@/types'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock('@/lib/storage/indexedDb', () => ({ saveToIdb: vi.fn() }))
+vi.mock('@/lib/storage/indexedDb', () => ({ saveToIdb: vi.fn(), saveSyncMeta: vi.fn() }))
 vi.mock('@/lib/storage/fileSystem', () => ({
   saveDataFile: vi.fn(),
   readCurrentDataFile: vi.fn().mockResolvedValue(null),

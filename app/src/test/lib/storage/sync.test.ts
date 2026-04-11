@@ -11,6 +11,7 @@ vi.mock('@/lib/storage/schema', () => ({
 vi.mock('@/lib/storage/indexedDb', () => ({
   clearIdb: vi.fn().mockResolvedValue(undefined),
   saveToIdb: vi.fn().mockResolvedValue(undefined),
+  saveSyncMeta: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/storage/fileSystem', () => ({

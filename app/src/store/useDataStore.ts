@@ -18,7 +18,7 @@ import {
   requestHandlePermission,
 } from '@/lib/storage/fileSystem'
 import { syncToFile } from '@/lib/storage/sync'
-import { saveToIdb } from '@/lib/storage/indexedDb'
+import { saveToIdb, saveSyncMeta } from '@/lib/storage/indexedDb'
 import { applyRetention } from '@/lib/storage/schema'
 import { uuid, now } from '@/lib/utils'
 
@@ -26,10 +26,10 @@ import { uuid, now } from '@/lib/utils'
 
 let _idbTimer: ReturnType<typeof setTimeout> | null = null
 
-function debouncedSaveToIdb(data: DataFile) {
+function debouncedSaveToIdb(data: DataFile, unsyncedCount: number) {
   if (_idbTimer) clearTimeout(_idbTimer)
   _idbTimer = setTimeout(() => {
-    saveToIdb(data).catch((err: unknown) => {
+    Promise.all([saveToIdb(data), saveSyncMeta(unsyncedCount)]).catch((err: unknown) => {
       if (err instanceof DOMException && err.name === 'QuotaExceededError') {
         useDataStore.setState({ idbQuotaExceeded: true })
       }
@@ -326,8 +326,9 @@ export const useDataStore = create<DataStore>((set, get) => ({
       data.settings.auditLogRetentionLimit = limit
       // Apply new policy immediately
       data.auditLog = applyRetention(data.auditLog, limit)
-      debouncedSaveToIdb(data)
-      return { data, unsyncedCount: s.unsyncedCount + 1 }
+      const unsyncedCount = s.unsyncedCount + 1
+      debouncedSaveToIdb(data, unsyncedCount)
+      return { data, unsyncedCount }
     }),
 
   // ── Persistence ───────────────────────────────────────────────────────────
@@ -384,6 +385,9 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const merged = await syncToFile(updated, diskSnapshot)
     if (merged) {
       set({ data: merged, unsyncedCount: 0, fileHandleLost: false, writeError: false })
+      // Keep IDB in sync so a reload shows unsyncedCount = 0.
+      void saveToIdb(merged)
+      void saveSyncMeta(0)
     } else if (isHandleLost()) {
       set({ fileHandleLost: true })
     } else {
@@ -407,6 +411,7 @@ function mutate(state: DataStore, fn: (data: DataFile) => void): Partial<DataSto
   if (state.isSecondaryTab) return {}
   const data = structuredClone(state.data)
   fn(data)
-  debouncedSaveToIdb(data)
-  return { data, unsyncedCount: state.unsyncedCount + 1 }
+  const unsyncedCount = state.unsyncedCount + 1
+  debouncedSaveToIdb(data, unsyncedCount)
+  return { data, unsyncedCount }
 }

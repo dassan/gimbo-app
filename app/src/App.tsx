@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { useDataStore } from '@/store/useDataStore'
-import { loadFromIdb, loadFileHandle } from '@/lib/storage/indexedDb'
+import { loadFromIdb, loadFileHandle, loadSyncMeta } from '@/lib/storage/indexedDb'
 import { checkHandlePermission } from '@/lib/storage/fileSystem'
 import { initTabGuard } from '@/lib/tabGuard'
 import AppLayout from '@/components/AppLayout'
@@ -24,8 +24,19 @@ export default function App() {
     async function init() {
       try {
         initWorkspace()
-        const [saved, handle] = await Promise.all([loadFromIdb(), loadFileHandle()])
-        if (saved) loadData(saved)
+        const [saved, handle, syncMeta] = await Promise.all([
+          loadFromIdb(),
+          loadFileHandle(),
+          loadSyncMeta(),
+        ])
+        if (saved) {
+          loadData(saved)
+          // loadData() resets unsyncedCount to 0; restore the persisted count
+          // so the badge survives page reloads.
+          if (syncMeta && syncMeta.unsyncedCount > 0) {
+            useDataStore.setState({ unsyncedCount: syncMeta.unsyncedCount })
+          }
+        }
         if (handle) {
           const state = await checkHandlePermission(handle)
           if (state === 'prompt') {
