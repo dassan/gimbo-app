@@ -183,7 +183,10 @@
     "permissionNeededTooltip": "Permissão expirada. Clique para re-autorizar o arquivo.",
     "secondaryTabWarning": "O Nexus já está aberto em outra aba. Para evitar conflitos de dados, use apenas uma aba por vez.",
     "writeError": "Falha ao salvar o arquivo. Verifique se o disco não está cheio ou se a permissão foi revogada.",
-    "writeErrorTooltip": "Falha na última sincronização. Clique para tentar novamente."
+    "writeErrorTooltip": "Falha na última sincronização. Clique para tentar novamente.",
+    "idbQuotaWarning": "O armazenamento local está cheio. Exporte seus dados e limpe o histórico de auditoria nas Configurações.",
+    "idbQuotaExport": "Exportar Dados",
+    "idbQuotaSettings": "Ir para Configurações"
   },
   "audit": {
     "title": "Modificações Recentes",

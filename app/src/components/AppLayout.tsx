@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
+import { downloadDataFile } from '@/lib/storage/fileSystem'
 import Navbar from '@/components/Navbar'
 import FAB from '@/components/FAB'
 import TransactionDrawer from '@/components/TransactionDrawer'
@@ -22,6 +23,7 @@ export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | undefined>(undefined)
   const location = useLocation()
+  const navigate = useNavigate()
 
   const data = useDataStore((s) => s.data)
   const unsyncedCount = useDataStore((s) => s.unsyncedCount)
@@ -32,6 +34,7 @@ export default function AppLayout() {
   const permissionNeeded = useDataStore((s) => s.permissionNeeded)
   const isSecondaryTab = useDataStore((s) => s.isSecondaryTab)
   const writeError = useDataStore((s) => s.writeError)
+  const idbQuotaExceeded = useDataStore((s) => s.idbQuotaExceeded)
 
   const [showToast, setShowToast] = useState(false)
   useEffect(() => {
@@ -88,6 +91,28 @@ export default function AppLayout() {
       )}
 
       <main className={`flex-1 ${isSecondaryTab ? 'pt-24' : 'pt-14'}`}>
+        {idbQuotaExceeded && (
+          <div className="flex flex-col gap-2 border-b border-tertiary/20 bg-tertiary/10 px-6 py-3 text-xs text-tertiary sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={14} strokeWidth={2} className="shrink-0" />
+              <span>{t('sync.idbQuotaWarning')}</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                onClick={() => data && downloadDataFile(data)}
+                className="rounded-md bg-tertiary px-3 py-1 text-[11px] font-semibold text-white transition-opacity hover:opacity-80"
+              >
+                {t('sync.idbQuotaExport')}
+              </button>
+              <button
+                onClick={() => void navigate('/settings')}
+                className="text-[11px] font-medium underline underline-offset-2 hover:opacity-70"
+              >
+                {t('sync.idbQuotaSettings')}
+              </button>
+            </div>
+          </div>
+        )}
         <ErrorBoundary fallback="card">
           <Outlet context={{ openTransactionDrawer } satisfies AppLayoutContext} />
         </ErrorBoundary>

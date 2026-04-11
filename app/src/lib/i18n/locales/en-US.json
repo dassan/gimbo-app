@@ -183,7 +183,10 @@
     "permissionNeededTooltip": "Permission expired. Click to re-authorize the file.",
     "secondaryTabWarning": "Nexus is already open in another tab. To avoid data conflicts, use only one tab at a time.",
     "writeError": "Failed to save the file. Check if the disk is full or if permission was revoked.",
-    "writeErrorTooltip": "Last sync failed. Click to retry."
+    "writeErrorTooltip": "Last sync failed. Click to retry.",
+    "idbQuotaWarning": "Local storage is full. Export your data and clear the audit log in Settings.",
+    "idbQuotaExport": "Export Data",
+    "idbQuotaSettings": "Go to Settings"
   },
   "audit": {
     "title": "Recent Changes",

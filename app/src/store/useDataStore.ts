@@ -29,7 +29,11 @@ let _idbTimer: ReturnType<typeof setTimeout> | null = null
 function debouncedSaveToIdb(data: DataFile) {
   if (_idbTimer) clearTimeout(_idbTimer)
   _idbTimer = setTimeout(() => {
-    void saveToIdb(data)
+    saveToIdb(data).catch((err: unknown) => {
+      if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+        useDataStore.setState({ idbQuotaExceeded: true })
+      }
+    })
   }, 300)
 }
 
@@ -76,6 +80,7 @@ interface DataStore {
   permissionNeeded: boolean
   isSecondaryTab: boolean
   writeError: boolean
+  idbQuotaExceeded: boolean
 
   loadData: (data: DataFile) => void
   clearData: () => void
@@ -111,6 +116,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
   permissionNeeded: false,
   isSecondaryTab: false,
   writeError: false,
+  idbQuotaExceeded: false,
 
   loadData: (data) => set({ data, unsyncedCount: 0 }),
   clearData: () => set({ data: null, unsyncedCount: 0 }),
