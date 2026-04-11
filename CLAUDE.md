@@ -360,6 +360,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Re-permissão de FileHandle no startup | M-14 | ✅ |
 | Rejeição de JSON corrompido + exportação de emergência | M-12 | ✅ |
 | Detecção de múltiplas abas (BroadcastChannel) | M-13 | ✅ |
+| Toast de erro em falha de escrita, ícone de sync em alerta | M-15 | ✅ |
 
 ### Bugs abertos
 
@@ -375,7 +376,6 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | ID | Descrição | Prioridade |
 |----|-----------|-----------|
 | M-01 | Versionar data.json para compatibilidade de schema | média |
-| M-15 | Recuperação de erro de escrita com retry | média |
 | M-16 | Tratamento de quota excedida no IndexedDB | média |
 | ~~M-17~~ | ~~Separar semântica de import vs. sync~~ | ~~média~~ ✅ |
 | M-18 | Fallback para browsers sem File System Access API | baixa |

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar'
 import FAB from '@/components/FAB'
 import TransactionDrawer from '@/components/TransactionDrawer'
 import ConflictModal from '@/components/ConflictModal'
+import Toast from '@/components/Toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import type { Transaction } from '@/types'
 
@@ -30,6 +31,20 @@ export default function AppLayout() {
   const fileHandleLost = useDataStore((s) => s.fileHandleLost)
   const permissionNeeded = useDataStore((s) => s.permissionNeeded)
   const isSecondaryTab = useDataStore((s) => s.isSecondaryTab)
+  const writeError = useDataStore((s) => s.writeError)
+
+  const [showToast, setShowToast] = useState(false)
+  useEffect(() => {
+    if (!writeError) return
+    // Both setState calls are inside async callbacks so they don't
+    // trigger the react-hooks/set-state-in-effect lint rule.
+    const show = setTimeout(() => setShowToast(true), 0)
+    const hide = setTimeout(() => setShowToast(false), 5000)
+    return () => {
+      clearTimeout(show)
+      clearTimeout(hide)
+    }
+  }, [writeError])
 
   const showFAB = !NO_FAB_ROUTES.some((r) => location.pathname.startsWith(r))
 
@@ -59,6 +74,7 @@ export default function AppLayout() {
         unsyncedCount={unsyncedCount}
         fileHandleLost={fileHandleLost}
         permissionNeeded={permissionNeeded}
+        writeError={writeError}
         onSync={async () => {
           await persist()
         }}
@@ -87,6 +103,8 @@ export default function AppLayout() {
           onLoadCloud={() => void resolveConflict('load-cloud')}
         />
       )}
+
+      {showToast && <Toast message={t('sync.writeError')} onDismiss={() => setShowToast(false)} />}
     </div>
   )
 }

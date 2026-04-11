@@ -15,6 +15,7 @@ interface NavbarProps {
   unsyncedCount: number
   fileHandleLost?: boolean
   permissionNeeded?: boolean
+  writeError?: boolean
   onSync: () => Promise<void>
 }
 
@@ -23,6 +24,7 @@ export default function Navbar({
   unsyncedCount,
   fileHandleLost = false,
   permissionNeeded = false,
+  writeError = false,
   onSync,
 }: NavbarProps) {
   const { t } = useTranslation()
@@ -30,14 +32,16 @@ export default function Navbar({
   const [syncing, setSyncing] = useState(false)
 
   async function handleSync() {
-    if (syncing || (unsyncedCount === 0 && !fileHandleLost && !permissionNeeded)) return
+    if (syncing || (unsyncedCount === 0 && !fileHandleLost && !permissionNeeded && !writeError))
+      return
     setSyncing(true)
     await onSync()
     setSyncing(false)
   }
 
-  const badgeLabel = fileHandleLost ? '!' : unsyncedCount > 99 ? '99+' : String(unsyncedCount)
-  const showBadge = fileHandleLost || (unsyncedCount > 0 && !syncing)
+  const badgeLabel =
+    fileHandleLost || writeError ? '!' : unsyncedCount > 99 ? '99+' : String(unsyncedCount)
+  const showBadge = fileHandleLost || writeError || (unsyncedCount > 0 && !syncing)
 
   return (
     <header
@@ -91,11 +95,13 @@ export default function Navbar({
           title={
             fileHandleLost
               ? t('sync.fileLostTooltip')
-              : permissionNeeded
-                ? t('sync.permissionNeededTooltip')
-                : unsyncedCount > 0
-                  ? t('sync.tooltip', { count: unsyncedCount })
-                  : undefined
+              : writeError
+                ? t('sync.writeErrorTooltip')
+                : permissionNeeded
+                  ? t('sync.permissionNeededTooltip')
+                  : unsyncedCount > 0
+                    ? t('sync.tooltip', { count: unsyncedCount })
+                    : undefined
           }
           onClick={() => void handleSync()}
           disabled={syncing}
@@ -106,7 +112,7 @@ export default function Navbar({
             strokeWidth={1.5}
             className={cn(
               syncing && 'animate-spin',
-              fileHandleLost
+              fileHandleLost || writeError
                 ? 'text-tertiary'
                 : permissionNeeded
                   ? 'text-primary'

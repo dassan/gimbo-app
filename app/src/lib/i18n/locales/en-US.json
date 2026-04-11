@@ -181,7 +181,9 @@
     "fileLostTooltip": "File not found. Click to re-associate.",
     "fileLostBadge": "!",
     "permissionNeededTooltip": "Permission expired. Click to re-authorize the file.",
-    "secondaryTabWarning": "Nexus is already open in another tab. To avoid data conflicts, use only one tab at a time."
+    "secondaryTabWarning": "Nexus is already open in another tab. To avoid data conflicts, use only one tab at a time.",
+    "writeError": "Failed to save the file. Check if the disk is full or if permission was revoked.",
+    "writeErrorTooltip": "Last sync failed. Click to retry."
   },
   "audit": {
     "title": "Recent Changes",

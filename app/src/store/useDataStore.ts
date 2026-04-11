@@ -75,6 +75,7 @@ interface DataStore {
   fileHandleLost: boolean
   permissionNeeded: boolean
   isSecondaryTab: boolean
+  writeError: boolean
 
   loadData: (data: DataFile) => void
   clearData: () => void
@@ -109,6 +110,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
   fileHandleLost: false,
   permissionNeeded: false,
   isSecondaryTab: false,
+  writeError: false,
 
   loadData: (data) => set({ data, unsyncedCount: 0 }),
   clearData: () => set({ data: null, unsyncedCount: 0 }),
@@ -375,9 +377,13 @@ export const useDataStore = create<DataStore>((set, get) => ({
     // syncToFile: merge by UUID + write to disk (never a total replace).
     const merged = await syncToFile(updated, diskSnapshot)
     if (merged) {
-      set({ data: merged, unsyncedCount: 0, fileHandleLost: false })
+      set({ data: merged, unsyncedCount: 0, fileHandleLost: false, writeError: false })
     } else if (isHandleLost()) {
       set({ fileHandleLost: true })
+    } else {
+      // Write failed for a reason other than a missing file (e.g. disk full,
+      // OS-revoked permission). Keep unsyncedCount as-is so no data is lost.
+      set({ writeError: true })
     }
     return merged !== null
   },
