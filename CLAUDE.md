@@ -359,6 +359,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Recuperação de arquivo perdido (NotFoundError) | M-11 | ✅ |
 | Re-permissão de FileHandle no startup | M-14 | ✅ |
 | Rejeição de JSON corrompido + exportação de emergência | M-12 | ✅ |
+| Detecção de múltiplas abas (BroadcastChannel) | M-13 | ✅ |
 
 ### Bugs abertos
 
@@ -374,7 +375,6 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | ID | Descrição | Prioridade |
 |----|-----------|-----------|
 | M-01 | Versionar data.json para compatibilidade de schema | média |
-| M-13 | Detectar múltiplas abas abertas (BroadcastChannel) | média |
 | M-15 | Recuperação de erro de escrita com retry | média |
 | M-16 | Tratamento de quota excedida no IndexedDB | média |
 | ~~M-17~~ | ~~Separar semântica de import vs. sync~~ | ~~média~~ ✅ |

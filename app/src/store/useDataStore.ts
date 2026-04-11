@@ -74,6 +74,7 @@ interface DataStore {
   conflictData: { local: DataFile; disk: DataFile } | null
   fileHandleLost: boolean
   permissionNeeded: boolean
+  isSecondaryTab: boolean
 
   loadData: (data: DataFile) => void
   clearData: () => void
@@ -107,6 +108,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
   conflictData: null,
   fileHandleLost: false,
   permissionNeeded: false,
+  isSecondaryTab: false,
 
   loadData: (data) => set({ data, unsyncedCount: 0 }),
   clearData: () => set({ data: null, unsyncedCount: 0 }),
@@ -323,8 +325,9 @@ export const useDataStore = create<DataStore>((set, get) => ({
   // ── Persistence ───────────────────────────────────────────────────────────
 
   persist: async () => {
-    const { data } = get()
+    const { data, isSecondaryTab } = get()
     if (!data) return false
+    if (isSecondaryTab) return false
     const updated = { ...data, settings: { ...data.settings, fileUpdatedAt: now() } }
 
     // Permission re-authorisation path: the handle was restored from IDB but its
@@ -389,6 +392,7 @@ function addAudit(data: DataFile, entry: AuditEntry) {
 
 function mutate(state: DataStore, fn: (data: DataFile) => void): Partial<DataStore> {
   if (!state.data) return {}
+  if (state.isSecondaryTab) return {}
   const data = structuredClone(state.data)
   fn(data)
   debouncedSaveToIdb(data)

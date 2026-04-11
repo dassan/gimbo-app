@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { useDataStore } from '@/store/useDataStore'
 import { loadFromIdb, loadFileHandle } from '@/lib/storage/indexedDb'
 import { checkHandlePermission } from '@/lib/storage/fileSystem'
+import { initTabGuard } from '@/lib/tabGuard'
 import AppLayout from '@/components/AppLayout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import Onboarding from '@/pages/Onboarding'
@@ -42,6 +43,13 @@ export default function App() {
     }
     void init()
   }, [initWorkspace, loadData])
+
+  useEffect(() => {
+    return initTabGuard(
+      () => useDataStore.setState({ isSecondaryTab: true }),
+      () => useDataStore.setState({ isSecondaryTab: false })
+    )
+  }, [])
 
   // Avoid flash of onboarding while IDB is loading
   if (!hydrated) return null

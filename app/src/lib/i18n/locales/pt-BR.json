@@ -180,7 +180,8 @@
     "loadCloudHint": "Descarta suas alterações locais e carrega o conteúdo atual do arquivo.",
     "fileLostTooltip": "Arquivo não encontrado. Clique para re-associar.",
     "fileLostBadge": "!",
-    "permissionNeededTooltip": "Permissão expirada. Clique para re-autorizar o arquivo."
+    "permissionNeededTooltip": "Permissão expirada. Clique para re-autorizar o arquivo.",
+    "secondaryTabWarning": "O Nexus já está aberto em outra aba. Para evitar conflitos de dados, use apenas uma aba por vez."
   },
   "audit": {
     "title": "Modificações Recentes",

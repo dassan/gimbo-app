@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { AlertTriangle } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import Navbar from '@/components/Navbar'
 import FAB from '@/components/FAB'
@@ -15,6 +17,7 @@ export interface AppLayoutContext {
 const NO_FAB_ROUTES = ['/settings']
 
 export default function AppLayout() {
+  const { t } = useTranslation()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | undefined>(undefined)
   const location = useLocation()
@@ -26,6 +29,7 @@ export default function AppLayout() {
   const resolveConflict = useDataStore((s) => s.resolveConflict)
   const fileHandleLost = useDataStore((s) => s.fileHandleLost)
   const permissionNeeded = useDataStore((s) => s.permissionNeeded)
+  const isSecondaryTab = useDataStore((s) => s.isSecondaryTab)
 
   const showFAB = !NO_FAB_ROUTES.some((r) => location.pathname.startsWith(r))
 
@@ -60,7 +64,14 @@ export default function AppLayout() {
         }}
       />
 
-      <main className="flex-1 pt-14">
+      {isSecondaryTab && (
+        <div className="fixed top-14 left-0 right-0 z-40 flex items-center gap-2 bg-tertiary/10 px-6 py-2.5 text-xs text-tertiary border-b border-tertiary/20">
+          <AlertTriangle size={14} strokeWidth={2} className="shrink-0" />
+          <span>{t('sync.secondaryTabWarning')}</span>
+        </div>
+      )}
+
+      <main className={`flex-1 ${isSecondaryTab ? 'pt-24' : 'pt-14'}`}>
         <ErrorBoundary fallback="card">
           <Outlet context={{ openTransactionDrawer } satisfies AppLayoutContext} />
         </ErrorBoundary>

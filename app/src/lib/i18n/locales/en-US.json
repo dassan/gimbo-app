@@ -180,7 +180,8 @@
     "loadCloudHint": "Discards your local changes and loads the current file contents.",
     "fileLostTooltip": "File not found. Click to re-associate.",
     "fileLostBadge": "!",
-    "permissionNeededTooltip": "Permission expired. Click to re-authorize the file."
+    "permissionNeededTooltip": "Permission expired. Click to re-authorize the file.",
+    "secondaryTabWarning": "Nexus is already open in another tab. To avoid data conflicts, use only one tab at a time."
   },
   "audit": {
     "title": "Recent Changes",
