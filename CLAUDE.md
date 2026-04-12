@@ -580,7 +580,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | CRUD de transações (Income/Expense/Transfer) | — | ✅ |
 | Editar/remover transação ao clicar na linha | M-02 | ✅ |
 | Dashboard com cards mensais | — | ✅ |
-| Gráfico de fluxo de caixa (±3 meses) | — | ⚠️ (B-01: sem dados) |
+| Gráfico de fluxo de caixa (±3 meses) | — | ✅ |
 | Gráfico de despesas por categoria (donut) | — | ⚠️ (B-02, B-03: sem dados) |
 | Exportar/Importar data.json | — | ✅ |
 | Seletor de idioma (pt-BR / en-US) | — | ✅ |
@@ -607,12 +607,11 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 | ID | Descrição | Severidade | Contexto |
 |----|-----------|-----------|---------|
-| B-01 | Gráfico de fluxo de caixa no Dashboard não exibe dados | alta | `pages/Dashboard/index.tsx` — os dados são calculados via `useMemo` mas não chegam ao componente Recharts |
-| B-02 | Gráfico de renda por categoria no Dashboard não exibe dados | alta | Mesmo contexto que B-01 — dados derivados de `transactions` provavelmente com filtro incorreto |
-| B-03 | Gráfico de despesas por categoria no Dashboard não exibe dados | alta | Mesmo contexto que B-01/B-02 |
+| B-02 | Gráfico de renda por categoria no Dashboard não exibe dados | alta | `pages/Dashboard/index.tsx` — verificar dados derivados de `transactions` com filtro de tipo INCOME |
+| B-03 | Gráfico de despesas por categoria no Dashboard não exibe dados | alta | `pages/Dashboard/index.tsx` — `donutData` filtra por mês atual; verificar se há transações EXPENSE no período |
 | B-04 | Cálculo de saldo incorreto na aba Contas de Settings | alta | `pages/Settings/index.tsx` — o saldo exibido por conta pode estar somando todas as transações em vez de filtrar por `accountId` |
 
-> Para diagnosticar B-01 a B-03: ler `pages/Dashboard/index.tsx` e verificar como os dados são transformados antes de passar para `<LineChart>` / `<PieChart>`. Verificar se transações sem `isPaid=true` estão sendo incluídas, se o filtro de mês está correto, e se o formato de dados que o Recharts espera (`[{ name, value }]`) está sendo produzido.
+> Para diagnosticar B-02/B-03: ler `pages/Dashboard/index.tsx`. B-01 foi resolvido (condição de empty check corrigida + helper `parseDateLocal` para evitar deslocamento de fuso em datas `YYYY-MM-DD`).
 >
 > Para diagnosticar B-04: ler `pages/Settings/index.tsx` seção de contas e verificar como `balance` é calculado — suspeita: pode estar somando `transaction.amount` de todas as contas, ou não estar subtraindo EXPENSE/TRANSFER corretamente.
 

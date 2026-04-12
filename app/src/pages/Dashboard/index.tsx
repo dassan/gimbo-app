@@ -36,7 +36,7 @@ export default function Dashboard() {
     const m = now.getMonth(),
       y = now.getFullYear()
     const monthly = data.transactions.filter((tx) => {
-      const d = new Date(tx.date)
+      const d = parseDateLocal(tx.date)
       return d.getMonth() === m && d.getFullYear() === y
     })
     const income = monthly.filter((tx) => tx.type === 'INCOME').reduce((s, tx) => s + tx.amount, 0)
@@ -54,7 +54,7 @@ export default function Dashboard() {
     if (!data) return []
     const months = period === 'monthly' ? buildMonthlySlots(now) : buildWeeklySlots(now)
     return months.map((slot) => {
-      const txs = data.transactions.filter((tx) => slot.includes(new Date(tx.date)))
+      const txs = data.transactions.filter((tx) => slot.includes(parseDateLocal(tx.date)))
       const inc = txs.filter((t) => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0)
       const exp = txs.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
       return { label: slot.label, income: inc, expenses: exp, net: inc - exp }
@@ -67,7 +67,7 @@ export default function Dashboard() {
     const m = now.getMonth(),
       y = now.getFullYear()
     const expTxs = data.transactions.filter((tx) => {
-      const d = new Date(tx.date)
+      const d = parseDateLocal(tx.date)
       return tx.type === 'EXPENSE' && d.getMonth() === m && d.getFullYear() === y
     })
     const byCategory: Record<string, number> = {}
@@ -134,7 +134,7 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-4 h-48">
-            {cashFlowData.length > 0 ? (
+            {cashFlowData.some((d) => d.income > 0 || d.expenses > 0) ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={cashFlowData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                   <defs>
@@ -419,6 +419,15 @@ function EmptyChart() {
 }
 
 // ─── Chart data helpers ────────────────────────────────────────────────────────
+
+/**
+ * Parse a "YYYY-MM-DD" date string as local midnight to avoid UTC-offset
+ * mismatches when using getMonth() / getFullYear() for bucketing.
+ */
+function parseDateLocal(dateStr: string): Date {
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
 
 interface Slot {
   label: string
