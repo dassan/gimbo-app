@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Landmark,
@@ -288,6 +288,18 @@ export default function Settings() {
     setTagModal({ open: false })
   }
 
+  // ── Computed account balances from transactions ───────────────────────────
+  const accountBalances = useMemo<Record<string, number>>(() => {
+    if (!data) return {}
+    const map: Record<string, number> = {}
+    data.transactions.forEach((tx) => {
+      if (tx.type === 'INCOME') map[tx.accountId] = (map[tx.accountId] ?? 0) + tx.amount
+      if (tx.type === 'EXPENSE') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
+      if (tx.type === 'TRANSFER') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
+    })
+    return map
+  }, [data])
+
   const isUnlimited = data?.settings.auditLogRetentionLimit === null
 
   function handleRetentionToggle() {
@@ -378,7 +390,7 @@ export default function Settings() {
                         </p>
                       </div>
                       <span className="text-sm font-bold text-on-surface">
-                        {formatCurrency(acc.balance)}
+                        {formatCurrency(accountBalances[acc.id] ?? 0)}
                       </span>
                     </button>
                   ))}
