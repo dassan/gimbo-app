@@ -19,6 +19,7 @@ import { applyRetention } from '@/lib/storage/schema'
  */
 export function mergeDataFiles(local: DataFile, disk: DataFile): DataFile {
   return {
+    schemaVersion: local.schemaVersion,
     user: local.user,
     settings: {
       ...local.settings,

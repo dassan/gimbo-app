@@ -77,6 +77,7 @@ export interface AuditEntry {
 // ─── Root data.json shape ─────────────────────────────────────────────────────
 
 export interface DataFile {
+  schemaVersion: number
   user: User
   settings: Settings
   accounts: Account[]

@@ -130,6 +130,7 @@
     "exportData": "Export Data",
     "importData": "Import Data",
     "importFileError": "Invalid or corrupted file. Make sure it was exported from Nexus.",
+    "importVersionError": "This file was created with a newer version of Nexus. Update the app to import it.",
     "exportLocalData": "Export Local Data",
     "exportLocalDataHint": "Back up your current data before trying a new import.",
     "saveProfile": "Save Profile",

@@ -13,7 +13,7 @@
 
 | ID   | Descrição                                                                                                                                                  | Prioridade | Status    |
 |------|------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|-----------|
-| M-01 | Versionar o arquivo `data.json` para validar compatibilidade ao alterar o modelo de dados                                                                  | média      | aberto    |
+| M-01 | Versionar o arquivo `data.json` para validar compatibilidade ao alterar o modelo de dados                                                                  | média      | resolvido |
 | M-02 | Tela de Lançamentos: ao clicar em uma transação, abrir o modal de criação com os dados pré-preenchidos para permitir edição ou remoção                     | alta       | resolvido |
 | M-03 | Tela de Configurações > Contas: modal de criação e edição com nome, 8 tipos de conta (grid de ícones) e toggle "Incluir no saldo total"                    | alta       | resolvido |
 | M-04 | Tela de Configurações > Categorias: modal de criação e edição com nome, icon picker (12 ícones Lucide), categoria-pai e toggle RECEITA/DESPESA             | alta       | resolvido |

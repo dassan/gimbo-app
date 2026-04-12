@@ -40,7 +40,7 @@ import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { downloadDataFile, openDataFile } from '@/lib/storage/fileSystem'
 import { saveFileHandle } from '@/lib/storage/indexedDb'
 import { formatCurrency, cn, uuid, now } from '@/lib/utils'
-import { AUDIT_RETENTION_DEFAULT } from '@/lib/storage/schema'
+import { AUDIT_RETENTION_DEFAULT, SchemaVersionError } from '@/lib/storage/schema'
 import { importFileToIdb } from '@/lib/storage/sync'
 import type {
   Account,
@@ -213,8 +213,12 @@ export default function Settings() {
         // Non-fatal — the app functions without a persisted handle.
       }
       loadData(data)
-    } catch {
-      setImportError(t('settings.importFileError'))
+    } catch (err) {
+      if (err instanceof SchemaVersionError) {
+        setImportError(t('settings.importVersionError'))
+      } else {
+        setImportError(t('settings.importFileError'))
+      }
     }
   }
 

@@ -4,6 +4,23 @@ import { uuid, now } from '@/lib/utils'
 
 export const AUDIT_RETENTION_DEFAULT = 200
 export const AUDIT_RETENTION_DAYS = 90
+export const CURRENT_SCHEMA_VERSION = 1
+
+/**
+ * Thrown by validateDataFile() when the parsed file declares a schemaVersion
+ * higher than CURRENT_SCHEMA_VERSION. Callers can use instanceof to distinguish
+ * this from a generic Zod validation error.
+ */
+export class SchemaVersionError extends Error {
+  readonly detectedVersion: number
+  constructor(detectedVersion: number) {
+    super(
+      `Unsupported schema version ${detectedVersion} (app supports up to ${CURRENT_SCHEMA_VERSION})`
+    )
+    this.name = 'SchemaVersionError'
+    this.detectedVersion = detectedVersion
+  }
+}
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -65,6 +82,7 @@ const AuditEntrySchema = z.object({
 })
 
 export const DataFileSchema = z.object({
+  schemaVersion: z.number().int().default(CURRENT_SCHEMA_VERSION),
   user: UserSchema,
   settings: SettingsSchema,
   accounts: z.array(AccountSchema),
@@ -76,9 +94,16 @@ export const DataFileSchema = z.object({
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
-/** Validate and cast an unknown JSON payload as DataFile. Throws if invalid. */
+/**
+ * Validate and cast an unknown JSON payload as DataFile. Throws if invalid.
+ * Throws SchemaVersionError if the file was created by a newer app version.
+ */
 export function validateDataFile(data: unknown): DataFile {
-  return DataFileSchema.parse(data) as DataFile
+  const parsed = DataFileSchema.parse(data) as DataFile
+  if (parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
+    throw new SchemaVersionError(parsed.schemaVersion)
+  }
+  return parsed
 }
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -86,6 +111,7 @@ export function validateDataFile(data: unknown): DataFile {
 export function createEmptyDataFile(name: string, email: string): DataFile {
   const ts = now()
   return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     user: { name, email, createdAt: ts, updatedAt: ts },
     settings: {
       fileCreatedAt: ts,

@@ -5,6 +5,8 @@ import {
   validateDataFile,
   DataFileSchema,
   AUDIT_RETENTION_DAYS,
+  CURRENT_SCHEMA_VERSION,
+  SchemaVersionError,
 } from '@/lib/storage/schema'
 import type { AuditEntry, DataFile } from '@/types'
 
@@ -24,6 +26,7 @@ function makeEntry(daysAgo: number): AuditEntry {
 }
 
 const MINIMAL_VALID: DataFile = {
+  schemaVersion: 1,
   user: { name: 'x', email: '', createdAt: '', updatedAt: '' },
   settings: { fileCreatedAt: '', fileUpdatedAt: '', auditLogRetentionLimit: 200 },
   accounts: [],
@@ -86,6 +89,11 @@ describe('createEmptyDataFile', () => {
   it('produces a DataFile that passes Zod validation', () => {
     const file = createEmptyDataFile('Alice', 'alice@example.com')
     expect(() => DataFileSchema.parse(file)).not.toThrow()
+  })
+
+  it(`sets schemaVersion to CURRENT_SCHEMA_VERSION (${CURRENT_SCHEMA_VERSION})`, () => {
+    const file = createEmptyDataFile('Dave', '')
+    expect(file.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
   })
 
   it('starts with empty accounts, tags and transactions', () => {
@@ -248,5 +256,38 @@ describe('validateDataFile', () => {
       ],
     }
     expect(() => validateDataFile(data)).toThrow()
+  })
+})
+
+// ─── Schema version compatibility (M-01) ─────────────────────────────────────
+
+describe('validateDataFile — schema version', () => {
+  it('accepts a file without schemaVersion (legacy) and defaults to 1', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { schemaVersion: _schemaVersion, ...legacy } = MINIMAL_VALID
+    const result = validateDataFile(legacy)
+    expect(result.schemaVersion).toBe(1)
+  })
+
+  it('accepts a file with schemaVersion equal to CURRENT_SCHEMA_VERSION', () => {
+    expect(() =>
+      validateDataFile({ ...MINIMAL_VALID, schemaVersion: CURRENT_SCHEMA_VERSION })
+    ).not.toThrow()
+  })
+
+  it('throws SchemaVersionError for a schemaVersion above CURRENT_SCHEMA_VERSION', () => {
+    const future = { ...MINIMAL_VALID, schemaVersion: CURRENT_SCHEMA_VERSION + 1 }
+    expect(() => validateDataFile(future)).toThrow(SchemaVersionError)
+  })
+
+  it('SchemaVersionError carries the detected version number', () => {
+    const futureVersion = CURRENT_SCHEMA_VERSION + 5
+    try {
+      validateDataFile({ ...MINIMAL_VALID, schemaVersion: futureVersion })
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(SchemaVersionError)
+      expect((err as SchemaVersionError).detectedVersion).toBe(futureVersion)
+    }
   })
 })

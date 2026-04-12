@@ -2,6 +2,7 @@ import type { DataFile } from '@/types'
 
 export function makeDataFile(overrides: Partial<DataFile> = {}): DataFile {
   return {
+    schemaVersion: 1,
     user: {
       name: 'Test User',
       email: 'test@example.com',
