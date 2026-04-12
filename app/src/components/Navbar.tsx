@@ -16,6 +16,7 @@ interface NavbarProps {
   fileHandleLost?: boolean
   permissionNeeded?: boolean
   writeError?: boolean
+  fsaSupported?: boolean
   onSync: () => Promise<void>
 }
 
@@ -25,6 +26,7 @@ export default function Navbar({
   fileHandleLost = false,
   permissionNeeded = false,
   writeError = false,
+  fsaSupported = true,
   onSync,
 }: NavbarProps) {
   const { t } = useTranslation()
@@ -89,42 +91,44 @@ export default function Navbar({
           <Bell size={18} strokeWidth={1.5} />
         </button>
 
-        {/* Sync icon with unsaved-changes badge */}
-        <button
-          aria-label={t('sync.syncNow')}
-          title={
-            fileHandleLost
-              ? t('sync.fileLostTooltip')
-              : writeError
-                ? t('sync.writeErrorTooltip')
-                : permissionNeeded
-                  ? t('sync.permissionNeededTooltip')
-                  : unsyncedCount > 0
-                    ? t('sync.tooltip', { count: unsyncedCount })
-                    : undefined
-          }
-          onClick={() => void handleSync()}
-          disabled={syncing}
-          className="relative flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:cursor-default hover:bg-surface-container-low hover:text-on-surface/70"
-        >
-          <RefreshCw
-            size={18}
-            strokeWidth={1.5}
-            className={cn(
-              syncing && 'animate-spin',
-              fileHandleLost || writeError
-                ? 'text-tertiary'
-                : permissionNeeded
-                  ? 'text-primary'
-                  : 'text-on-surface/40'
+        {/* Sync icon — hidden in browsers without File System Access API */}
+        {fsaSupported && (
+          <button
+            aria-label={t('sync.syncNow')}
+            title={
+              fileHandleLost
+                ? t('sync.fileLostTooltip')
+                : writeError
+                  ? t('sync.writeErrorTooltip')
+                  : permissionNeeded
+                    ? t('sync.permissionNeededTooltip')
+                    : unsyncedCount > 0
+                      ? t('sync.tooltip', { count: unsyncedCount })
+                      : undefined
+            }
+            onClick={() => void handleSync()}
+            disabled={syncing}
+            className="relative flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:cursor-default hover:bg-surface-container-low hover:text-on-surface/70"
+          >
+            <RefreshCw
+              size={18}
+              strokeWidth={1.5}
+              className={cn(
+                syncing && 'animate-spin',
+                fileHandleLost || writeError
+                  ? 'text-tertiary'
+                  : permissionNeeded
+                    ? 'text-primary'
+                    : 'text-on-surface/40'
+              )}
+            />
+            {showBadge && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-tertiary px-1 text-[9px] font-bold leading-none text-white">
+                {badgeLabel}
+              </span>
             )}
-          />
-          {showBadge && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-tertiary px-1 text-[9px] font-bold leading-none text-white">
-              {badgeLabel}
-            </span>
-          )}
-        </button>
+          </button>
+        )}
 
         {/* Settings */}
         <button

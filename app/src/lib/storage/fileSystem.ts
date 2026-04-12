@@ -17,6 +17,16 @@ declare global {
   }
 }
 
+// ─── FSA availability ─────────────────────────────────────────────────────────
+
+/**
+ * Returns true when the File System Access API is available (Chromium-based browsers).
+ * Firefox and Safari do not implement showSaveFilePicker.
+ */
+export function isFsaSupported(): boolean {
+  return typeof window?.showSaveFilePicker === 'function'
+}
+
 // ─── data file ────────────────────────────────────────────────────────────────
 
 // In-memory cache of the active handle. Restored from IDB on startup via

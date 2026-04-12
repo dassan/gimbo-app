@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import Settings from '@/pages/Settings'
 import { useDataStore } from '@/store/useDataStore'
 import { makeDataFile } from '@/test/fixtures/dataFile'
-import { downloadDataFile, openDataFile } from '@/lib/storage/fileSystem'
+import { downloadDataFile, openDataFile, isFsaSupported } from '@/lib/storage/fileSystem'
 import { importFileToIdb } from '@/lib/storage/sync'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/lib/storage/fileSystem', () => ({
   downloadDataFile: vi.fn(),
   openDataFile: vi.fn(),
+  isFsaSupported: vi.fn().mockReturnValue(true),
   loadWorkspace: vi.fn().mockReturnValue(null),
   saveWorkspace: vi.fn(),
 }))
@@ -81,5 +82,38 @@ describe('Settings — corrupted file import (M-12)', () => {
     await userEvent.click(screen.getByRole('button', { name: /settings\.exportLocalData/i }))
 
     expect(vi.mocked(downloadDataFile)).toHaveBeenCalledWith(data)
+  })
+})
+
+// ─── Settings — FSA fallback import (M-18) ───────────────────────────────────
+
+describe('Settings — FSA fallback import (M-18)', () => {
+  beforeEach(() => {
+    vi.mocked(isFsaSupported).mockReturnValue(false)
+  })
+
+  it('calls importFileToIdb with the selected file when FSA is not supported', async () => {
+    const data = makeDataFile()
+    vi.mocked(importFileToIdb).mockResolvedValue(data)
+
+    await renderDataSection()
+
+    const file = new File([JSON.stringify(data)], 'nexus.json', { type: 'application/json' })
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await userEvent.upload(input, file)
+
+    expect(vi.mocked(importFileToIdb)).toHaveBeenCalledWith(file)
+  })
+
+  it('shows the import error when the fallback file is invalid', async () => {
+    vi.mocked(importFileToIdb).mockRejectedValue(new Error('Zod validation failed'))
+
+    await renderDataSection()
+
+    const file = new File(['not valid json'], 'corrupt.json', { type: 'application/json' })
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await userEvent.upload(input, file)
+
+    expect(await screen.findByText('settings.importFileError')).toBeInTheDocument()
   })
 })

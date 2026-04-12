@@ -69,6 +69,20 @@ describe('Navbar — file handle lost state', () => {
   })
 })
 
+describe('Navbar — FSA not supported', () => {
+  it('hides the sync button when fsaSupported is false', () => {
+    renderNavbar({ fsaSupported: false })
+
+    expect(screen.queryByRole('button', { name: 'sync.syncNow' })).not.toBeInTheDocument()
+  })
+
+  it('shows the sync button when fsaSupported is true (default)', () => {
+    renderNavbar({ fsaSupported: true })
+
+    expect(screen.getByRole('button', { name: 'sync.syncNow' })).toBeInTheDocument()
+  })
+})
+
 describe('Navbar — permission needed state', () => {
   it('calls onSync when permissionNeeded is true even if unsyncedCount is 0', async () => {
     const onSync = vi.fn().mockResolvedValue(undefined)

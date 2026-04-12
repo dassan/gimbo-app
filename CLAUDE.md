@@ -364,6 +364,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Banner persistente de quota excedida no IndexedDB + exportação de emergência | M-16 | ✅ |
 | Persistência do `unsyncedCount` no IDB; badge restaurado após reload | M-19 | ✅ |
 | Versionamento do `data.json` (`schemaVersion`); rejeição clara de arquivos de versão futura | M-01 | ✅ |
+| Fallback para browsers sem FSA: sync oculto, import via `<input>`, create via download, aviso dismissível | M-18 | ✅ |
 
 ### Bugs abertos
 
@@ -381,7 +382,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | ~~M-01~~ | ~~Versionar data.json para compatibilidade de schema~~ | ~~média~~ ✅ |
 | ~~M-16~~ | ~~Tratamento de quota excedida no IndexedDB~~ | ~~média~~ ✅ |
 | ~~M-17~~ | ~~Separar semântica de import vs. sync~~ | ~~média~~ ✅ |
-| M-18 | Fallback para browsers sem File System Access API | baixa |
+| ~~M-18~~ | ~~Fallback para browsers sem File System Access API~~ | ~~baixa~~ ✅ |
 | ~~M-19~~ | ~~Persistir unsyncedCount no IndexedDB~~ | ~~baixa~~ ✅ |
 
 ---

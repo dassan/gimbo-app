@@ -512,3 +512,23 @@ describe('isPermissionNeeded', () => {
     expect(isPermissionNeeded()).toBe(false)
   })
 })
+
+// ─── isFsaSupported ───────────────────────────────────────────────────────────
+
+describe('isFsaSupported', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('returns true when showSaveFilePicker is a function', async () => {
+    vi.stubGlobal('showSaveFilePicker', vi.fn())
+    const { isFsaSupported } = await import('@/lib/storage/fileSystem')
+    expect(isFsaSupported()).toBe(true)
+  })
+
+  it('returns false when showSaveFilePicker is undefined', async () => {
+    vi.stubGlobal('showSaveFilePicker', undefined)
+    const { isFsaSupported } = await import('@/lib/storage/fileSystem')
+    expect(isFsaSupported()).toBe(false)
+  })
+})

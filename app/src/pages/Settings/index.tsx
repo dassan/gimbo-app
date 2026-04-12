@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Landmark,
@@ -37,7 +37,7 @@ import {
 } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
-import { downloadDataFile, openDataFile } from '@/lib/storage/fileSystem'
+import { downloadDataFile, openDataFile, isFsaSupported } from '@/lib/storage/fileSystem'
 import { saveFileHandle } from '@/lib/storage/indexedDb'
 import { formatCurrency, cn, uuid, now } from '@/lib/utils'
 import { AUDIT_RETENTION_DEFAULT, SchemaVersionError } from '@/lib/storage/schema'
@@ -184,6 +184,7 @@ export default function Settings() {
   const [categoryModal, setCategoryModal] = useState<CategoryModalState>({ open: false })
   const [tagModal, setTagModal] = useState<TagModalState>({ open: false })
   const [importError, setImportError] = useState<string | null>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   function handleSaveProfile() {
     if (!data) return
@@ -199,7 +200,25 @@ export default function Settings() {
     if (data) downloadDataFile(data)
   }
 
+  async function handleImportFile(file: File) {
+    setImportError(null)
+    try {
+      const data = await importFileToIdb(file)
+      loadData(data)
+    } catch (err) {
+      if (err instanceof SchemaVersionError) {
+        setImportError(t('settings.importVersionError'))
+      } else {
+        setImportError(t('settings.importFileError'))
+      }
+    }
+  }
+
   async function handleImport() {
+    if (!isFsaSupported()) {
+      importInputRef.current?.click()
+      return
+    }
     setImportError(null)
     const result = await openDataFile()
     if (!result) return
@@ -601,6 +620,16 @@ export default function Settings() {
                       {t('settings.importData')}
                     </span>
                   </button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) void handleImportFile(e.target.files[0])
+                      e.target.value = ''
+                    }}
+                  />
                 </div>
                 {importError && (
                   <div className="mt-3 rounded-xl border border-tertiary/20 bg-tertiary/5 p-3 space-y-2">

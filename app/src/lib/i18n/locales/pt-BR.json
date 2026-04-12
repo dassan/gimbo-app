@@ -28,6 +28,7 @@
     "importDropSub": "Somente arquivos exportados do Nexus são suportados.",
     "createFilePickerHint": "Na próxima etapa, você escolherá o nome e o local onde seu arquivo será salvo.",
     "createFileCancelled": "Seleção de arquivo cancelada. Tente novamente.",
+    "createFileFallbackHint": "Seus dados serão salvos localmente e um arquivo será baixado automaticamente.",
     "importFileError": "Arquivo inválido ou corrompido. Verifique se é um arquivo exportado pelo Nexus.",
     "footer": "The Fluid Ledger",
     "privacyPolicy": "Privacy Policy",
@@ -187,7 +188,9 @@
     "writeErrorTooltip": "Falha na última sincronização. Clique para tentar novamente.",
     "idbQuotaWarning": "O armazenamento local está cheio. Exporte seus dados e limpe o histórico de auditoria nas Configurações.",
     "idbQuotaExport": "Exportar Dados",
-    "idbQuotaSettings": "Ir para Configurações"
+    "idbQuotaSettings": "Ir para Configurações",
+    "noFsaNotice": "Seu navegador não suporta sincronização automática. Use Exportar / Importar nas Configurações para salvar seus dados.",
+    "noFsaDismiss": "Entendido"
   },
   "audit": {
     "title": "Modificações Recentes",

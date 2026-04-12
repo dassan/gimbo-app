@@ -28,6 +28,7 @@
     "importDropSub": "Only files exported from Nexus are supported.",
     "createFilePickerHint": "In the next step, you'll choose the name and location where your file will be saved.",
     "createFileCancelled": "File selection cancelled. Please try again.",
+    "createFileFallbackHint": "Your data will be saved locally and a file will be downloaded automatically.",
     "importFileError": "Invalid or corrupted file. Make sure it was exported from Nexus.",
     "footer": "The Fluid Ledger",
     "privacyPolicy": "Privacy Policy",
@@ -187,7 +188,9 @@
     "writeErrorTooltip": "Last sync failed. Click to retry.",
     "idbQuotaWarning": "Local storage is full. Export your data and clear the audit log in Settings.",
     "idbQuotaExport": "Export Data",
-    "idbQuotaSettings": "Go to Settings"
+    "idbQuotaSettings": "Go to Settings",
+    "noFsaNotice": "Your browser doesn't support automatic sync. Use Export / Import in Settings to save your data.",
+    "noFsaDismiss": "Got it"
   },
   "audit": {
     "title": "Recent Changes",

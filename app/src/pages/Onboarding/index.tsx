@@ -5,7 +5,12 @@ import { ShieldCheck, Lock, ArrowRight, RefreshCw, FileJson } from 'lucide-react
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { createEmptyDataFile } from '@/lib/storage/schema'
-import { openDataFile, createNewDataFile } from '@/lib/storage/fileSystem'
+import {
+  openDataFile,
+  createNewDataFile,
+  downloadDataFile,
+  isFsaSupported,
+} from '@/lib/storage/fileSystem'
 import { saveFileHandle } from '@/lib/storage/indexedDb'
 import { importFileToIdb } from '@/lib/storage/sync'
 import { cn } from '@/lib/utils'
@@ -33,23 +38,30 @@ export default function Onboarding() {
 
     const data = createEmptyDataFile(name.trim(), email.trim())
 
-    // Open the save picker so the user can choose filename and location.
-    // Must be called directly inside the click handler to satisfy the
-    // user-gesture requirement of the File System Access API.
-    const handle = await createNewDataFile(data)
-    if (!handle) {
-      // User cancelled the picker — stay on onboarding.
-      setFileError(t('onboarding.createFileCancelled'))
-      return
+    if (isFsaSupported()) {
+      // Open the save picker so the user can choose filename and location.
+      // Must be called directly inside the click handler to satisfy the
+      // user-gesture requirement of the File System Access API.
+      const handle = await createNewDataFile(data)
+      if (!handle) {
+        // User cancelled the picker — stay on onboarding.
+        setFileError(t('onboarding.createFileCancelled'))
+        return
+      }
+
+      // Best-effort: persist the handle so future sessions can reuse it.
+      // Silently ignored if the runtime can't clone the handle (e.g. in tests).
+      try {
+        await saveFileHandle(handle)
+      } catch {
+        // Non-fatal — the app functions without a persisted handle.
+      }
+    } else {
+      // FSA not available (Firefox/Safari): save to IDB and trigger a download
+      // so the user keeps a copy of their data file.
+      downloadDataFile(data)
     }
 
-    // Best-effort: persist the handle so future sessions can reuse it.
-    // Silently ignored if the runtime can't clone the handle (e.g. in tests).
-    try {
-      await saveFileHandle(handle)
-    } catch {
-      // Non-fatal — the app functions without a persisted handle.
-    }
     loadData(data)
     setLocale(locale)
     void i18n.changeLanguage(locale)
@@ -240,7 +252,9 @@ export default function Onboarding() {
                 </div>
 
                 <p className="text-xs text-on-surface/40 pt-1">
-                  {t('onboarding.createFilePickerHint')}
+                  {isFsaSupported()
+                    ? t('onboarding.createFilePickerHint')
+                    : t('onboarding.createFileFallbackHint')}
                 </p>
 
                 {fileError && <p className="text-xs text-red-500">{fileError}</p>}
@@ -297,13 +311,15 @@ export default function Onboarding() {
 
                 {fileError && <p className="text-xs text-red-500">{fileError}</p>}
 
-                <button
-                  onClick={() => void handleImportPicker()}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-semibold text-white transition hover:brightness-110"
-                >
-                  {t('onboarding.import')}
-                  <RefreshCw size={16} strokeWidth={2.5} />
-                </button>
+                {isFsaSupported() && (
+                  <button
+                    onClick={() => void handleImportPicker()}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-semibold text-white transition hover:brightness-110"
+                  >
+                    {t('onboarding.import')}
+                    <RefreshCw size={16} strokeWidth={2.5} />
+                  </button>
+                )}
               </div>
             )}
           </div>
