@@ -579,7 +579,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | CRUD de tags (paleta de cores) | M-05 | ✅ |
 | CRUD de transações (Income/Expense/Transfer) | — | ✅ |
 | Editar/remover transação ao clicar na linha | M-02 | ✅ |
-| Dashboard com cards mensais | — | ✅ |
+| Dashboard com cards mensais + card Minhas Contas | M-21 | ✅ |
 | Gráfico de fluxo de caixa (±3 meses) | — | ✅ |
 | Gráfico de despesas por categoria (donut) | — | ✅ |
 | Exportar/Importar data.json | — | ✅ |
@@ -630,6 +630,7 @@ Todos os bugs B-01 a B-04 foram resolvidos. Nenhum bug aberto no momento.
 | ~~M-17~~ | ~~Separar semântica import vs. sync~~ | ✅ |
 | ~~M-18~~ | ~~Fallback sem File System Access API~~ | ✅ |
 | ~~M-19~~ | ~~Persistir unsyncedCount no IndexedDB~~ | ✅ |
+| ~~M-21~~ | ~~Card "Minhas Contas" no Dashboard (substituiu gráfico de cash flow)~~ | ✅ |
 
 ---
 

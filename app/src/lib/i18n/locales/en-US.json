@@ -43,6 +43,7 @@
     "cashFlowSub": "3-month history + 3-month forecast",
     "weekly": "Weekly",
     "monthly": "Monthly",
+    "myAccounts": "My Accounts",
     "byCategory": "Expenses by Category",
     "recentTransactions": "Recent Transactions",
     "viewAll": "View All",

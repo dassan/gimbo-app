@@ -1,23 +1,47 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
-import { TrendingUp, TrendingDown, CheckCircle2, Clock } from 'lucide-react'
+  TrendingUp,
+  TrendingDown,
+  CheckCircle2,
+  Clock,
+  Landmark,
+  PiggyBank,
+  CreditCard,
+  Bitcoin,
+  ArrowLeftRight,
+  Briefcase,
+  MoreHorizontal,
+} from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
-import type { Transaction } from '@/types'
+import type { Transaction, AccountType } from '@/types'
 
-type Period = 'weekly' | 'monthly'
+// ─── Account type config ──────────────────────────────────────────────────────
+
+const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ReactNode> = {
+  RETAIL: <Landmark size={18} strokeWidth={1.5} />,
+  SAVINGS: <PiggyBank size={18} strokeWidth={1.5} />,
+  CREDIT: <CreditCard size={18} strokeWidth={1.5} />,
+  CRYPTO: <Bitcoin size={18} strokeWidth={1.5} />,
+  FOREX: <ArrowLeftRight size={18} strokeWidth={1.5} />,
+  ASSET: <Briefcase size={18} strokeWidth={1.5} />,
+  STOCKS: <TrendingUp size={18} strokeWidth={1.5} />,
+  OTHER: <MoreHorizontal size={18} strokeWidth={1.5} />,
+}
+
+const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
+  RETAIL: '#3B82F6',
+  SAVINGS: '#22C55E',
+  CREDIT: '#1F2937',
+  CRYPTO: '#F59E0B',
+  FOREX: '#8B5CF6',
+  ASSET: '#6B7280',
+  STOCKS: '#006E2F',
+  OTHER: '#9CA3AF',
+}
 
 // ─── Colour palette for donut chart ──────────────────────────────────────────
 const DONUT_COLORS = ['#006E2F', '#22C55E', '#FF8A83', '#B91A24', '#6B7280', '#F59E0B', '#3B82F6']
@@ -26,7 +50,6 @@ export default function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const data = useDataStore((s) => s.data)
-  const [period, setPeriod] = useState<Period>('monthly')
 
   const now = useMemo(() => new Date(), [])
 
@@ -49,17 +72,17 @@ export default function Dashboard() {
     return { income, expenses, balance: income - expenses, recentTxs }
   }, [data, now])
 
-  // ── Cash flow chart data (±3 months) ─────────────────────────────────────
-  const cashFlowData = useMemo(() => {
-    if (!data) return []
-    const months = period === 'monthly' ? buildMonthlySlots(now) : buildWeeklySlots(now)
-    return months.map((slot) => {
-      const txs = data.transactions.filter((tx) => slot.includes(parseDateLocal(tx.date)))
-      const inc = txs.filter((t) => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0)
-      const exp = txs.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
-      return { label: slot.label, income: inc, expenses: exp, net: inc - exp }
+  // ── Account balances (derived from transactions) ──────────────────────────
+  const accountBalances = useMemo<Record<string, number>>(() => {
+    if (!data) return {}
+    const map: Record<string, number> = {}
+    data.transactions.forEach((tx) => {
+      if (tx.type === 'INCOME') map[tx.accountId] = (map[tx.accountId] ?? 0) + tx.amount
+      if (tx.type === 'EXPENSE') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
+      if (tx.type === 'TRANSFER') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
     })
-  }, [data, period, now])
+    return map
+  }, [data])
 
   // ── Expenses by category (donut) ──────────────────────────────────────────
   const donutData = useMemo(() => {
@@ -86,6 +109,7 @@ export default function Dashboard() {
 
   if (!data) return null
 
+  const visibleAccounts = data.accounts.filter((a) => a.includeInBalance)
   const totalExpenses = donutData.reduce((s, d) => s + d.value, 0)
 
   return (
@@ -111,88 +135,35 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ── Charts row ───────────────────────────────────────────────────── */}
+      {/* ── Accounts + Category row ───────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Cash flow chart — 2/3 */}
+        {/* My Accounts — 2/3 */}
         <div
           className="col-span-2 rounded-2xl bg-white p-6"
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
         >
-          <div className="flex items-start justify-between mb-1">
-            <div>
-              <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.cashFlow')}</h3>
-              <p className="text-xs text-on-surface/40 mt-0.5">{t('dashboard.cashFlowSub')}</p>
-            </div>
-            <div className="flex rounded-lg bg-surface-container-low p-0.5 text-xs">
-              <PeriodBtn active={period === 'weekly'} onClick={() => setPeriod('weekly')}>
-                {t('dashboard.weekly')}
-              </PeriodBtn>
-              <PeriodBtn active={period === 'monthly'} onClick={() => setPeriod('monthly')}>
-                {t('dashboard.monthly')}
-              </PeriodBtn>
-            </div>
-          </div>
+          <h3 className="text-sm font-semibold text-on-surface mb-4">
+            {t('dashboard.myAccounts')}
+          </h3>
 
-          <div className="mt-4 h-48">
-            {cashFlowData.some((d) => d.income > 0 || d.expenses > 0) ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={cashFlowData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#006E2F" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#006E2F" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#FF8A83" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#FF8A83" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: 'none',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                      fontSize: 12,
-                    }}
-                    formatter={(value) => formatCurrency(Number(value))}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="income"
-                    stroke="#006E2F"
-                    strokeWidth={2}
-                    fill="url(#incomeGrad)"
-                    dot={false}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="expenses"
-                    stroke="#FF8A83"
-                    strokeWidth={2}
-                    fill="url(#expenseGrad)"
-                    dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyChart />
-            )}
-          </div>
+          {visibleAccounts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-on-surface/40">{t('common.noData')}</p>
+          ) : (
+            <div className="space-y-1">
+              {visibleAccounts.map((acc) => (
+                <AccountRow
+                  key={acc.id}
+                  name={acc.name}
+                  type={acc.type}
+                  balance={accountBalances[acc.id] ?? 0}
+                  typeLabel={t(`accounts.${acc.type.toLowerCase()}`)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Donut chart — 1/3 */}
+        {/* Expenses by category donut — 1/3 */}
         <div
           className="rounded-2xl bg-white p-6"
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
@@ -288,6 +259,42 @@ export default function Dashboard() {
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
+
+function AccountRow({
+  name,
+  type,
+  balance,
+  typeLabel,
+}: {
+  name: string
+  type: AccountType
+  balance: number
+  typeLabel: string
+}) {
+  const isNegative = balance < 0
+  return (
+    <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-surface-container-low transition-colors">
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
+        style={{ backgroundColor: ACCOUNT_TYPE_COLORS[type] }}
+      >
+        {ACCOUNT_TYPE_ICONS[type]}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-on-surface truncate">{name}</p>
+        <p className="text-xs text-on-surface/40 mt-0.5">{typeLabel}</p>
+      </div>
+      <span
+        className={cn(
+          'text-sm font-semibold shrink-0',
+          isNegative ? 'text-tertiary' : 'text-on-surface'
+        )}
+      >
+        {formatCurrency(balance)}
+      </span>
+    </div>
+  )
+}
 
 function StatCard({
   label,
@@ -386,68 +393,10 @@ function TransactionRow({
   )
 }
 
-function PeriodBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'rounded-md px-3 py-1.5 text-xs font-medium transition-all',
-        active
-          ? 'bg-white text-on-surface shadow-sm'
-          : 'text-on-surface/40 hover:text-on-surface/60'
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 function EmptyChart() {
   return (
     <div className="flex h-full items-center justify-center">
       <p className="text-sm text-on-surface/30">Sem dados para exibir</p>
     </div>
   )
-}
-
-// ─── Chart data helpers ────────────────────────────────────────────────────────
-
-interface Slot {
-  label: string
-  includes: (date: Date) => boolean
-}
-
-function buildMonthlySlots(now: Date): Slot[] {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 3 + i, 1)
-    const m = d.getMonth(),
-      y = d.getFullYear()
-    return {
-      label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
-      includes: (date: Date) => date.getMonth() === m && date.getFullYear() === y,
-    }
-  })
-}
-
-function buildWeeklySlots(now: Date): Slot[] {
-  return Array.from({ length: 14 }, (_, i) => {
-    const start = new Date(now)
-    start.setDate(now.getDate() - 91 + i * 7)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(start)
-    end.setDate(start.getDate() + 6)
-    end.setHours(23, 59, 59, 999)
-    return {
-      label: start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', ''),
-      includes: (date: Date) => date >= start && date <= end,
-    }
-  })
 }
