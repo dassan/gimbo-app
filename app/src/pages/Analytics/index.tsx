@@ -15,7 +15,7 @@ import {
   Cell,
 } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
-import { formatCurrency, cn } from '@/lib/utils'
+import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
 
 type ViewPeriod = 'month' | 'semester' | 'custom'
 
@@ -27,7 +27,7 @@ export default function Analytics() {
   const data = useDataStore((s) => s.data)
 
   const [viewPeriod, setViewPeriod] = useState<ViewPeriod>('semester')
-  const [includeUnpaid, setIncludeUnpaid] = useState(false)
+  const [includeUnpaid, setIncludeUnpaid] = useState(true)
   const [offset, setOffset] = useState(0) // months back/forward
 
   const now = useMemo(() => new Date(), [])
@@ -63,7 +63,7 @@ export default function Analytics() {
     let cumulative = 0
     return months.map(({ label, m, y }) => {
       const txs = data.transactions.filter((tx) => {
-        const d = new Date(tx.date)
+        const d = parseDateLocal(tx.date)
         const inPeriod = d.getMonth() === m && d.getFullYear() === y
         const isPaidOk = includeUnpaid || tx.isPaid
         return inPeriod && isPaidOk
@@ -79,7 +79,7 @@ export default function Analytics() {
   const { incomeByCategory, expenseByCategory } = useMemo(() => {
     if (!data) return { incomeByCategory: [], expenseByCategory: [] }
     const txs = data.transactions.filter((tx) => {
-      const d = new Date(tx.date)
+      const d = parseDateLocal(tx.date)
       const inPeriod = d >= startDate && d <= endDate
       const isPaidOk = includeUnpaid || tx.isPaid
       return inPeriod && isPaidOk
@@ -180,7 +180,7 @@ export default function Analytics() {
         <p className="text-xs text-on-surface/40 mt-0.5 mb-6">{t('analytics.cashFlowSub')}</p>
 
         <div className="h-56">
-          {cashFlowData.length > 0 ? (
+          {cashFlowData.some((d) => d.generalFlow !== 0) ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={cashFlowData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <CartesianGrid
