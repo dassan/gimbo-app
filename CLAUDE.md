@@ -68,40 +68,44 @@ MyFinanceApp/
 │   │   ├── types/index.ts     # Definições TypeScript de todas as entidades
 │   │   ├── lib/
 │   │   │   ├── utils.ts           # cn(), uuid(), formatCurrency(), now()
+│   │   │   ├── tabGuard.ts        # BroadcastChannel: detecção de múltiplas abas
 │   │   │   ├── i18n/              # Config i18next + locales (pt-BR, en-US)
 │   │   │   └── storage/
 │   │   │       ├── schema.ts      # Schemas Zod + factories + applyRetention()
 │   │   │       ├── fileSystem.ts  # File System Access API + fallback download
 │   │   │       ├── indexedDb.ts   # CRUD IndexedDB (stores: ledger, handles)
-│   │   │       └── merge.ts       # Merge por UUID (read-before-write)
+│   │   │       ├── merge.ts       # Merge por UUID (read-before-write)
+│   │   │       └── sync.ts        # importFileToIdb() + syncToFile() — dois caminhos separados
 │   │   ├── store/
-│   │   │   ├── useDataStore.ts    # Dados financeiros + persistência
-│   │   │   └── useWorkspaceStore.ts # Preferências UI (tema, locale)
+│   │   │   ├── useDataStore.ts    # Dados financeiros + persistência + estado de sync
+│   │   │   └── useWorkspaceStore.ts # Preferências UI (tema, locale, defaultView)
 │   │   ├── components/
-│   │   │   ├── AppLayout.tsx      # Shell: Navbar + Outlet + FAB + modais
-│   │   │   ├── Navbar.tsx         # Nav com glassmorphism + badge de sync
-│   │   │   ├── FAB.tsx            # Botão de ação flutuante
-│   │   │   ├── TransactionDrawer.tsx # Formulário de transação (drawer)
-│   │   │   ├── ConflictModal.tsx  # Modal de resolução de conflito
-│   │   │   └── ErrorBoundary.tsx  # Boundary de erro com fallback UI
+│   │   │   ├── AppLayout.tsx      # Shell: Navbar + Outlet + FAB + modais + banners
+│   │   │   ├── Navbar.tsx         # Nav com glassmorphism + badge de sync + FSA guard
+│   │   │   ├── FAB.tsx            # Botão de ação flutuante (oculto em /settings)
+│   │   │   ├── TransactionDrawer.tsx # Formulário de transação (drawer lateral)
+│   │   │   ├── ConflictModal.tsx  # Modal de resolução de conflito de arquivo
+│   │   │   ├── Toast.tsx          # Toast de erro de escrita
+│   │   │   └── ErrorBoundary.tsx  # Boundary de erro com fallback UI (card ou full-page)
 │   │   ├── pages/
 │   │   │   ├── Onboarding/        # Criar perfil ou importar data.json
 │   │   │   ├── Dashboard/         # Resumo mensal + gráficos
 │   │   │   ├── Transactions/      # Ledger com filtros e agrupamento
-│   │   │   ├── Analytics/         # Projeção de fluxo de caixa + breakdown
-│   │   │   ├── Accounts/          # CRUD de contas
-│   │   │   └── Settings/          # Contas, categorias, tags, perfil, log
+│   │   │   ├── Analytics/         # Projeção de fluxo de caixa + breakdown por categoria
+│   │   │   ├── Accounts/          # CRUD de contas (página dedicada — não confundir com aba de Settings)
+│   │   │   └── Settings/          # Contas, categorias, tags, perfil, preferências, log de auditoria
 │   │   └── test/
 │   │       ├── setup.ts           # Setup Vitest (Testing Library matchers)
-│   │       ├── fixtures/          # Factories: makeDataFile(), makeAccount(), etc.
+│   │       ├── fixtures/          # Factories: makeDataFile(), etc.
 │   │       ├── lib/               # Testes de storage e utilitários
-│   │       ├── store/             # Testes de store (mutações, persistência)
+│   │       ├── store/             # Testes de store (mutações, persistência, conflitos)
 │   │       └── components/        # Testes de componentes
 │   ├── e2e/
 │   │   ├── onboarding.spec.ts     # Fluxos de criação e importação
 │   │   ├── persistence.spec.ts    # Persistência e badge de sync
 │   │   ├── transaction.spec.ts    # CRUD de transações
-│   │   └── fixtures/              # Dados para E2E (dataFile.json)
+│   │   └── fixtures/
+│   │       └── dataFile.json      # Fixture E2E com schemaVersion:1 + dados mínimos
 │   ├── vite.config.ts
 │   ├── vitest.config.ts
 │   ├── playwright.config.ts
@@ -118,88 +122,311 @@ MyFinanceApp/
 
 ## Arquitetura
 
-### Fluxo de dados
+### Fluxo de dados principal
 
 ```
 Ação do usuário
   → Método do store (ex: addTransaction())
   → mutate(): structuredClone + aplica mutação + incrementa unsyncedCount
-  → debouncedSaveToIdb() em 300ms   ←── salva em background
-  → Usuário clica em "Sync"
-  → persist(): lê disco, faz merge por UUID, escreve, atualiza _lastWrittenModified
+  → debouncedSaveToIdb() em 300ms   ←── salva em background (debounce timer)
+  → Usuário clica em Sync (ou há auto-sync)
+  → persist(): atualiza fileUpdatedAt, lê disco, detecta conflito,
+               chama syncToFile() → mergeDataFiles() → saveDataFile()
+               → atualiza store com merged + unsyncedCount = 0
 ```
 
-### Três camadas de persistência
+### Quatro camadas de persistência
 
-| Camada | Tecnologia | Escopo | Chave |
-|--------|-----------|--------|-------|
+| Camada | Tecnologia | Escopo | Chave / Local |
+|--------|-----------|--------|---------------|
 | Memória | Zustand (`useDataStore.data`) | Sessão atual | — |
-| Cache | IndexedDB (`nexus-db`) | Sobrevive reload | `ledger/'current'`, `handles/'data'` |
+| Cache | IndexedDB `nexus-db` v2 | Sobrevive reload | `ledger/'current'` |
+| Sync meta | IndexedDB `nexus-db` v2 | Sobrevive reload | `ledger/'sync-meta'` (persiste `unsyncedCount`) |
+| FileHandle | IndexedDB `nexus-db` v2 | Sobrevive reload | `handles/'data'` |
 | Disco | File System Access API (`data.json`) | Portável, permanente | Escolhido pelo usuário |
-| Config UI | localStorage | Sobrevive reload | `nexus_workspace` |
+| Config UI | localStorage `nexus_workspace` | Sobrevive reload | `theme`, `locale`, `defaultView` |
+| FSA notice | localStorage `nexus_fsa_notice_seen` | Sobrevive reload | banner dismissível (M-18) |
+
+### Sequência de startup (`App.tsx`)
+
+```
+init() — executa em paralelo:
+  1. initWorkspace()           — carrega localStorage → useWorkspaceStore
+  2. loadFromIdb()             — carrega DataFile do IDB → useDataStore.loadData()
+  3. loadFileHandle()          — carrega FileSystemFileHandle do IDB
+  4. loadSyncMeta()            — carrega { unsyncedCount } do IDB
+
+Após carregar:
+  - Se IDB tem dados: loadData(saved) → restaura unsyncedCount se > 0
+  - Se há handle: checkHandlePermission(handle)
+      'granted' → _dataHandle injetado, sync pronto
+      'prompt'  → _pendingHandle, store.permissionNeeded = true
+      'denied'  → store.fileHandleLost = true
+  - initTabGuard() — BroadcastChannel para detecção de múltiplas abas
+  - Route guard: data !== null → AppLayout, senão → /onboarding
+```
 
 ### Máquina de estados de permissão do FileHandle
 
 ```
 startup
-  → queryPermission(handle)
-      ├── 'granted'  → pronto para sync automático
-      ├── 'prompt'   → armazena em _pendingHandle, aguarda gesto do usuário
-      └── 'denied'   → trata como arquivo perdido (fileHandleLost = true)
+  → checkHandlePermission(handle)
+      ├── 'granted'  → _dataHandle injetado; sync automático pronto
+      ├── 'prompt'   → _pendingHandle; store.permissionNeeded = true (ícone azul)
+      └── 'denied'   → store.fileHandleLost = true (ícone vermelho/!)
 
-clique no botão de sync
-  ├── _pendingHandle existe → requestPermission() → sync
-  ├── fileHandleLost = true → abre novo file picker
-  └── normal → persist()
+clique no botão de sync (persist())
+  ├── isPermissionNeeded() → requestHandlePermission() → promoção para _dataHandle
+  │     └── negado → fileHandleLost = true
+  ├── isHandleLost() → saveDataFile() abre showSaveFilePicker() para re-associar
+  └── normal → readCurrentDataFile() → conflito? → syncToFile()
 ```
 
-### Estratégia de merge (read-before-write)
+### Dois caminhos de persistência de arquivo (`sync.ts`)
 
-- Ao salvar, lê o arquivo atual do disco
-- Faz union por `id` (UUID): itens locais têm prioridade sobre disco em caso de duplicata
-- Itens presentes só no disco são recuperados (proteção contra eviction do IndexedDB)
-- Detecção de conflito: `File.lastModified > _lastWrittenModified` → exibe `ConflictModal`
+| Função | Uso | Comportamento |
+|--------|-----|---------------|
+| `importFileToIdb(file)` | Onboarding e Settings import | Valida Zod, **limpa IDB, salva novo** (total replace) |
+| `syncToFile(local, diskSnapshot)` | `persist()` recorrente | **Merge por UUID** + write. Nunca sobrescreve sem ler antes |
+
+> **CRÍTICO**: nunca misturar os dois caminhos. `importFileToIdb` é onboarding; `syncToFile` é sync diário.
+
+### Estratégia de merge (`merge.ts` — `mergeDataFiles`)
+
+- `schemaVersion`: local wins
+- `user`: local wins (edições mais recentes)
+- `settings`: local wins, **exceto `fileCreatedAt`** que vem do disco (preserva data original)
+- `accounts`, `categories`, `tags`, `transactions`: union por `id` — local tem prioridade; itens só no disco são recuperados
+- `auditLog`: union por `id`, ordenado por `timestamp` ASC, política de retenção aplicada
+
+Detecção de conflito: `File.lastModified > _lastWrittenModified` → exibe `ConflictModal`
+
+### Modo fallback sem FSA (`isFsaSupported()`)
+
+Quando `typeof window?.showSaveFilePicker !== 'function'` (Firefox, Safari):
+- Navbar: ícone de sync **oculto** (`fsaSupported=false` prop)
+- AppLayout: exibe banner dismissível (localStorage `nexus_fsa_notice_seen`)
+- Onboarding "Novo Perfil": **skip** do `showSaveFilePicker` → `downloadDataFile()` imediato
+- Onboarding "Importar": botão "Importar e Iniciar" **oculto** (drop zone + `<input type="file">` funcionam)
+- Settings Import: botão dispara `<input type="file" ref>` oculto em vez de `openDataFile()`
+- Settings Export: **já usa `downloadDataFile()`** — sem mudança necessária
 
 ### Validação de dados externos
 
 - Todo JSON importado ou lido do disco passa por `validateDataFile()` em `schema.ts`
+- `validateDataFile()` faz `DataFileSchema.parse(data)` → lança `SchemaVersionError` se `schemaVersion > CURRENT_SCHEMA_VERSION`
+- `SchemaVersionError` é uma subclasse de `Error` com `detectedVersion: number` e `name = 'SchemaVersionError'`
 - Schemas Zod são a única entrada de dados externos (sem `as DataFile`)
-- Falha na validação → rejeita silenciosamente, mantém dados locais intactos
+- Falha na validação → rejeita, mantém dados locais intactos
 
 ---
 
-## Formato dos Dados
+## Modelo de Dados
 
-### `data.json` (portável, exportado pelo usuário)
+### `DataFile` (arquivo `data.json`, tipo em `types/index.ts`)
 
-```json
-{
-  "user": { "name", "email", "createdAt", "updatedAt" },
-  "settings": { "fileCreatedAt", "fileUpdatedAt", "auditLogRetentionLimit" },
-  "accounts": [{ "id", "name", "type", "balance", "includeInBalance" }],
-  "categories": [{ "id", "parentId", "name", "icon", "color", "type" }],
-  "tags": [{ "id", "name", "color" }],
-  "transactions": [{ "id", "accountId", "categoryId", "amount", "type", "date", "description", "isPaid", "tags" }],
-  "auditLog": [{ "id", "timestamp", "action", "entity", "entityId", "summary" }]
+```typescript
+interface DataFile {
+  schemaVersion: number        // sempre presente; legados sem campo assumem 1
+  user: User
+  settings: Settings
+  accounts: Account[]
+  categories: Category[]
+  tags: Tag[]
+  transactions: Transaction[]
+  auditLog: AuditEntry[]
 }
 ```
 
-### Workspace (localStorage `nexus_workspace`)
+### Entidades
 
-```json
-{
-  "theme": "light" | "dark" | "system",
-  "locale": "pt-BR" | "en-US",
-  "defaultView": "dashboard" | "transactions" | "analytics" | "settings"
-}
+```typescript
+interface User       { name, email, createdAt, updatedAt }  // datas ISO 8601
+
+interface Settings   { fileCreatedAt, fileUpdatedAt,        // datas ISO 8601
+                       auditLogRetentionLimit: number | null } // null = ilimitado
+
+interface Account    { id, name, type: AccountType, balance, includeInBalance }
+// AccountType: 'RETAIL' | 'SAVINGS' | 'CREDIT' | 'CRYPTO' | 'FOREX' | 'ASSET' | 'STOCKS' | 'OTHER'
+
+interface Category   { id, parentId: string | null, name, icon, color,
+                       type: CategoryType }
+// CategoryType: 'INCOME' | 'EXPENSE'
+
+interface Tag        { id, name, color }
+
+interface Transaction { id, accountId, categoryId, amount, type: TransactionType,
+                        date, description, isPaid, tags: string[] }
+// TransactionType: 'INCOME' | 'EXPENSE' | 'TRANSFER'
+
+interface AuditEntry { id, timestamp, action: AuditAction,
+                       entity: AuditEntity, entityId, summary }
+// AuditAction:  'CREATE' | 'UPDATE' | 'DELETE'
+// AuditEntity:  'account' | 'category' | 'tag' | 'transaction' | 'user'
 ```
 
-### IndexedDB `nexus-db` (versão 2)
+### `WorkspaceFile` (localStorage `nexus_workspace`)
 
-| Store | Chave | Conteúdo |
-|-------|-------|---------|
-| `ledger` | `'current'` | `DataFile` completo |
-| `handles` | `'data'` | `FileSystemFileHandle` |
+```typescript
+{ theme: 'light' | 'dark' | 'system', locale: 'pt-BR' | 'en-US', defaultView: string }
+```
+
+### IndexedDB `nexus-db` (DB_VERSION = 2)
+
+| Store | Chave | Tipo | Conteúdo |
+|-------|-------|------|---------|
+| `ledger` | `'current'` | `DataFile` | snapshot completo do ledger |
+| `ledger` | `'sync-meta'` | `{ unsyncedCount: number }` | badge de sync sobrevive reload |
+| `handles` | `'data'` | `FileSystemFileHandle` | handle do arquivo do usuário |
+
+### Versionamento do schema
+
+- `CURRENT_SCHEMA_VERSION = 1` (constante em `schema.ts`)
+- Arquivos sem `schemaVersion` são tratados como v1 (Zod `.default(1)`)
+- Arquivos com versão futura lançam `SchemaVersionError` com mensagem i18n `settings.importVersionError`
+- Para evoluir o schema: incrementar `CURRENT_SCHEMA_VERSION`, adicionar migração em `validateDataFile()`
+
+---
+
+## API de cada módulo de storage
+
+### `schema.ts` — exports públicos
+
+| Export | Tipo | Descrição |
+|--------|------|-----------|
+| `CURRENT_SCHEMA_VERSION` | `number` (1) | Versão atual do schema |
+| `AUDIT_RETENTION_DEFAULT` | `number` (200) | Limite padrão de entradas |
+| `AUDIT_RETENTION_DAYS` | `number` (90) | Janela de retenção por data |
+| `SchemaVersionError` | `class` | Erro para versão incompatível; tem `.detectedVersion` |
+| `DataFileSchema` | Zod schema | Schema completo do DataFile |
+| `validateDataFile(data)` | `DataFile` | Valida + lança SchemaVersionError se necessário |
+| `createEmptyDataFile(name, email)` | `DataFile` | Cria DataFile com categorias padrão |
+| `createDefaultWorkspace()` | `WorkspaceFile` | Workspace padrão (system, pt-BR, dashboard) |
+| `applyRetention(log, limit)` | `AuditEntry[]` | Aplica retenção por data + limite de entradas |
+
+### `fileSystem.ts` — exports públicos
+
+| Export | Tipo | Descrição |
+|--------|------|-----------|
+| `isFsaSupported()` | `boolean` | true se `showSaveFilePicker` existe |
+| `setDataHandle(handle)` | `void` | Injeta handle (usado em testes) |
+| `checkHandlePermission(handle)` | `Promise<PermissionState>` | Startup: verifica e roteia handle |
+| `requestHandlePermission()` | `Promise<boolean>` | Dentro de gesto: pede permissão pendente |
+| `isPermissionNeeded()` | `boolean` | true se há _pendingHandle |
+| `isHandleLost()` | `boolean` | true se último acesso deu NotFoundError |
+| `getLastWrittenModified()` | `number \| null` | Timestamp após último write bem-sucedido |
+| `openDataFile()` | `Promise<{handle, file} \| null>` | showOpenFilePicker → retorna handle+File |
+| `createNewDataFile(data, name?)` | `Promise<FileSystemFileHandle \| null>` | showSaveFilePicker → escreve JSON inicial |
+| `readCurrentDataFile()` | `Promise<{data, lastModified} \| null>` | Lê handle cached; não abre picker |
+| `saveDataFile(data)` | `Promise<boolean>` | Escreve em handle cached; abre picker se null |
+| `downloadDataFile(data, filename?)` | `void` | Fallback: `<a download>` programático |
+| `loadWorkspace()` | `WorkspaceFile \| null` | localStorage read |
+| `saveWorkspace(w)` | `void` | localStorage write |
+
+### `indexedDb.ts` — exports públicos
+
+| Export | Descrição |
+|--------|-----------|
+| `saveToIdb(data)` | Salva DataFile em `ledger/'current'` |
+| `loadFromIdb()` | Carrega DataFile ou null |
+| `clearIdb()` | Remove `ledger/'current'` |
+| `saveSyncMeta(count)` | Salva `{ unsyncedCount }` em `ledger/'sync-meta'` |
+| `loadSyncMeta()` | Carrega `{ unsyncedCount }` ou null |
+| `saveFileHandle(handle)` | Salva FileSystemFileHandle em `handles/'data'` |
+| `loadFileHandle()` | Carrega FileSystemFileHandle ou null |
+| `clearFileHandle()` | Remove `handles/'data'` |
+
+### `sync.ts` — exports públicos
+
+| Export | Caminho | Descrição |
+|--------|---------|-----------|
+| `importFileToIdb(file)` | Import (onboarding) | Valida, limpa IDB, salva. Lança se inválido |
+| `syncToFile(local, diskSnapshot)` | Sync recorrente | Merge + write. Retorna merged ou null |
+
+### `merge.ts` — exports públicos
+
+| Export | Descrição |
+|--------|-----------|
+| `mergeDataFiles(local, disk)` | Union por UUID, local wins, fileCreatedAt de disk |
+
+---
+
+## `useDataStore` — interface e comportamentos
+
+### Estado
+
+```typescript
+data: DataFile | null          // null = usuário não fez onboarding ainda
+unsyncedCount: number          // badge da Navbar; persiste no IDB via sync-meta
+conflictData: { local, disk } | null  // quando lastModified > _lastWrittenModified
+fileHandleLost: boolean        // NotFoundError ou 'denied' no startup
+permissionNeeded: boolean      // handle em estado 'prompt'
+isSecondaryTab: boolean        // BroadcastChannel detectou outra aba aberta
+writeError: boolean            // última escrita em disco falhou
+idbQuotaExceeded: boolean      // QuotaExceededError ao salvar no IDB
+```
+
+### Mutações (cada uma chama `mutate()`)
+
+`mutate()` faz: `structuredClone(data)` → aplica fn → incrementa `unsyncedCount` → `debouncedSaveToIdb()` (300ms)
+
+- `addAccount / updateAccount / deleteAccount`
+- `addCategory / updateCategory / deleteCategory`
+- `addTag / updateTag / deleteTag`
+- `addTransaction / updateTransaction / deleteTransaction`
+- `updateUser(patch)` — merge parcial com `updatedAt: now()`
+- `setRetentionLimit(limit)` — aplica política imediatamente ao `auditLog`
+
+Toda mutação gera uma `AuditEntry` via `makeEntry()` + `addAudit()`.
+
+### `persist()` — fluxo completo
+
+```
+1. isSecondaryTab? → false (aba bloqueada)
+2. isPermissionNeeded()? → requestHandlePermission()
+     granted → continua; denied → fileHandleLost = true, return false
+3. isHandleLost()? → saveDataFile() (picker) → ok: unsyncedCount=0; return
+4. readCurrentDataFile() → diskSnapshot ou null
+5. isHandleLost() após leitura? → fileHandleLost = true, return false
+6. diskSnapshot.lastModified > _lastWrittenModified? → conflictData set, return false
+7. syncToFile(updated, diskSnapshot) → mergeDataFiles() + saveDataFile()
+     ok: store atualizado, IDB sincronizado (unsyncedCount=0)
+     handleLost: fileHandleLost = true
+     write fail: writeError = true (unsyncedCount mantido)
+```
+
+### `loadData(data)` vs `clearData()`
+
+- `loadData`: set `{ data, unsyncedCount: 0 }` — usado no startup e após import
+- `clearData`: set `{ data: null, unsyncedCount: 0 }` — logout/reset
+
+---
+
+## `useWorkspaceStore` — interface
+
+```typescript
+workspace: WorkspaceFile  // theme, locale, defaultView
+init()                    // carrega localStorage → state
+setTheme(theme)           // atualiza state + localStorage
+setLocale(locale)         // atualiza state + localStorage
+setDefaultView(view)      // atualiza state + localStorage
+```
+
+---
+
+## AppLayout — Banners e estados de UI
+
+O `AppLayout` renderiza, em ordem, os seguintes elementos condicionais:
+
+| Condição | UI | Posição |
+|----------|----|---------|
+| `isSecondaryTab` | Banner fixo vermelho abaixo da Navbar | `fixed top-14` |
+| `idbQuotaExceeded` | Banner flow com botão de export + link settings | `<main>` topo |
+| `!fsaSupported && !fsaNoticeDismissed` | Banner informativo dismissível | `<main>` topo |
+| `writeError` | Toast temporário (5s) | canto inferior |
+| `conflictData` | `ConflictModal` (overwrite vs load-cloud) | modal overlay |
+
+A Navbar recebe `fsaSupported` como prop — quando false, o botão de sync é completamente omitido do DOM.
 
 ---
 
@@ -217,14 +444,15 @@ clique no botão de sync
 | Testes E2E | `*.spec.ts` | `persistence.spec.ts` |
 | Constantes | UPPER_SNAKE_CASE | `AUDIT_RETENTION_DEFAULT` |
 | Handlers de evento | prefixo `handle` | `handleSync`, `handleClick` |
-| Membros privados de módulo | prefixo `_` | `_lastWrittenModified` |
+| Membros privados de módulo | prefixo `_` | `_lastWrittenModified`, `_dataHandle` |
 
 ### TypeScript
 
 - **Strict mode** ativo: `noUnusedLocals`, `noUnusedParameters`, `noImplicitAny`
 - Type imports separados: `import type { DataFile } from '@/types'`
-- Enums como string enums (ex: `AccountType`, `TransactionType`)
+- Enums como union types de string (ex: `AccountType`, `TransactionType`)
 - Nunca usar `as SomeType` para contornar validação — use schemas Zod
+- Ao destruturar para excluir uma chave em testes: `const { key: _key, ...rest } = obj` com `// eslint-disable-next-line @typescript-eslint/no-unused-vars`
 
 ### Imports
 
@@ -241,21 +469,29 @@ clique no botão de sync
 ### Componentes
 
 - Sempre componentes funcionais com hooks
-- Interface de props exportada acima do componente
+- Interface de props exportada acima do componente (ou inline quando simples)
 - Sem class components
 - `useMemo` para dados derivados pesados (ex: cálculos de gráficos)
+- `useMemo` com `[]` para valores estáticos computados uma vez (ex: `isFsaSupported()`)
 
 ---
 
 ## Testes
 
+### Cobertura atual (2026-04-12)
+
+- **218 testes unitários passando** — 19 arquivos de teste
+- Cobertura: **97.42% statements**, 95.54% branches, 95.23% funções
+- Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
+
 ### Testes unitários (Vitest)
 
 - Ambiente: `jsdom`
 - Setup: `src/test/setup.ts` importa `@testing-library/jest-dom`
-- Factories em `src/test/fixtures/`: `makeDataFile()`, `makeAccount()`, `makeTransaction()`, etc.
+- Factories em `src/test/fixtures/`: `makeDataFile()` (inclui `schemaVersion: 1`)
 - Reset de store no `beforeEach`: `useDataStore.setState({ data: null, unsyncedCount: 0 })`
 - Mocks de módulos: `vi.mock('react-i18next')`, `vi.mock('react-router-dom')`
+- `fileSystem.test.ts` usa `vi.resetModules()` + `await import()` em cada describe para isolar estado de módulo
 - Threshold de cobertura: **80% de linhas e funções** para arquivos críticos
 
 ### Testes E2E (Playwright)
@@ -316,8 +552,8 @@ O CI replica exatamente esses comandos. Se passa localmente, passa no CI.
 
 **Exemplos:**
 ```
-feat: implement M-14 — FileHandle Re-permission on Startup
-fix: resolve E2E test failures introduced by M-07
+feat: implement M-18 — FSA fallback for Firefox/Safari
+fix: resolve B-04 — incorrect balance calculation in Settings accounts tab
 style: apply Prettier formatting to useDataStore.test.ts
 ```
 
@@ -331,7 +567,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-10)
+## Estado Atual do Projeto (2026-04-12)
 
 ### Funcionalidades implementadas
 
@@ -348,7 +584,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Gráfico de despesas por categoria (donut) | — | ⚠️ (B-02, B-03: sem dados) |
 | Exportar/Importar data.json | — | ✅ |
 | Seletor de idioma (pt-BR / en-US) | — | ✅ |
-| Onboarding (criar ou importar) | M-11 | ✅ |
+| Onboarding (criar ou importar) | M-07 | ✅ |
 | Auto-save via IndexedDB (debounce 300ms) | — | ✅ |
 | Log de auditoria com política de retenção | — | ✅ |
 | Badge de sync (contagem de não sincronizados) | — | ✅ |
@@ -363,27 +599,46 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Toast de erro em falha de escrita, ícone de sync em alerta | M-15 | ✅ |
 | Banner persistente de quota excedida no IndexedDB + exportação de emergência | M-16 | ✅ |
 | Persistência do `unsyncedCount` no IDB; badge restaurado após reload | M-19 | ✅ |
-| Versionamento do `data.json` (`schemaVersion`); rejeição clara de arquivos de versão futura | M-01 | ✅ |
+| Versionamento do `data.json` (`schemaVersion`); rejeição de arquivos de versão futura | M-01 | ✅ |
+| Separação semântica import vs. sync (`importFileToIdb` / `syncToFile`) | M-17 | ✅ |
 | Fallback para browsers sem FSA: sync oculto, import via `<input>`, create via download, aviso dismissível | M-18 | ✅ |
 
 ### Bugs abertos
 
-| ID | Descrição | Severidade |
-|----|-----------|-----------|
-| B-01 | Gráfico de fluxo de caixa no Dashboard não exibe dados | alta |
-| B-02 | Gráfico de renda por categoria no Dashboard não exibe dados | alta |
-| B-03 | Gráfico de despesas por categoria no Dashboard não exibe dados | alta |
-| B-04 | Cálculo de saldo incorreto na página de contas (Settings) | alta |
+| ID | Descrição | Severidade | Contexto |
+|----|-----------|-----------|---------|
+| B-01 | Gráfico de fluxo de caixa no Dashboard não exibe dados | alta | `pages/Dashboard/index.tsx` — os dados são calculados via `useMemo` mas não chegam ao componente Recharts |
+| B-02 | Gráfico de renda por categoria no Dashboard não exibe dados | alta | Mesmo contexto que B-01 — dados derivados de `transactions` provavelmente com filtro incorreto |
+| B-03 | Gráfico de despesas por categoria no Dashboard não exibe dados | alta | Mesmo contexto que B-01/B-02 |
+| B-04 | Cálculo de saldo incorreto na aba Contas de Settings | alta | `pages/Settings/index.tsx` — o saldo exibido por conta pode estar somando todas as transações em vez de filtrar por `accountId` |
 
-### Melhorias abertas (próximas sessões)
+> Para diagnosticar B-01 a B-03: ler `pages/Dashboard/index.tsx` e verificar como os dados são transformados antes de passar para `<LineChart>` / `<PieChart>`. Verificar se transações sem `isPaid=true` estão sendo incluídas, se o filtro de mês está correto, e se o formato de dados que o Recharts espera (`[{ name, value }]`) está sendo produzido.
+>
+> Para diagnosticar B-04: ler `pages/Settings/index.tsx` seção de contas e verificar como `balance` é calculado — suspeita: pode estar somando `transaction.amount` de todas as contas, ou não estar subtraindo EXPENSE/TRANSFER corretamente.
 
-| ID | Descrição | Prioridade |
-|----|-----------|-----------|
-| ~~M-01~~ | ~~Versionar data.json para compatibilidade de schema~~ | ~~média~~ ✅ |
-| ~~M-16~~ | ~~Tratamento de quota excedida no IndexedDB~~ | ~~média~~ ✅ |
-| ~~M-17~~ | ~~Separar semântica de import vs. sync~~ | ~~média~~ ✅ |
-| ~~M-18~~ | ~~Fallback para browsers sem File System Access API~~ | ~~baixa~~ ✅ |
-| ~~M-19~~ | ~~Persistir unsyncedCount no IndexedDB~~ | ~~baixa~~ ✅ |
+### Melhorias — todas resolvidas até aqui
+
+| ID | Descrição | Status |
+|----|-----------|--------|
+| ~~M-01~~ | ~~Versionar data.json para compatibilidade de schema~~ | ✅ |
+| ~~M-02~~ | ~~Editar/remover transação ao clicar~~ | ✅ |
+| ~~M-03~~ | ~~Modal de criação/edição de contas~~ | ✅ |
+| ~~M-04~~ | ~~Modal de criação/edição de categorias~~ | ✅ |
+| ~~M-05~~ | ~~Modal de criação/edição de tags~~ | ✅ |
+| ~~M-06~~ | ~~Edição e remoção de contas/categorias/tags~~ | ✅ |
+| ~~M-07~~ | ~~Cold Start sync + FileHandle no IDB~~ | ✅ |
+| ~~M-08~~ | ~~Hidratação via importação~~ | ✅ |
+| ~~M-09~~ | ~~Read-before-write com merge~~ | ✅ |
+| ~~M-10~~ | ~~Detecção e resolução de conflito~~ | ✅ |
+| ~~M-11~~ | ~~Arquivo perdido (NotFoundError)~~ | ✅ |
+| ~~M-12~~ | ~~Arquivos corrompidos + export de emergência~~ | ✅ |
+| ~~M-13~~ | ~~Múltiplas abas (BroadcastChannel)~~ | ✅ |
+| ~~M-14~~ | ~~Re-permissão do FileHandle no startup~~ | ✅ |
+| ~~M-15~~ | ~~Falha de escrita: toast + ícone de alerta~~ | ✅ |
+| ~~M-16~~ | ~~Quota excedida no IndexedDB~~ | ✅ |
+| ~~M-17~~ | ~~Separar semântica import vs. sync~~ | ✅ |
+| ~~M-18~~ | ~~Fallback sem File System Access API~~ | ✅ |
+| ~~M-19~~ | ~~Persistir unsyncedCount no IndexedDB~~ | ✅ |
 
 ---
 
@@ -393,8 +648,9 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 - **Nunca** usar `as SomeType` para contornar validação Zod — dados externos sempre passam por `validateDataFile()`
 - **Nunca** mutar estado Zustand diretamente — sempre usar `mutate()` que faz `structuredClone`
-- **Nunca** acessar `data.json` sem passar pelo merge em `merge.ts`
-- **Nunca** gravar no disco fora do método `persist()` do store
+- **Nunca** chamar `syncToFile()` ou `saveDataFile()` fora do método `persist()` do store
+- **Nunca** chamar `importFileToIdb()` no fluxo de sync recorrente — é exclusivo do onboarding/import
+- **Nunca** incrementar `unsyncedCount` manualmente — `mutate()` faz isso automaticamente
 - **Nunca** adicionar `TODO` no código — bugs e melhorias vão para `BACKLOG.md`
 - **Nunca** usar `console.log` em código de produção
 
@@ -420,11 +676,11 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 Antes de propor qualquer implementação:
 
-1. Ler este arquivo (`CLAUDE.md`)
+1. Ler este arquivo (`CLAUDE.md`) integralmente
 2. Ler `plan/BACKLOG.md` para entender o estado atual de bugs e melhorias
-3. Ler `plan/PRD.md` se a tarefa envolver produto/features
+3. Ler `plan/PRD.md` se a tarefa envolver produto/features novas
 4. Ler `plan/SPEC.md` se a tarefa envolver sync, persistência ou recuperação de erros
-5. Ler os arquivos relevantes para a tarefa antes de propor mudanças
+5. Ler os arquivos-fonte relevantes **antes** de propor mudanças (nunca propor sem ler)
 6. Confirmar escopo da sessão com o humano (1–3 itens, no máximo)
 
 ---
