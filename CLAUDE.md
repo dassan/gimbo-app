@@ -67,7 +67,7 @@ MyFinanceApp/
 │   │   ├── App.tsx            # Hidratação, route guard, error boundary raiz
 │   │   ├── types/index.ts     # Definições TypeScript de todas as entidades
 │   │   ├── lib/
-│   │   │   ├── utils.ts           # cn(), uuid(), formatCurrency(), now()
+│   │   │   ├── utils.ts           # cn(), uuid(), formatCurrency(), now(), parseDateLocal()
 │   │   │   ├── tabGuard.ts        # BroadcastChannel: detecção de múltiplas abas
 │   │   │   ├── i18n/              # Config i18next + locales (pt-BR, en-US)
 │   │   │   └── storage/
@@ -89,7 +89,7 @@ MyFinanceApp/
 │   │   │   └── ErrorBoundary.tsx  # Boundary de erro com fallback UI (card ou full-page)
 │   │   ├── pages/
 │   │   │   ├── Onboarding/        # Criar perfil ou importar data.json
-│   │   │   ├── Dashboard/         # Resumo mensal + gráficos
+│   │   │   ├── Dashboard/         # Cards mensais + card Minhas Contas + donut + lançamentos recentes
 │   │   │   ├── Transactions/      # Ledger com filtros e agrupamento
 │   │   │   ├── Analytics/         # Projeção de fluxo de caixa + breakdown por categoria
 │   │   │   ├── Accounts/          # CRUD de contas (página dedicada — não confundir com aba de Settings)
@@ -218,6 +218,102 @@ Quando `typeof window?.showSaveFilePicker !== 'function'` (Firefox, Safari):
 - `SchemaVersionError` é uma subclasse de `Error` com `detectedVersion: number` e `name = 'SchemaVersionError'`
 - Schemas Zod são a única entrada de dados externos (sem `as DataFile`)
 - Falha na validação → rejeita, mantém dados locais intactos
+
+---
+
+## Padrões Críticos de Implementação
+
+### Parsing de datas — `parseDateLocal()` (`lib/utils.ts`)
+
+**Problema:** `new Date("2026-04-01")` cria meia-noite UTC. Em fusos UTC− (ex: Brasil UTC−3), chamar `.getMonth()` / `.getFullYear()` retorna o mês/ano do dia anterior, porque a data local é ainda 31/03 às 21h. Isso causava os bugs B-01, B-02 e B-03 (gráficos vazios em todos os períodos que usavam o primeiro dia do mês).
+
+**Solução:** usar `parseDateLocal(dateStr: string): Date` de `@/lib/utils`:
+
+```typescript
+export function parseDateLocal(dateStr: string): Date {
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d) // meia-noite local, sem conversão UTC
+}
+```
+
+**Regra:** toda comparação de `tx.date` (string `"YYYY-MM-DD"`) com mês/ano deve passar por `parseDateLocal()`. Nunca usar `new Date(tx.date)` para extrair `.getMonth()` ou `.getFullYear()`.
+
+Locais onde `parseDateLocal` é obrigatório:
+- `pages/Dashboard/index.tsx` — filtros de mês atual e cashFlowData
+- `pages/Analytics/index.tsx` — cashFlowData e incomeByCategory/expenseByCategory
+- Qualquer novo componente que filtre transações por período
+
+---
+
+### Saldo de conta — derivado de transações
+
+**Problema:** o campo `Account.balance` (tipo `number`) é sempre `0` — é um campo estático herdado do schema, nunca atualizado automaticamente. Exibi-lo diretamente causa o bug B-04.
+
+**Solução:** calcular o saldo real iterando `data.transactions` com um `useMemo`:
+
+```typescript
+const accountBalances = useMemo<Record<string, number>>(() => {
+  if (!data) return {}
+  const map: Record<string, number> = {}
+  data.transactions.forEach((tx) => {
+    if (tx.type === 'INCOME')   map[tx.accountId] = (map[tx.accountId] ?? 0) + tx.amount
+    if (tx.type === 'EXPENSE')  map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
+    if (tx.type === 'TRANSFER') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
+  })
+  return map
+}, [data])
+
+// Uso: accountBalances[acc.id] ?? 0
+```
+
+**Regra:** nunca usar `acc.balance` para exibição. Sempre derivar do mapa acima.
+
+Locais que usam este padrão:
+- `pages/Settings/index.tsx` — aba Contas, coluna de saldo
+- `pages/Dashboard/index.tsx` — card "Minhas Contas"
+
+---
+
+### Tradução de tipos de conta — `t(\`accounts.${type.toLowerCase()}\`)`
+
+Os labels dos tipos de conta (`AccountType`) são traduzidos via a seção `accounts` dos arquivos de locale. Os valores são formas curtas adequadas tanto para grids compactos quanto para subtítulos:
+
+| Chave i18n | pt-BR | en-US |
+|---|---|---|
+| `accounts.retail` | Corrente | Checking |
+| `accounts.savings` | Poupança | Savings |
+| `accounts.credit` | Crédito | Credit |
+| `accounts.crypto` | Cripto | Crypto |
+| `accounts.forex` | Câmbio | Forex |
+| `accounts.asset` | Ativo | Asset |
+| `accounts.stocks` | Ações | Stocks |
+| `accounts.other` | Outros | Other |
+
+**Regra:** nunca exibir o enum bruto (ex: `'RETAIL'`) diretamente na UI. Sempre usar `t(\`accounts.${type.toLowerCase()}\`)`.
+
+Bug B-05: o modal de criação/edição de conta em `Settings/index.tsx` exibia `{t_}` (o enum bruto) em vez de `{t(\`accounts.${t_.toLowerCase()}\`)}`.
+
+---
+
+### Ícones e cores de tipos de conta (Dashboard)
+
+O card "Minhas Contas" em `pages/Dashboard/index.tsx` usa dois mapas de constantes para renderizar cada tipo:
+
+```typescript
+const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ReactNode> = {
+  RETAIL: <Landmark />, SAVINGS: <PiggyBank />, CREDIT: <CreditCard />,
+  CRYPTO: <Bitcoin />, FOREX: <ArrowLeftRight />, ASSET: <Briefcase />,
+  STOCKS: <TrendingUp />, OTHER: <MoreHorizontal />,
+}
+
+const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
+  RETAIL: '#3B82F6', SAVINGS: '#22C55E', CREDIT: '#1F2937',
+  CRYPTO: '#F59E0B', FOREX: '#8B5CF6', ASSET: '#6B7280',
+  STOCKS: '#006E2F', OTHER: '#9CA3AF',
+}
+```
+
+**Nota:** `Settings/index.tsx` tem sua própria cópia `ACCOUNT_TYPES[]` com ícones (usada apenas no grid do modal). Os dois conjuntos são intencionalmente independentes (tamanhos de ícone diferentes: 18px no Dashboard, 20px no Settings).
 
 ---
 
@@ -430,6 +526,55 @@ A Navbar recebe `fsaSupported` como prop — quando false, o botão de sync é c
 
 ---
 
+## Detalhes das Páginas
+
+### Dashboard (`pages/Dashboard/index.tsx`)
+
+Layout em três blocos verticais:
+
+1. **Stat cards** (grid 3 colunas) — Receitas, Despesas e Saldo do mês corrente. Saldo usa `bg-primary` (verde).
+2. **Accounts + Category row** (grid 3 colunas):
+   - Col-span-2 — **Card "Minhas Contas"**: lista contas com `includeInBalance = true`. Cada linha mostra ícone colorido por tipo, nome, label de tipo (via `t(\`accounts.${type.toLowerCase()}\`)`) e saldo derivado de transações. Saldo negativo em `text-tertiary` (vermelho).
+   - Col-span-1 — **Donut "Despesas por Categoria"**: agrupamento das despesas do mês corrente por categoria, com legenda de até 4 entradas e total no centro.
+3. **Últimos Lançamentos** (full width) — 5 transações mais recentes ordenadas por data decrescente.
+
+Dados derivados com `useMemo`:
+- `income / expenses / balance / recentTxs` — filtrados pelo mês/ano atual via `parseDateLocal`
+- `accountBalances` — mapa `accountId → number` derivado de todas as transações (INCOME+, EXPENSE−, TRANSFER−)
+- `donutData` — despesas do mês agrupadas por categoria, com percentual
+
+> **Nota:** o gráfico de fluxo de caixa foi removido do Dashboard (M-21). Ele continua disponível na página Analytics com mais opções de período.
+
+---
+
+### Analytics (`pages/Analytics/index.tsx`)
+
+Controles de período no topo: navegação por offset de meses, tabs `Mês / Semestre / Personalizado`, toggle `Incluir não pagos` (padrão **true** — bug B-02/B-03 era `false`).
+
+Dois blocos de visualização:
+1. **LineChart de Fluxo de Caixa** — `generalFlow` (receitas − despesas por mês) e `consolidatedBalance` (acumulado). Renderizado apenas se algum ponto `!== 0`.
+2. **Donut por Categoria** (grid 2 colunas) — um `CategoryDonut` para Receitas, outro para Despesas. Estado vazio exibido se `data.length === 0`.
+
+Todos os filtros de data usam `parseDateLocal(tx.date)` para evitar o bug UTC.
+
+---
+
+### Settings (`pages/Settings/index.tsx`)
+
+Abas: `accounts | categories | tags | profile | preferences | data | history`.
+
+**Aba Contas:**
+- Saldo exibido calculado via `accountBalances` useMemo (mesma lógica do Dashboard). **Nunca** usar `acc.balance`.
+- Modal Adicionar/Editar: grid 4×2 de tipos de conta. Labels traduzidos via `t(\`accounts.${t_.toLowerCase()}\`)`. Antes do fix B-05, o enum bruto era exibido (RETAIL, SAVINGS…).
+
+**Aba Categorias:** hierarquia pai/filho; ícone via `categoryIcon(name)` que mapeia strings para componentes Lucide.
+
+**Aba Tags:** paleta de 8 cores (`TAG_COLORS`).
+
+**Aba Dados:** importação via `<input type="file">` (FSA fallback) ou `openDataFile()` (FSA); exportação via `downloadDataFile()`. Botão "Exportar Base Local" disponível em situações de emergência (quota excedida, JSON corrompido).
+
+---
+
 ## Convenções de Código
 
 ### Nomenclatura
@@ -478,11 +623,12 @@ A Navbar recebe `fsaSupported` como prop — quando false, o botão de sync é c
 
 ## Testes
 
-### Cobertura atual (2026-04-12)
+### Cobertura atual (2026-04-12, atualizado)
 
 - **221 testes unitários passando** — 19 arquivos de teste
 - Cobertura: **97.44% statements**, 95.56% branches, 95.31% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
+- `utils.ts`: 100% — inclui 3 testes para `parseDateLocal` (local time, time component strip, last day of year)
 
 ### Testes unitários (Vitest)
 
@@ -567,7 +713,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-12)
+## Estado Atual do Projeto (2026-04-12, atualizado)
 
 ### Funcionalidades implementadas
 
@@ -602,10 +748,20 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Versionamento do `data.json` (`schemaVersion`); rejeição de arquivos de versão futura | M-01 | ✅ |
 | Separação semântica import vs. sync (`importFileToIdb` / `syncToFile`) | M-17 | ✅ |
 | Fallback para browsers sem FSA: sync oculto, import via `<input>`, create via download, aviso dismissível | M-18 | ✅ |
+| `parseDateLocal()` em `utils.ts` — parsing de datas sem bug de fuso UTC | refactor | ✅ |
+| Analytics: correção de filtro `includeUnpaid` (padrão `true`) e parsing de datas | B-02/B-03 | ✅ |
+| Settings aba Contas: saldo calculado a partir de transações (não `acc.balance`) | B-04 | ✅ |
+| Settings modal conta: labels de tipo traduzidos via i18n (não enum bruto) | B-05 | ✅ |
 
-### Bugs abertos
+### Bugs resolvidos
 
-Todos os bugs B-01 a B-05 foram resolvidos. Nenhum bug aberto no momento.
+| ID | Descrição | Causa raiz | Fix |
+|----|-----------|-----------|-----|
+| B-01 | Dashboard: gráfico de cash flow não exibia dados | (1) `new Date("YYYY-MM-DD")` cria UTC midnight → `.getMonth()` retorna mês errado em UTC−; (2) empty-check `length > 0` sempre true | `parseDateLocal()` + empty-check corrigido |
+| B-02 | Analytics: gráfico de Receitas por Categoria vazio | `includeUnpaid` defaultava `false` → todas as transações criadas com `isPaid:false` eram filtradas | Default alterado para `true` + `parseDateLocal()` |
+| B-03 | Analytics: gráfico de Despesas por Categoria vazio | Mesma causa raiz que B-02 | Mesma correção que B-02 |
+| B-04 | Settings aba Contas: saldo sempre zero | `acc.balance` é campo estático sempre `0`; saldo real deve ser derivado de transações | `accountBalances` useMemo (INCOME+, EXPENSE−, TRANSFER−) |
+| B-05 | Modal Adicionar/Editar Conta: tipos exibiam enum inglês (RETAIL, SAVINGS…) | `{t_}` renderizava o enum bruto em vez de chamar `t(...)` | `{t(\`accounts.${t_.toLowerCase()}\`)}` |
 
 ### Melhorias — todas resolvidas até aqui
 
@@ -631,6 +787,12 @@ Todos os bugs B-01 a B-05 foram resolvidos. Nenhum bug aberto no momento.
 | ~~M-18~~ | ~~Fallback sem File System Access API~~ | ✅ |
 | ~~M-19~~ | ~~Persistir unsyncedCount no IndexedDB~~ | ✅ |
 | ~~M-21~~ | ~~Card "Minhas Contas" no Dashboard (substituiu gráfico de cash flow)~~ | ✅ |
+
+### Melhorias em aberto
+
+| ID | Descrição | Prioridade |
+|----|-----------|-----------|
+| M-20 | TransactionDrawer: foco automático no campo de valor ao abrir (criar ou editar) | baixa |
 
 ---
 
