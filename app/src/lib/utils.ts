@@ -23,3 +23,13 @@ export function formatCurrency(value: number, locale: string = 'pt-BR'): string 
     currency: locale === 'pt-BR' ? 'BRL' : 'USD',
   }).format(value)
 }
+
+/**
+ * Parse a "YYYY-MM-DD" date string as local midnight.
+ * Using new Date(str) with a date-only string creates a UTC midnight Date,
+ * which causes getMonth()/getFullYear() to return wrong values in UTC- timezones.
+ */
+export function parseDateLocal(dateStr: string): Date {
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d)
+}

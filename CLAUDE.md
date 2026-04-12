@@ -480,8 +480,8 @@ A Navbar recebe `fsaSupported` como prop — quando false, o botão de sync é c
 
 ### Cobertura atual (2026-04-12)
 
-- **218 testes unitários passando** — 19 arquivos de teste
-- Cobertura: **97.42% statements**, 95.54% branches, 95.23% funções
+- **221 testes unitários passando** — 19 arquivos de teste
+- Cobertura: **97.44% statements**, 95.56% branches, 95.31% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
 
 ### Testes unitários (Vitest)
@@ -581,7 +581,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Editar/remover transação ao clicar na linha | M-02 | ✅ |
 | Dashboard com cards mensais | — | ✅ |
 | Gráfico de fluxo de caixa (±3 meses) | — | ✅ |
-| Gráfico de despesas por categoria (donut) | — | ⚠️ (B-02, B-03: sem dados) |
+| Gráfico de despesas por categoria (donut) | — | ✅ |
 | Exportar/Importar data.json | — | ✅ |
 | Seletor de idioma (pt-BR / en-US) | — | ✅ |
 | Onboarding (criar ou importar) | M-07 | ✅ |
@@ -605,15 +605,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ### Bugs abertos
 
-| ID | Descrição | Severidade | Contexto |
-|----|-----------|-----------|---------|
-| B-02 | Gráfico de renda por categoria no Dashboard não exibe dados | alta | `pages/Dashboard/index.tsx` — verificar dados derivados de `transactions` com filtro de tipo INCOME |
-| B-03 | Gráfico de despesas por categoria no Dashboard não exibe dados | alta | `pages/Dashboard/index.tsx` — `donutData` filtra por mês atual; verificar se há transações EXPENSE no período |
-| B-04 | Cálculo de saldo incorreto na aba Contas de Settings | alta | `pages/Settings/index.tsx` — o saldo exibido por conta pode estar somando todas as transações em vez de filtrar por `accountId` |
-
-> Para diagnosticar B-02/B-03: ler `pages/Dashboard/index.tsx`. B-01 foi resolvido (condição de empty check corrigida + helper `parseDateLocal` para evitar deslocamento de fuso em datas `YYYY-MM-DD`).
->
-> Para diagnosticar B-04: ler `pages/Settings/index.tsx` seção de contas e verificar como `balance` é calculado — suspeita: pode estar somando `transaction.amount` de todas as contas, ou não estar subtraindo EXPENSE/TRANSFER corretamente.
+Todos os bugs B-01 a B-04 foram resolvidos. Nenhum bug aberto no momento.
 
 ### Melhorias — todas resolvidas até aqui
 

@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import { TrendingUp, TrendingDown, CheckCircle2, Clock } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
-import { formatCurrency, cn } from '@/lib/utils'
+import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
 import type { Transaction } from '@/types'
 
 type Period = 'weekly' | 'monthly'
@@ -419,15 +419,6 @@ function EmptyChart() {
 }
 
 // ─── Chart data helpers ────────────────────────────────────────────────────────
-
-/**
- * Parse a "YYYY-MM-DD" date string as local midnight to avoid UTC-offset
- * mismatches when using getMonth() / getFullYear() for bucketing.
- */
-function parseDateLocal(dateStr: string): Date {
-  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
 
 interface Slot {
   label: string
