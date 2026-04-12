@@ -846,7 +846,7 @@ function AddAccountModal({
               >
                 {icon}
                 <span className="text-[9px] font-semibold uppercase tracking-wide leading-none">
-                  {t_}
+                  {t(`accounts.${t_.toLowerCase()}`)}
                 </span>
               </button>
             ))}

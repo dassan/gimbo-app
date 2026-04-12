@@ -605,7 +605,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ### Bugs abertos
 
-Todos os bugs B-01 a B-04 foram resolvidos. Nenhum bug aberto no momento.
+Todos os bugs B-01 a B-05 foram resolvidos. Nenhum bug aberto no momento.
 
 ### Melhorias — todas resolvidas até aqui
 

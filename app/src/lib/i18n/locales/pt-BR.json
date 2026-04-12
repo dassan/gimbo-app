@@ -158,12 +158,12 @@
     "categoryTypeExpense": "Despesa"
   },
   "accounts": {
-    "retail": "Banco / Conta Corrente",
-    "savings": "Poupança / Investimentos",
-    "credit": "Cartão de Crédito",
-    "crypto": "Criptomoedas",
-    "forex": "Câmbio / Forex",
-    "asset": "Ativos / Fundo",
+    "retail": "Corrente",
+    "savings": "Poupança",
+    "credit": "Crédito",
+    "crypto": "Cripto",
+    "forex": "Câmbio",
+    "asset": "Ativo",
     "stocks": "Ações",
     "other": "Outros",
     "balance": "Saldo"

@@ -8,6 +8,7 @@
 | B-02 | Tela de Relatórios: gráfico de Receitas por Categoria não exibe dados     | alta       | resolvido |
 | B-03 | Tela de Relatórios: gráfico de Despesas por Categoria não exibe dados     | alta       | resolvido |
 | B-04 | Na página de Configurações, na aba Contas, o saldo de cada conta não está sendo calculado corretamente | alta       | resolvido |
+| B-05 | Modal de criação/edição de conta: labels dos tipos de conta exibiam o enum em inglês (`RETAIL`, `SAVINGS`…) independentemente do idioma configurado | média      | resolvido |
 
 ## Melhorias
 

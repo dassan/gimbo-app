@@ -158,12 +158,12 @@
     "categoryTypeExpense": "Expense"
   },
   "accounts": {
-    "retail": "Bank / Checking Account",
-    "savings": "Savings / Investments",
-    "credit": "Credit Card",
-    "crypto": "Cryptocurrencies",
-    "forex": "Forex / Exchange",
-    "asset": "Assets / Fund",
+    "retail": "Checking",
+    "savings": "Savings",
+    "credit": "Credit",
+    "crypto": "Crypto",
+    "forex": "Forex",
+    "asset": "Asset",
     "stocks": "Stocks",
     "other": "Other",
     "balance": "Balance"
