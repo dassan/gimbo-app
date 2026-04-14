@@ -667,11 +667,11 @@ Abas: `accounts | categories | tags | profile | preferences | data | history`.
 
 ### Cobertura atual (2026-04-14, atualizado)
 
-- **235 testes unitários passando** — 19 arquivos de teste
-- Cobertura: **97.5% statements**, 95.63% branches, 95.38% funções
+- **254 testes unitários passando** — 19 arquivos de teste
+- Cobertura: **97.69% statements**, 96.03% branches, 95.65% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
 - `schema.ts`: 100% — inclui testes de migração v1→v2 e validação dos novos campos (CC-05)
-- `utils.ts`: 100% — inclui 3 testes para `parseDateLocal` (local time, time component strip, last day of year)
+- `utils.ts`: 100% — inclui testes para `parseDateLocal` + motor de fatura virtual CC-06–CC-09 (19 novos testes)
 
 ### Testes unitários (Vitest)
 
@@ -763,6 +763,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Feature | Milestone | Status |
 |---------|-----------|--------|
 | Schema v2 — `CREDIT_PAYMENT`, `CreditMetadata`, `Installment` + migração automática v1→v2 | CC-01–CC-05 | ✅ |
+| Motor de fatura virtual — `getInvoicePeriod`, `getInvoiceDueDate`, `getCurrentInvoiceBalance`, `getEffectiveCashFlowDate` em `lib/utils.ts` | CC-06–CC-09 | ✅ |
 | Perfil do usuário | — | ✅ |
 | CRUD de contas (8 tipos) | M-03 | ✅ |
 | CRUD de categorias (hierarquia pai/filho) | M-04 | ✅ |
@@ -846,7 +847,7 @@ Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técni
 **Sequência de implementação (9 fases):**
 ```
 ✅ Fase 1 — Schema v2: CC-01 a CC-05  (types/index.ts + schema.ts + migração v1→v2)
-   Fase 2 — Motor virtual: CC-06 a CC-09  (getInvoicePeriod, getInvoiceDueDate, getCurrentInvoiceBalance, getEffectiveCashFlowDate)
+✅ Fase 2 — Motor virtual: CC-06 a CC-09  (getInvoicePeriod, getInvoiceDueDate, getCurrentInvoiceBalance, getEffectiveCashFlowDate)
    Fase 3 — Conta CREDIT: CC-10 a CC-12  (modal creditMetadata + includeInBalance padrão false + store)
    Fase 4 — Saldo CREDIT: CC-13 a CC-15  (Dashboard + Settings: bifurcação de cálculo e label)
    Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
@@ -856,7 +857,7 @@ Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técni
    Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
 ```
 
-**Próximo passo:** iniciar Fase 2 — CC-06 (`getInvoicePeriod`) em `app/src/lib/utils.ts`.
+**Próximo passo:** iniciar Fase 3 — CC-10 (campos `creditMetadata` no modal de conta) em `pages/Settings/index.tsx`.
 
 ---
 
