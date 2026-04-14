@@ -60,6 +60,12 @@ export interface Tag {
   color: string
 }
 
+export interface Installment {
+  parentId: string // UUID of the first installment in the group
+  currentIndex: number // 1-based
+  total: number // minimum 2
+}
+
 export interface Transaction {
   id: string // UUID
   accountId: string
@@ -70,6 +76,7 @@ export interface Transaction {
   description: string
   isPaid: boolean
   tags: string[] // UUID[]
+  installment?: Installment // only for installment purchases
 }
 
 export interface AuditEntry {
