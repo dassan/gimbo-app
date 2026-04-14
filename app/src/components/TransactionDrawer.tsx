@@ -33,6 +33,13 @@ const TYPE_CONFIG: Record<TxType, { label: string; color: string; bg: string; bt
       bg: 'bg-surface-container-high',
       btnClass: 'bg-on-surface hover:brightness-110',
     },
+    // CC-19 will implement the full CREDIT_PAYMENT UX flow
+    CREDIT_PAYMENT: {
+      label: 'transactions.creditPayment',
+      color: 'text-on-surface',
+      bg: 'bg-surface-container-high',
+      btnClass: 'bg-on-surface hover:brightness-110',
+    },
   }
 
 export default function TransactionDrawer({ open, onClose, transaction }: TransactionDrawerProps) {

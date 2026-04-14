@@ -370,7 +370,9 @@ describe('validateDataFile — schema v2 new fields', () => {
   it('accepts an Account without creditMetadata (field is optional)', () => {
     const data = {
       ...MINIMAL_VALID,
-      accounts: [{ id: 'a1', name: 'Corrente', type: 'RETAIL', balance: 0, includeInBalance: true }],
+      accounts: [
+        { id: 'a1', name: 'Corrente', type: 'RETAIL', balance: 0, includeInBalance: true },
+      ],
     }
     expect(() => validateDataFile(data)).not.toThrow()
   })
