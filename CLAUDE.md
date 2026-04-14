@@ -245,6 +245,33 @@ Locais onde `parseDateLocal` é obrigatório:
 
 ---
 
+### Motor de Fatura Virtual — `lib/utils.ts` (schema v2)
+
+**Contexto:** O módulo de Cartão de Crédito adota faturas como entidade virtual (não persistida no `data.json`). Todo o ciclo de vida de uma fatura é derivado em runtime a partir de `Account.creditMetadata.closingDay` e `creditMetadata.dueDay`. Quatro funções puras compõem esse motor — todas devem usar `parseDateLocal()` internamente, nunca `new Date(dateStr)`.
+
+```typescript
+// Retorna o período (ano/mês) da fatura à qual uma transação pertence.
+// Regra: day(txDate) > closingDay → fatura do mês seguinte; caso contrário, mês corrente.
+getInvoicePeriod(txDate: string, closingDay: number): { year: number; month: number }
+
+// Retorna a data de vencimento da fatura no formato "YYYY-MM-DD".
+// Vencimento = mês seguinte ao período da fatura. Se dueDay > dias do mês, usa último dia.
+getInvoiceDueDate(period: { year: number; month: number }, dueDay: number): string
+
+// Soma o amount das transações EXPENSE da conta no período de fatura corrente.
+// Retorna 0 se a conta não tiver creditMetadata.
+getCurrentInvoiceBalance(transactions: Transaction[], account: Account): number
+
+// Retorna a data efetiva para plotagem no gráfico de fluxo de caixa.
+// Contas CREDIT com creditMetadata → data de vencimento da fatura (getInvoiceDueDate).
+// Todos os outros casos (não-CREDIT, CREDIT sem metadata, CREDIT_PAYMENT) → tx.date.
+getEffectiveCashFlowDate(tx: Transaction, accounts: Account[]): string
+```
+
+**Regra crítica de `getEffectiveCashFlowDate`:** aplicar **exclusivamente** na plotagem do gráfico de fluxo de caixa em `Analytics`. O breakdown por categoria usa sempre `tx.date` (perspectiva de orçamento — a despesa ocorreu na data da compra, não no vencimento). Transações `CREDIT_PAYMENT` são excluídas de todos os gráficos de Receitas × Despesas — são liquidação de passivo, não receita nem despesa.
+
+---
+
 ### Saldo de conta — derivado de transações
 
 **Problema:** o campo `Account.balance` (tipo `number`) é sempre `0` — é um campo estático herdado do schema, nunca atualizado automaticamente. Exibi-lo diretamente causa o bug B-04.
@@ -342,7 +369,8 @@ interface User       { name, email, createdAt, updatedAt }  // datas ISO 8601
 interface Settings   { fileCreatedAt, fileUpdatedAt,        // datas ISO 8601
                        auditLogRetentionLimit: number | null } // null = ilimitado
 
-interface Account    { id, name, type: AccountType, balance, includeInBalance }
+interface Account    { id, name, type: AccountType, balance, includeInBalance,
+                       creditMetadata?: CreditMetadata } // apenas contas CREDIT — schema v2
 // AccountType: 'RETAIL' | 'SAVINGS' | 'CREDIT' | 'CRYPTO' | 'FOREX' | 'ASSET' | 'STOCKS' | 'OTHER'
 
 interface Category   { id, parentId: string | null, name, icon, color,
@@ -352,8 +380,18 @@ interface Category   { id, parentId: string | null, name, icon, color,
 interface Tag        { id, name, color }
 
 interface Transaction { id, accountId, categoryId, amount, type: TransactionType,
-                        date, description, isPaid, tags: string[] }
-// TransactionType: 'INCOME' | 'EXPENSE' | 'TRANSFER'
+                        date, description, isPaid, tags: string[],
+                        installment?: Installment } // apenas compras parceladas — schema v2
+// TransactionType: 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'CREDIT_PAYMENT' (schema v2)
+
+// ── Schema v2 — tipos adicionados pelo módulo de Cartão de Crédito (CC-01 a CC-05) ──
+interface CreditMetadata { limit: number; closingDay: number; dueDay: number }
+// closingDay e dueDay: inteiros de 1 a 28 (conservador — evita edge case de fevereiro)
+// creditMetadata é opcional em Account; presente apenas em contas do tipo CREDIT
+
+interface Installment { parentId: string; currentIndex: number; total: number }
+// parentId = UUID da primeira parcela do grupo (gerado na criação)
+// currentIndex começa em 1; installment é opcional em Transaction
 
 interface AuditEntry { id, timestamp, action: AuditAction,
                        entity: AuditEntity, entityId, summary }
@@ -377,10 +415,11 @@ interface AuditEntry { id, timestamp, action: AuditAction,
 
 ### Versionamento do schema
 
-- `CURRENT_SCHEMA_VERSION = 1` (constante em `schema.ts`)
+- `CURRENT_SCHEMA_VERSION = 1` (constante em `schema.ts`) — **será incrementado para 2** pelo módulo de Cartão de Crédito (CC-05)
 - Arquivos sem `schemaVersion` são tratados como v1 (Zod `.default(1)`)
 - Arquivos com versão futura lançam `SchemaVersionError` com mensagem i18n `settings.importVersionError`
 - Para evoluir o schema: incrementar `CURRENT_SCHEMA_VERSION`, adicionar migração em `validateDataFile()`
+- **Migração v1→v2 (pendente):** adiciona campos opcionais `creditMetadata` em Account e `installment` em Transaction; expande `TransactionType` com `'CREDIT_PAYMENT'`. Arquivos v1 existentes são migrados automaticamente sem perda de dados.
 
 ---
 
@@ -540,7 +579,7 @@ Layout em três blocos verticais:
 
 Dados derivados com `useMemo`:
 - `income / expenses / balance / recentTxs` — filtrados pelo mês/ano atual via `parseDateLocal`
-- `accountBalances` — mapa `accountId → number` derivado de todas as transações (INCOME+, EXPENSE−, TRANSFER−)
+- `accountBalances` — mapa `accountId → number` derivado de todas as transações (INCOME+, EXPENSE−, TRANSFER−). **Schema v2:** contas `CREDIT` com `creditMetadata` usam `creditMetadata.limit - getCurrentInvoiceBalance()` em vez do somatório; exibem label "Limite disponível" (CC-13, CC-14)
 - `donutData` — despesas do mês agrupadas por categoria, com percentual
 
 > **Nota:** o gráfico de fluxo de caixa foi removido do Dashboard (M-21). Ele continua disponível na página Analytics com mais opções de período.
@@ -557,6 +596,8 @@ Dois blocos de visualização:
 
 Todos os filtros de data usam `parseDateLocal(tx.date)` para evitar o bug UTC.
 
+**Schema v2:** o `cashFlowData` passará a usar `parseDateLocal(getEffectiveCashFlowDate(tx, accounts))` para plotagem — transações de cartão de crédito aparecem no mês do vencimento da fatura, não no mês da compra (CC-16). O breakdown de categorias mantém `tx.date` (CC-18). `CREDIT_PAYMENT` é excluído de todos os cálculos de receita/despesa (CC-17).
+
 ---
 
 ### Settings (`pages/Settings/index.tsx`)
@@ -566,6 +607,7 @@ Abas: `accounts | categories | tags | profile | preferences | data | history`.
 **Aba Contas:**
 - Saldo exibido calculado via `accountBalances` useMemo (mesma lógica do Dashboard). **Nunca** usar `acc.balance`.
 - Modal Adicionar/Editar: grid 4×2 de tipos de conta. Labels traduzidos via `t(\`accounts.${t_.toLowerCase()}\`)`. Antes do fix B-05, o enum bruto era exibido (RETAIL, SAVINGS…).
+- **Schema v2:** ao selecionar tipo `CREDIT` no modal, exibir campos extras `creditMetadata` (limit, closingDay, dueDay) e setar `includeInBalance: false` como padrão (CC-10, CC-11). A coluna de saldo bifurca para contas CREDIT: exibe "Limite disp." calculado via `getCurrentInvoiceBalance` (CC-15).
 
 **Aba Categorias:** hierarquia pai/filho; ícone via `categoryIcon(name)` que mapeia strings para componentes Lucide.
 
@@ -713,7 +755,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-12, atualizado)
+## Estado Atual do Projeto (2026-04-14, atualizado)
 
 ### Funcionalidades implementadas
 
@@ -788,11 +830,40 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | ~~M-19~~ | ~~Persistir unsyncedCount no IndexedDB~~ | ✅ |
 | ~~M-21~~ | ~~Card "Minhas Contas" no Dashboard (substituiu gráfico de cash flow)~~ | ✅ |
 
+### Módulo de Cartão de Crédito — Em Desenvolvimento
+
+Fase de planejamento concluída em 2026-04-14. Decisões arquiteturais e desafios técnicos em `plan/CREDIT_CARD.md`. 30 tarefas (CC-01 a CC-30) detalhadas em `plan/BACKLOG.md`.
+
+**5 decisões de produto consolidadas:**
+1. Faturas computadas em runtime (virtual) — sem entidade `Invoice` no `data.json`
+2. `CREDIT_PAYMENT` como `TransactionType` distinto (não reutiliza `TRANSFER`)
+3. Estornos/chargebacks out-of-scope neste ciclo (mapeados como M-22)
+4. Parcelas como N transações independentes com sufixo `" (X/N)"` na descrição
+5. Deleção de parcelas via modal de 2 opções ("só esta" / "todas")
+
+**Sequência de implementação (9 fases):**
+```
+Fase 1 — Schema v2: CC-01 a CC-05  (types/index.ts + schema.ts + migração v1→v2)
+Fase 2 — Motor virtual: CC-06 a CC-09  (getInvoicePeriod, getInvoiceDueDate, getCurrentInvoiceBalance, getEffectiveCashFlowDate)
+Fase 3 — Conta CREDIT: CC-10 a CC-12  (modal creditMetadata + includeInBalance padrão false + store)
+Fase 4 — Saldo CREDIT: CC-13 a CC-15  (Dashboard + Settings: bifurcação de cálculo e label)
+Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
+Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato)
+Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
+Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
+Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
+```
+
+**Próximo passo:** iniciar Fase 1 — CC-01 (TransactionType) em `app/src/types/index.ts`.
+
+---
+
 ### Melhorias em aberto
 
 | ID | Descrição | Prioridade |
 |----|-----------|-----------|
 | M-20 | TransactionDrawer: foco automático no campo de valor ao abrir (criar ou editar) | baixa |
+| M-22 | Estornos e chargebacks em contas CREDIT: suporte a reversões contábeis com tipo e UX dedicados. Out-of-scope neste ciclo — usuário registra manualmente. | baixa |
 
 ---
 

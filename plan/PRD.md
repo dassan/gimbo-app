@@ -4,7 +4,7 @@ Este documento atua como a Fonte da Verdade para o desenvolvimento do Nexus.
 
 ## User Review Required
 > [!IMPORTANT]
-> Aprovação Final: O PRD foi ajustado com as suas revisões finais (Nome-código Nexus, internacionalização desde o dia 1, padronização `workspace.json` e `data.json`). Se estiver de acordo, por favor conceda a aprovação formal para pularmos para a execução e setup.
+> Módulo de Cartões de Crédito: O PRD foi expandido para suportar o ciclo de vida avançado de crédito (limites, faturas, fechamento e parcelamentos). Favor revisar as mudanças de Escopo (F-21 a F-23) e o Modelo de Dados atualizado antes de iniciarmos o design técnico.
 
 ---
 
@@ -50,6 +50,9 @@ O Nexus é um aplicativo web (PWA Client-side) de gestão de finanças pessoais 
 * **F-18:** Conflict Sync — ao clicar em sync, o app lê o `File.lastModified` do arquivo em disco e compara com o timestamp registrado após o último write da sessão (`_lastWrittenModified`). Se o arquivo foi modificado externamente (por outro dispositivo, cloud sync ou edição manual), exibe um modal de conflito com duas opções: "Sobrescrever arquivo" (mantém dados locais, descarta disco) ou "Carregar do arquivo" (descarta local, carrega disco). Nenhum dado é perdido sem escolha explícita do usuário. Não há conflito na primeira sync da sessão (sem baseline ainda) nem quando o arquivo não foi tocado desde o último write.
 * **F-19:** Lost File Sync — quando a File System Access API lança `NotFoundError` (arquivo deletado, movido ou volume desmontado), o app detecta o erro no próximo sync, sinaliza o ícone de sync em vermelho com badge `!` e exibe tooltip explicativo. Um segundo clique no ícone de sync abre o file picker para o usuário re-associar um arquivo existente ou criar um novo, restaurando o fluxo normal de sincronização. O app continua funcional entre os dois cliques (dados locais preservados no IndexedDB).
 * **F-20:** Re-permissão do FileHandle — ao restaurar o `FileSystemFileHandle` do IndexedDB no startup, o app chama `handle.queryPermission({ mode: 'readwrite' })` antes de injetar o handle no estado ativo. Se a permissão está `'granted'`, o sync opera normalmente. Se está `'prompt'`, o handle é mantido em estado pendente e o ícone de sync é exibido em verde com tooltip explicativo; o primeiro clique do usuário no ícone chama `handle.requestPermission()` (dentro do contexto do gesto do usuário, como exigido pela API) e, se concedida, prossegue com o sync imediatamente. Se a permissão está `'denied'`, o app trata como arquivo perdido (F-19): ícone vermelho com badge `!` e re-pick disponível.
+* **F-21:** Gestão de Lifecycle de Cartões de Crédito — tratamento desacoplado de fluxo de caixa para contas tipo `CREDIT`. Diferencia data da compra de impacto de caixa via data da fatura, usando dias configuráveis de fechamento e vencimento. Mostra limites consumidos.
+* **F-22:** Desmembramento de Parcelas (Installments) — registro de compras a termo dividindo o valor total em N sub-transações mensais. Compromete o limite instantaneamente, mas atrela saídas de caixa às faturas subsequentes.
+* **F-23:** Pagamento de Fatura Ativo — fluxo tipo "Transferência (Zero-Sum)", permitindo liquidar o saldo devedor abatendo valor da conta de débito, impedindo a duplicação categórica de despesas e conciliando o passivo circulante.
 
 ### Fora do Escopo (Out of Scope - Futuro)
 * **X-1:** Criptografia do arquivo JSON de dados.
@@ -140,6 +143,10 @@ Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
   * *Dado que* o usuário acessa o Painel Avançado de ±3 meses.
   * *Quando* ele possuir títulos grandes de despesas não-pagas para os próximos 60 dias.
   * *Então* o gráfico de barras exibirá esses impactos negativos de passivos nas colunas de projeção dos meses/semanas futuras corretamente e abaterá do saldo.
+* **Cenário:** Fechamento de fatura de crédito e salto inter-temporal de fluxo de caixa.
+  * *Dado que* o cartão do usuário fecha no dia 10 e vence no dia 20.
+  * *Quando* efetuar uma compra no dia 11.
+  * *Então* a saída monetária de caixa não deve ocorrer no mês atual/fatura presente, devendo deslocar a projeção de pagamento para o mês seguinte.
 
 ## 9. Riscos e Premissas
 * **Risco (UX de Sync manual):** O uso intercalado exigirá que o usuário hospede seu "banco" num local como iCloud Folders ou GDrive e dê permissão para a aplicação mapear.
