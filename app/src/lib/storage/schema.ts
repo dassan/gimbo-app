@@ -37,12 +37,19 @@ const SettingsSchema = z.object({
   auditLogRetentionLimit: z.number().nullable(),
 })
 
+const CreditMetadataSchema = z.object({
+  limit: z.number(),
+  closingDay: z.number().int().min(1).max(28),
+  dueDay: z.number().int().min(1).max(28),
+})
+
 const AccountSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['RETAIL', 'SAVINGS', 'CREDIT', 'CRYPTO', 'FOREX', 'ASSET', 'STOCKS', 'OTHER']),
   balance: z.number(),
   includeInBalance: z.boolean(),
+  creditMetadata: CreditMetadataSchema.optional(),
 })
 
 const CategorySchema = z.object({
@@ -60,16 +67,23 @@ const TagSchema = z.object({
   color: z.string(),
 })
 
+const InstallmentSchema = z.object({
+  parentId: z.string(),
+  currentIndex: z.number().int().min(1),
+  total: z.number().int().min(2),
+})
+
 const TransactionSchema = z.object({
   id: z.string(),
   accountId: z.string(),
   categoryId: z.string(),
   amount: z.number(),
-  type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER']),
+  type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER', 'CREDIT_PAYMENT']),
   date: z.string(),
   description: z.string(),
   isPaid: z.boolean(),
   tags: z.array(z.string()),
+  installment: InstallmentSchema.optional(),
 })
 
 const AuditEntrySchema = z.object({
