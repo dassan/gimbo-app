@@ -415,11 +415,11 @@ interface AuditEntry { id, timestamp, action: AuditAction,
 
 ### Versionamento do schema
 
-- `CURRENT_SCHEMA_VERSION = 1` (constante em `schema.ts`) — **será incrementado para 2** pelo módulo de Cartão de Crédito (CC-05)
-- Arquivos sem `schemaVersion` são tratados como v1 (Zod `.default(1)`)
+- `CURRENT_SCHEMA_VERSION = 2` (constante em `schema.ts`) — incrementado de 1 para 2 pelo módulo de Cartão de Crédito (CC-05)
+- Arquivos sem `schemaVersion` são tratados como v1 (Zod `.default(1)`) e promovidos para v2 pela migração automática
 - Arquivos com versão futura lançam `SchemaVersionError` com mensagem i18n `settings.importVersionError`
-- Para evoluir o schema: incrementar `CURRENT_SCHEMA_VERSION`, adicionar migração em `validateDataFile()`
-- **Migração v1→v2 (pendente):** adiciona campos opcionais `creditMetadata` em Account e `installment` em Transaction; expande `TransactionType` com `'CREDIT_PAYMENT'`. Arquivos v1 existentes são migrados automaticamente sem perda de dados.
+- Para evoluir o schema: incrementar `CURRENT_SCHEMA_VERSION`, adicionar migração em `validateDataFile()` via `migrateDataFile()`
+- **Migração v1→v2 (implementada em CC-05):** promove `schemaVersion` de 1 para 2; campos opcionais `creditMetadata` e `installment` não exigem backfill (ausência é válida). Migração idempotente — arquivos v2 passam sem alteração.
 
 ---
 
@@ -429,7 +429,7 @@ interface AuditEntry { id, timestamp, action: AuditAction,
 
 | Export | Tipo | Descrição |
 |--------|------|-----------|
-| `CURRENT_SCHEMA_VERSION` | `number` (1) | Versão atual do schema |
+| `CURRENT_SCHEMA_VERSION` | `number` (2) | Versão atual do schema |
 | `AUDIT_RETENTION_DEFAULT` | `number` (200) | Limite padrão de entradas |
 | `AUDIT_RETENTION_DAYS` | `number` (90) | Janela de retenção por data |
 | `SchemaVersionError` | `class` | Erro para versão incompatível; tem `.detectedVersion` |
@@ -665,18 +665,19 @@ Abas: `accounts | categories | tags | profile | preferences | data | history`.
 
 ## Testes
 
-### Cobertura atual (2026-04-12, atualizado)
+### Cobertura atual (2026-04-14, atualizado)
 
-- **221 testes unitários passando** — 19 arquivos de teste
-- Cobertura: **97.44% statements**, 95.56% branches, 95.31% funções
+- **235 testes unitários passando** — 19 arquivos de teste
+- Cobertura: **97.5% statements**, 95.63% branches, 95.38% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
+- `schema.ts`: 100% — inclui testes de migração v1→v2 e validação dos novos campos (CC-05)
 - `utils.ts`: 100% — inclui 3 testes para `parseDateLocal` (local time, time component strip, last day of year)
 
 ### Testes unitários (Vitest)
 
 - Ambiente: `jsdom`
 - Setup: `src/test/setup.ts` importa `@testing-library/jest-dom`
-- Factories em `src/test/fixtures/`: `makeDataFile()` (inclui `schemaVersion: 1`)
+- Factories em `src/test/fixtures/`: `makeDataFile()` (inclui `schemaVersion: 2`)
 - Reset de store no `beforeEach`: `useDataStore.setState({ data: null, unsyncedCount: 0 })`
 - Mocks de módulos: `vi.mock('react-i18next')`, `vi.mock('react-router-dom')`
 - `fileSystem.test.ts` usa `vi.resetModules()` + `await import()` em cada describe para isolar estado de módulo
@@ -761,6 +762,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 | Feature | Milestone | Status |
 |---------|-----------|--------|
+| Schema v2 — `CREDIT_PAYMENT`, `CreditMetadata`, `Installment` + migração automática v1→v2 | CC-01–CC-05 | ✅ |
 | Perfil do usuário | — | ✅ |
 | CRUD de contas (8 tipos) | M-03 | ✅ |
 | CRUD de categorias (hierarquia pai/filho) | M-04 | ✅ |
@@ -832,7 +834,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ### Módulo de Cartão de Crédito — Em Desenvolvimento
 
-Fase de planejamento concluída em 2026-04-14. Decisões arquiteturais e desafios técnicos em `plan/CREDIT_CARD.md`. 30 tarefas (CC-01 a CC-30) detalhadas em `plan/BACKLOG.md`.
+Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técnicos em `plan/CREDIT_CARD.md`. 30 tarefas (CC-01 a CC-30) detalhadas em `plan/BACKLOG.md`.
 
 **5 decisões de produto consolidadas:**
 1. Faturas computadas em runtime (virtual) — sem entidade `Invoice` no `data.json`
@@ -843,18 +845,18 @@ Fase de planejamento concluída em 2026-04-14. Decisões arquiteturais e desafio
 
 **Sequência de implementação (9 fases):**
 ```
-Fase 1 — Schema v2: CC-01 a CC-05  (types/index.ts + schema.ts + migração v1→v2)
-Fase 2 — Motor virtual: CC-06 a CC-09  (getInvoicePeriod, getInvoiceDueDate, getCurrentInvoiceBalance, getEffectiveCashFlowDate)
-Fase 3 — Conta CREDIT: CC-10 a CC-12  (modal creditMetadata + includeInBalance padrão false + store)
-Fase 4 — Saldo CREDIT: CC-13 a CC-15  (Dashboard + Settings: bifurcação de cálculo e label)
-Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
-Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato)
-Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
-Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
-Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
+✅ Fase 1 — Schema v2: CC-01 a CC-05  (types/index.ts + schema.ts + migração v1→v2)
+   Fase 2 — Motor virtual: CC-06 a CC-09  (getInvoicePeriod, getInvoiceDueDate, getCurrentInvoiceBalance, getEffectiveCashFlowDate)
+   Fase 3 — Conta CREDIT: CC-10 a CC-12  (modal creditMetadata + includeInBalance padrão false + store)
+   Fase 4 — Saldo CREDIT: CC-13 a CC-15  (Dashboard + Settings: bifurcação de cálculo e label)
+   Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
+   Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato)
+   Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
+   Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
+   Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
 ```
 
-**Próximo passo:** iniciar Fase 1 — CC-01 (TransactionType) em `app/src/types/index.ts`.
+**Próximo passo:** iniciar Fase 2 — CC-06 (`getInvoicePeriod`) em `app/src/lib/utils.ts`.
 
 ---
 

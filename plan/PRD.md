@@ -2,10 +2,6 @@
 
 Este documento atua como a Fonte da Verdade para o desenvolvimento do Nexus.
 
-## User Review Required
-> [!IMPORTANT]
-> Módulo de Cartões de Crédito: O PRD foi expandido para suportar o ciclo de vida avançado de crédito (limites, faturas, fechamento e parcelamentos). Favor revisar as mudanças de Escopo (F-21 a F-23) e o Modelo de Dados atualizado antes de iniciarmos o design técnico.
-
 ---
 
 ## 1. Resumo Executivo (TL;DR)
@@ -86,7 +82,12 @@ Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
       "name": "String",
       "type": "Enum(RETAIL, SAVINGS, CREDIT, CRYPTO, FOREX, ASSET, STOCKS, OTHER)",
       "balance": "Float",
-      "includeInBalance": "Boolean (default: true)"
+      "includeInBalance": "Boolean (default: true)",
+      "creditMetadata": {
+        "limit": "Float (apenas contas CREDIT — schema v2)",
+        "closingDay": "Integer 1–28 (dia de fechamento da fatura)",
+        "dueDay": "Integer 1–28 (dia de vencimento da fatura)"
+      }
     }
   ],
   "categories": [
@@ -112,11 +113,16 @@ Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
       "accountId": "UUID",
       "categoryId": "UUID",
       "amount": "Float",
-      "type": "Enum(INCOME, EXPENSE, TRANSFER)",
+      "type": "Enum(INCOME, EXPENSE, TRANSFER, CREDIT_PAYMENT)",
       "date": "ISO_Date",
       "description": "String",
       "isPaid": "Boolean",
-      "tags": ["[UUID]"]
+      "tags": ["[UUID]"],
+      "installment": {
+        "parentId": "UUID (UUID da 1ª parcela do grupo — schema v2)",
+        "currentIndex": "Integer >= 1",
+        "total": "Integer >= 2"
+      }
     }
   ],
   "auditLog": [
