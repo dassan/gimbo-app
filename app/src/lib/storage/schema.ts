@@ -4,7 +4,7 @@ import { uuid, now } from '@/lib/utils'
 
 export const AUDIT_RETENTION_DEFAULT = 200
 export const AUDIT_RETENTION_DAYS = 90
-export const CURRENT_SCHEMA_VERSION = 1
+export const CURRENT_SCHEMA_VERSION = 2
 
 /**
  * Thrown by validateDataFile() when the parsed file declares a schemaVersion
@@ -96,7 +96,7 @@ const AuditEntrySchema = z.object({
 })
 
 export const DataFileSchema = z.object({
-  schemaVersion: z.number().int().default(CURRENT_SCHEMA_VERSION),
+  schemaVersion: z.number().int().default(1), // legacy files without field default to v1
   user: UserSchema,
   settings: SettingsSchema,
   accounts: z.array(AccountSchema),
@@ -111,13 +111,34 @@ export const DataFileSchema = z.object({
 /**
  * Validate and cast an unknown JSON payload as DataFile. Throws if invalid.
  * Throws SchemaVersionError if the file was created by a newer app version.
+ * Automatically migrates v1 files to the current schema version.
  */
 export function validateDataFile(data: unknown): DataFile {
   const parsed = DataFileSchema.parse(data) as DataFile
   if (parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
     throw new SchemaVersionError(parsed.schemaVersion)
   }
-  return parsed
+  return migrateDataFile(parsed)
+}
+
+// ─── Migrations ───────────────────────────────────────────────────────────────
+
+/**
+ * Applies all pending migrations in order until the file reaches
+ * CURRENT_SCHEMA_VERSION. Each migration step is idempotent.
+ */
+function migrateDataFile(data: DataFile): DataFile {
+  if (data.schemaVersion === CURRENT_SCHEMA_VERSION) return data
+
+  let migrated = data
+
+  // v1 → v2: adds optional creditMetadata (Account) and installment (Transaction).
+  // Both fields are optional — existing records need no changes beyond bumping the version.
+  if (migrated.schemaVersion === 1) {
+    migrated = { ...migrated, schemaVersion: 2 }
+  }
+
+  return migrated
 }
 
 // ─── Factories ────────────────────────────────────────────────────────────────

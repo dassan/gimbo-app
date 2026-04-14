@@ -26,7 +26,7 @@ function makeEntry(daysAgo: number): AuditEntry {
 }
 
 const MINIMAL_VALID: DataFile = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   user: { name: 'x', email: '', createdAt: '', updatedAt: '' },
   settings: { fileCreatedAt: '', fileUpdatedAt: '', auditLogRetentionLimit: 200 },
   accounts: [],
@@ -262,11 +262,11 @@ describe('validateDataFile', () => {
 // ─── Schema version compatibility (M-01) ─────────────────────────────────────
 
 describe('validateDataFile — schema version', () => {
-  it('accepts a file without schemaVersion (legacy) and defaults to 1', () => {
+  it('accepts a file without schemaVersion (legacy) and migrates it to CURRENT_SCHEMA_VERSION', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { schemaVersion: _schemaVersion, ...legacy } = MINIMAL_VALID
     const result = validateDataFile(legacy)
-    expect(result.schemaVersion).toBe(1)
+    expect(result.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
   })
 
   it('accepts a file with schemaVersion equal to CURRENT_SCHEMA_VERSION', () => {
@@ -289,5 +289,226 @@ describe('validateDataFile — schema version', () => {
       expect(err).toBeInstanceOf(SchemaVersionError)
       expect((err as SchemaVersionError).detectedVersion).toBe(futureVersion)
     }
+  })
+})
+
+// ─── Migration v1 → v2 (CC-05) ───────────────────────────────────────────────
+
+describe('validateDataFile — v1 → v2 migration', () => {
+  const V1_FILE: DataFile = {
+    schemaVersion: 1,
+    user: { name: 'x', email: '', createdAt: '', updatedAt: '' },
+    settings: { fileCreatedAt: '', fileUpdatedAt: '', auditLogRetentionLimit: 200 },
+    accounts: [{ id: 'a1', name: 'Conta', type: 'RETAIL', balance: 0, includeInBalance: true }],
+    categories: [],
+    tags: [],
+    transactions: [
+      {
+        id: 'tx1',
+        accountId: 'a1',
+        categoryId: 'c1',
+        amount: 50,
+        type: 'EXPENSE',
+        date: '2024-01-15',
+        description: 'Compra',
+        isPaid: true,
+        tags: [],
+      },
+    ],
+    auditLog: [],
+  }
+
+  it('migrates a v1 file to schemaVersion 2', () => {
+    const result = validateDataFile(V1_FILE)
+    expect(result.schemaVersion).toBe(2)
+  })
+
+  it('preserves all existing accounts during v1 → v2 migration', () => {
+    const result = validateDataFile(V1_FILE)
+    expect(result.accounts).toHaveLength(1)
+    expect(result.accounts[0].id).toBe('a1')
+    expect(result.accounts[0].creditMetadata).toBeUndefined()
+  })
+
+  it('preserves all existing transactions during v1 → v2 migration', () => {
+    const result = validateDataFile(V1_FILE)
+    expect(result.transactions).toHaveLength(1)
+    expect(result.transactions[0].id).toBe('tx1')
+    expect(result.transactions[0].installment).toBeUndefined()
+  })
+
+  it('accepts a v2 file without running migration (idempotent)', () => {
+    const result = validateDataFile({ ...V1_FILE, schemaVersion: 2 })
+    expect(result.schemaVersion).toBe(2)
+  })
+
+  it('throws SchemaVersionError for a v3 file', () => {
+    expect(() => validateDataFile({ ...V1_FILE, schemaVersion: 3 })).toThrow(SchemaVersionError)
+  })
+})
+
+// ─── Schema v2 — new optional fields (CC-02, CC-03, CC-04) ───────────────────
+
+describe('validateDataFile — schema v2 new fields', () => {
+  it('accepts an Account with valid creditMetadata', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      accounts: [
+        {
+          id: 'a1',
+          name: 'Cartão',
+          type: 'CREDIT',
+          balance: 0,
+          includeInBalance: false,
+          creditMetadata: { limit: 5000, closingDay: 10, dueDay: 15 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).not.toThrow()
+  })
+
+  it('accepts an Account without creditMetadata (field is optional)', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      accounts: [{ id: 'a1', name: 'Corrente', type: 'RETAIL', balance: 0, includeInBalance: true }],
+    }
+    expect(() => validateDataFile(data)).not.toThrow()
+  })
+
+  it('rejects creditMetadata with closingDay > 28', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      accounts: [
+        {
+          id: 'a1',
+          name: 'Cartão',
+          type: 'CREDIT',
+          balance: 0,
+          includeInBalance: false,
+          creditMetadata: { limit: 1000, closingDay: 29, dueDay: 10 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).toThrow()
+  })
+
+  it('rejects creditMetadata with dueDay < 1', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      accounts: [
+        {
+          id: 'a1',
+          name: 'Cartão',
+          type: 'CREDIT',
+          balance: 0,
+          includeInBalance: false,
+          creditMetadata: { limit: 1000, closingDay: 10, dueDay: 0 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).toThrow()
+  })
+
+  it('accepts a Transaction with valid installment', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      transactions: [
+        {
+          id: 'tx1',
+          accountId: 'a1',
+          categoryId: 'c1',
+          amount: 100,
+          type: 'EXPENSE',
+          date: '2024-01-01',
+          description: 'Compra (1/3)',
+          isPaid: false,
+          tags: [],
+          installment: { parentId: 'tx1', currentIndex: 1, total: 3 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).not.toThrow()
+  })
+
+  it('accepts a Transaction without installment (field is optional)', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      transactions: [
+        {
+          id: 'tx1',
+          accountId: 'a1',
+          categoryId: 'c1',
+          amount: 50,
+          type: 'EXPENSE',
+          date: '2024-01-01',
+          description: 'Compra',
+          isPaid: true,
+          tags: [],
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).not.toThrow()
+  })
+
+  it('accepts a Transaction of type CREDIT_PAYMENT', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      transactions: [
+        {
+          id: 'tx1',
+          accountId: 'a1',
+          categoryId: 'c1',
+          amount: 500,
+          type: 'CREDIT_PAYMENT',
+          date: '2024-01-10',
+          description: 'Pagamento fatura',
+          isPaid: true,
+          tags: [],
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).not.toThrow()
+  })
+
+  it('rejects installment with total < 2', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      transactions: [
+        {
+          id: 'tx1',
+          accountId: 'a1',
+          categoryId: 'c1',
+          amount: 100,
+          type: 'EXPENSE',
+          date: '2024-01-01',
+          description: 'x',
+          isPaid: false,
+          tags: [],
+          installment: { parentId: 'tx1', currentIndex: 1, total: 1 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).toThrow()
+  })
+
+  it('rejects installment with currentIndex < 1', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      transactions: [
+        {
+          id: 'tx1',
+          accountId: 'a1',
+          categoryId: 'c1',
+          amount: 100,
+          type: 'EXPENSE',
+          date: '2024-01-01',
+          description: 'x',
+          isPaid: false,
+          tags: [],
+          installment: { parentId: 'tx1', currentIndex: 0, total: 3 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).toThrow()
   })
 })
