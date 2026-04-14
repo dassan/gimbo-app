@@ -30,12 +30,19 @@ export interface Settings {
   auditLogRetentionLimit: number | null // null = unlimited (opt-in); default 200
 }
 
+export interface CreditMetadata {
+  limit: number
+  closingDay: number // 1–28
+  dueDay: number // 1–28
+}
+
 export interface Account {
   id: string // UUID
   name: string
   type: AccountType
   balance: number
   includeInBalance: boolean
+  creditMetadata?: CreditMetadata // only for CREDIT accounts
 }
 
 export interface Category {
