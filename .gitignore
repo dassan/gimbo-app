@@ -23,3 +23,7 @@ Thumbs.db
 
 # PWA dev files (generated at build time)
 app/dev-dist/
+
+# Claude Code / Agent SDK — installed skills (like node_modules; use skills-lock.json instead)
+.claude/
+.agents/

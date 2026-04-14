@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "product-manager-skills": {
+      "source": "Digidai/product-manager-skills",
+      "sourceType": "github",
+      "computedHash": "a89e1c946557a629e283d41be9a16d6b202b6147c871aee863e02a5e0b269e86"
+    }
+  }
+}
