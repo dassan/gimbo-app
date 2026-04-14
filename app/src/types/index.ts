@@ -10,7 +10,7 @@ export type AccountType =
   | 'STOCKS'
   | 'OTHER'
 export type CategoryType = 'INCOME' | 'EXPENSE'
-export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER'
+export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'CREDIT_PAYMENT'
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
 export type AuditEntity = 'account' | 'category' | 'tag' | 'transaction' | 'user'
