@@ -85,6 +85,9 @@ export default function Analytics() {
     const txs = data.transactions.filter((tx) => {
       // CC-17: CREDIT_PAYMENT is liability liquidation, not income/expense
       if (tx.type === 'CREDIT_PAYMENT') return false
+      // CC-18: category breakdown intentionally uses tx.date (budget perspective).
+      // The expense is attributed to the purchase date, not the invoice due date.
+      // Only the cash-flow chart uses getEffectiveCashFlowDate.
       const d = parseDateLocal(tx.date)
       const inPeriod = d >= startDate && d <= endDate
       const isPaidOk = includeUnpaid || tx.isPaid
