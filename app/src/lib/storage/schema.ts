@@ -84,6 +84,7 @@ const TransactionSchema = z.object({
   isPaid: z.boolean(),
   tags: z.array(z.string()),
   installment: InstallmentSchema.optional(),
+  transferAccountId: z.string().optional(), // only for CREDIT_PAYMENT
 })
 
 const AuditEntrySchema = z.object({

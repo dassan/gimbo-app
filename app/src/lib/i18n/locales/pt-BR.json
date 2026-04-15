@@ -70,10 +70,15 @@
     "account": "Conta",
     "tags": "Tags",
     "shortcutHint": "Pressione Enter para salvar rapidamente",
+    "creditPayment": "Pag. Fatura",
+    "cardToPay": "Cartão a pagar",
+    "payFrom": "Pagar com",
+    "currentInvoice": "Fatura atual",
     "save": {
       "expense": "Salvar Despesa",
       "income": "Salvar Receita",
-      "transfer": "Salvar Transferência"
+      "transfer": "Salvar Transferência",
+      "credit_payment": "Registrar Pagamento"
     },
     "filterAccounts": "Contas",
     "filterStatus": "Status",
@@ -159,6 +164,16 @@
     "deleteCategory": "Excluir Categoria",
     "categoryTypeIncome": "Receita",
     "categoryTypeExpense": "Despesa"
+  },
+  "creditCard": {
+    "invoicePeriod": "Período da Fatura",
+    "closingDate": "Fechamento",
+    "dueDate": "Vencimento",
+    "payNow": "Pagar Agora",
+    "allCategories": "Todas as categorias",
+    "noTransactions": "Nenhuma transação nesta fatura",
+    "spendingSummary": "Resumo de Gastos",
+    "creditLimit": "Limite de Crédito"
   },
   "accounts": {
     "retail": "Corrente",

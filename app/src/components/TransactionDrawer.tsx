@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, ChevronDown, Calendar, Tag, Plus, Trash2 } from 'lucide-react'
+import { X, ChevronDown, Calendar, Tag, Plus, Trash2, CreditCard } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
-import { cn, uuid } from '@/lib/utils'
+import { cn, uuid, formatCurrency, getCurrentInvoiceBalance } from '@/lib/utils'
 import type { Transaction, TransactionType } from '@/types'
 
 export interface TransactionDrawerProps {
@@ -33,7 +33,6 @@ const TYPE_CONFIG: Record<TxType, { label: string; color: string; bg: string; bt
       bg: 'bg-surface-container-high',
       btnClass: 'bg-on-surface hover:brightness-110',
     },
-    // CC-19 will implement the full CREDIT_PAYMENT UX flow
     CREDIT_PAYMENT: {
       label: 'transactions.creditPayment',
       color: 'text-on-surface',
@@ -56,9 +55,21 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const [amountStr, setAmountStr] = useState('0,00')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [accountId, setAccountId] = useState('')
+  // transferAccountId: the "pay from" account for CREDIT_PAYMENT transactions
+  const [transferAccountId, setTransferAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+
+  // Derived account lists for CREDIT_PAYMENT selectors
+  const creditAccounts = useMemo(
+    () => (data?.accounts ?? []).filter((a) => a.type === 'CREDIT'),
+    [data]
+  )
+  const nonCreditAccounts = useMemo(
+    () => (data?.accounts ?? []).filter((a) => a.type !== 'CREDIT'),
+    [data]
+  )
 
   // Reset or pre-fill on open — intentional setState-in-effect to initialise form fields
   useEffect(() => {
@@ -70,6 +81,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
         setAmountStr(transaction.amount.toFixed(2).replace('.', ','))
         setDate(transaction.date.slice(0, 10))
         setAccountId(transaction.accountId)
+        setTransferAccountId(transaction.transferAccountId ?? '')
         setCategoryId(transaction.categoryId)
         setDescription(transaction.description)
         setSelectedTags(transaction.tags)
@@ -79,12 +91,25 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
         setAmountStr('0,00')
         setDate(new Date().toISOString().slice(0, 10))
         setAccountId(data?.accounts[0]?.id ?? '')
+        setTransferAccountId(nonCreditAccounts[0]?.id ?? '')
         setCategoryId('')
         setDescription('')
         setSelectedTags([])
       }
     }
-  }, [open, transaction, data])
+  }, [open, transaction, data, nonCreditAccounts])
+
+  // When switching to CREDIT_PAYMENT, auto-select the first credit and non-credit accounts
+  function handleTypeChange(newType: TxType) {
+    setType(newType)
+    if (newType === 'CREDIT_PAYMENT') {
+      setAccountId(creditAccounts[0]?.id ?? '')
+      setTransferAccountId(nonCreditAccounts[0]?.id ?? '')
+      setCategoryId('')
+    } else {
+      setAccountId(data?.accounts[0]?.id ?? '')
+    }
+  }
 
   function handleAmountInput(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/\D/g, '')
@@ -102,13 +127,15 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
     const payload: Transaction = {
       id: isEditMode ? transaction.id : uuid(),
       accountId: accountId || data.accounts[0]?.id || '',
-      categoryId,
+      categoryId: type === 'CREDIT_PAYMENT' ? '' : categoryId,
       amount,
       type,
       date,
       description,
       isPaid: isEditMode ? transaction.isPaid : false,
       tags: selectedTags,
+      ...(type === 'CREDIT_PAYMENT' && transferAccountId ? { transferAccountId } : {}),
+      ...(isEditMode && transaction.installment ? { installment: transaction.installment } : {}),
     }
     if (isEditMode) {
       updateTransaction(payload)
@@ -126,6 +153,12 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
 
   const categories = (data?.categories ?? []).filter((c) =>
     type === 'INCOME' ? c.type === 'INCOME' : c.type === 'EXPENSE'
+  )
+
+  // Selected credit account (for invoice balance hint — CC-20)
+  const selectedCreditAccount = useMemo(
+    () => (type === 'CREDIT_PAYMENT' ? data?.accounts.find((a) => a.id === accountId) : undefined),
+    [type, accountId, data]
   )
 
   const cfg = TYPE_CONFIG[type]
@@ -181,7 +214,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
             {(Object.keys(TYPE_CONFIG) as TxType[]).map((key) => (
               <button
                 key={key}
-                onClick={() => setType(key)}
+                onClick={() => handleTypeChange(key)}
                 className={cn(
                   'flex-1 rounded-xl py-2 text-sm font-medium transition-all',
                   type === key
@@ -211,35 +244,93 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
             </div>
           </div>
 
-          {/* Account */}
-          <div>
-            <label className="label text-on-surface/40 block mb-2">
-              {t('transactions.account')}
-            </label>
-            <div className="relative">
-              <select
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                {(data?.accounts ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-                {(data?.accounts ?? []).length === 0 && (
-                  <option value="">{t('common.noData')}</option>
-                )}
-              </select>
-              <ChevronDown
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
-              />
-            </div>
-          </div>
+          {/* ── CREDIT_PAYMENT: two-account layout ─────────────────────────── */}
+          {type === 'CREDIT_PAYMENT' ? (
+            <>
+              {/* Card to pay */}
+              <div>
+                <label className="label text-on-surface/40 flex items-center gap-1.5 mb-2">
+                  <CreditCard size={12} />
+                  {t('transactions.cardToPay')}
+                </label>
+                <div className="relative">
+                  <select
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                    className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {creditAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                    {creditAccounts.length === 0 && <option value="">{t('common.noData')}</option>}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+                  />
+                </div>
+              </div>
 
-          {/* Category */}
-          {type !== 'TRANSFER' && (
+              {/* Pay from */}
+              <div>
+                <label className="label text-on-surface/40 block mb-2">
+                  {t('transactions.payFrom')}
+                </label>
+                <div className="relative">
+                  <select
+                    value={transferAccountId}
+                    onChange={(e) => setTransferAccountId(e.target.value)}
+                    className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {nonCreditAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                    {nonCreditAccounts.length === 0 && (
+                      <option value="">{t('common.noData')}</option>
+                    )}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            /* ── Standard account selector ──────────────────────────────── */
+            <div>
+              <label className="label text-on-surface/40 block mb-2">
+                {t('transactions.account')}
+              </label>
+              <div className="relative">
+                <select
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  {(data?.accounts ?? []).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                  {(data?.accounts ?? []).length === 0 && (
+                    <option value="">{t('common.noData')}</option>
+                  )}
+                </select>
+                <ChevronDown
+                  size={16}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Category — hidden for TRANSFER and CREDIT_PAYMENT */}
+          {type !== 'TRANSFER' && type !== 'CREDIT_PAYMENT' && (
             <div>
               <label className="label text-on-surface/40 block mb-2">
                 {t('transactions.category')}
@@ -308,6 +399,18 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
               className="w-full rounded-xl bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
+
+          {/* ── CC-20: current invoice balance hint for CREDIT_PAYMENT ────── */}
+          {type === 'CREDIT_PAYMENT' && selectedCreditAccount?.creditMetadata && (
+            <div className="rounded-xl bg-surface-container-low px-4 py-3 flex items-center justify-between">
+              <p className="text-xs text-on-surface/50">{t('transactions.currentInvoice')}</p>
+              <p className="text-sm font-semibold text-tertiary">
+                {formatCurrency(
+                  getCurrentInvoiceBalance(data?.transactions ?? [], selectedCreditAccount)
+                )}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer CTA */}

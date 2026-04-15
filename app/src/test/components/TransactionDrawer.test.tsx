@@ -21,6 +21,14 @@ const testAccount = {
   balance: 0,
   includeInBalance: true,
 }
+const testCreditAccount = {
+  id: 'acc-credit',
+  name: 'Cartão Nubank',
+  type: 'CREDIT' as const,
+  balance: 0,
+  includeInBalance: false,
+  creditMetadata: { limit: 5000, closingDay: 20, dueDay: 10 },
+}
 const testCategory = {
   id: 'cat-1',
   parentId: null,
@@ -190,5 +198,133 @@ describe('TransactionDrawer — edit mode', () => {
     rerender(<TransactionDrawer open={true} onClose={vi.fn()} />)
 
     expect(screen.getByDisplayValue('0,00')).toBeInTheDocument()
+  })
+})
+
+// ─── CC-19: CREDIT_PAYMENT two-account flow ───────────────────────────────────
+
+describe('TransactionDrawer — CC-19: CREDIT_PAYMENT flow', () => {
+  beforeEach(() => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [testAccount, testCreditAccount],
+        categories: [testCategory],
+      }),
+      unsyncedCount: 0,
+    })
+  })
+
+  it('shows "transactions.creditPayment" tab in type selector', () => {
+    renderDrawer()
+    expect(screen.getByRole('button', { name: 'transactions.creditPayment' })).toBeInTheDocument()
+  })
+
+  it('shows cardToPay and payFrom labels when CREDIT_PAYMENT is selected', async () => {
+    renderDrawer()
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+    expect(screen.getByText('transactions.cardToPay')).toBeInTheDocument()
+    expect(screen.getByText('transactions.payFrom')).toBeInTheDocument()
+  })
+
+  it('hides standard account selector and category when CREDIT_PAYMENT is selected', async () => {
+    renderDrawer()
+    // Standard account label is visible before switch
+    expect(screen.getByText('transactions.account')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+    expect(screen.queryByText('transactions.account')).not.toBeInTheDocument()
+    expect(screen.queryByText('transactions.category')).not.toBeInTheDocument()
+  })
+
+  it('cardToPay selector only lists CREDIT accounts', async () => {
+    renderDrawer()
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+    // The credit account should be in the cardToPay select options
+    const selects = screen.getAllByRole('combobox')
+    // First select = cardToPay (credit accounts)
+    const cardToPaySelect = selects[0]
+    expect(cardToPaySelect).toHaveDisplayValue(testCreditAccount.name)
+  })
+
+  it('payFrom selector only lists non-CREDIT accounts', async () => {
+    renderDrawer()
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+    const selects = screen.getAllByRole('combobox')
+    // Second select = payFrom (non-credit accounts)
+    const payFromSelect = selects[1]
+    expect(payFromSelect).toHaveDisplayValue(testAccount.name)
+  })
+
+  it('save button shows credit_payment label', async () => {
+    renderDrawer()
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+    expect(
+      screen.getByRole('button', { name: /transactions\.save\.credit_payment/i })
+    ).toBeInTheDocument()
+  })
+
+  it('calls addTransaction with transferAccountId when CREDIT_PAYMENT is saved', async () => {
+    const addTransaction = vi.fn()
+    const onClose = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'addTransaction').mockImplementation(addTransaction)
+
+    render(<TransactionDrawer open={true} onClose={onClose} />)
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+
+    const amountInput = screen.getByPlaceholderText('0,00')
+    await userEvent.clear(amountInput)
+    await userEvent.type(amountInput, '50000')
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /transactions\.save\.credit_payment/i })
+    )
+
+    expect(addTransaction).toHaveBeenCalledOnce()
+    expect(addTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'CREDIT_PAYMENT',
+        accountId: testCreditAccount.id,
+        transferAccountId: testAccount.id,
+      })
+    )
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+// ─── CC-20: current invoice balance hint ─────────────────────────────────────
+
+describe('TransactionDrawer — CC-20: invoice balance hint', () => {
+  beforeEach(() => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [testAccount, testCreditAccount],
+        categories: [testCategory],
+        // Add an expense on the credit account in current period
+        transactions: [
+          {
+            id: 'tx-credit',
+            accountId: testCreditAccount.id,
+            categoryId: 'cat-1',
+            amount: 300,
+            type: 'EXPENSE',
+            date: new Date().toISOString().slice(0, 10),
+            description: 'Compra',
+            isPaid: false,
+            tags: [],
+          },
+        ],
+      }),
+      unsyncedCount: 0,
+    })
+  })
+
+  it('shows invoice hint when CREDIT_PAYMENT is selected and credit account has creditMetadata', async () => {
+    renderDrawer()
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+    expect(screen.getByText('transactions.currentInvoice')).toBeInTheDocument()
+  })
+
+  it('does not show invoice hint when type is not CREDIT_PAYMENT', () => {
+    renderDrawer()
+    expect(screen.queryByText('transactions.currentInvoice')).not.toBeInTheDocument()
   })
 })

@@ -77,6 +77,7 @@ export interface Transaction {
   isPaid: boolean
   tags: string[] // UUID[]
   installment?: Installment // only for installment purchases
+  transferAccountId?: string // only for CREDIT_PAYMENT: the account that funds the payment
 }
 
 export interface AuditEntry {

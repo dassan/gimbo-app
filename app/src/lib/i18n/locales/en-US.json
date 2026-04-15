@@ -70,10 +70,15 @@
     "account": "Account",
     "tags": "Tags",
     "shortcutHint": "Press Enter to save quickly",
+    "creditPayment": "Bill Payment",
+    "cardToPay": "Card to pay",
+    "payFrom": "Pay from",
+    "currentInvoice": "Current invoice",
     "save": {
       "expense": "Save Expense",
       "income": "Save Income",
-      "transfer": "Save Transfer"
+      "transfer": "Save Transfer",
+      "credit_payment": "Register Payment"
     },
     "filterAccounts": "Accounts",
     "filterStatus": "Status",
@@ -159,6 +164,16 @@
     "deleteCategory": "Delete Category",
     "categoryTypeIncome": "Income",
     "categoryTypeExpense": "Expense"
+  },
+  "creditCard": {
+    "invoicePeriod": "Invoice Period",
+    "closingDate": "Closing",
+    "dueDate": "Due date",
+    "payNow": "Pay Now",
+    "allCategories": "All categories",
+    "noTransactions": "No transactions in this invoice",
+    "spendingSummary": "Spending Summary",
+    "creditLimit": "Credit Limit"
   },
   "accounts": {
     "retail": "Checking",
