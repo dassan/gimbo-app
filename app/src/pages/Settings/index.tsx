@@ -39,7 +39,7 @@ import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { downloadDataFile, openDataFile, isFsaSupported } from '@/lib/storage/fileSystem'
 import { saveFileHandle } from '@/lib/storage/indexedDb'
-import { formatCurrency, cn, uuid, now } from '@/lib/utils'
+import { formatCurrency, cn, uuid, now, getCurrentInvoiceBalance } from '@/lib/utils'
 import { AUDIT_RETENTION_DEFAULT, SchemaVersionError } from '@/lib/storage/schema'
 import { importFileToIdb } from '@/lib/storage/sync'
 import type {
@@ -295,14 +295,34 @@ export default function Settings() {
   }
 
   // ── Computed account balances from transactions ───────────────────────────
+  // For CREDIT accounts with creditMetadata: available limit = limit − current invoice balance.
+  // For CREDIT accounts without creditMetadata: 0.
+  // For all other account types: standard flow (INCOME+, EXPENSE−, TRANSFER−).
   const accountBalances = useMemo<Record<string, number>>(() => {
     if (!data) return {}
     const map: Record<string, number> = {}
+
+    // Standard flow for non-CREDIT accounts
     data.transactions.forEach((tx) => {
+      const account = data.accounts.find((a) => a.id === tx.accountId)
+      if (!account || account.type === 'CREDIT') return
       if (tx.type === 'INCOME') map[tx.accountId] = (map[tx.accountId] ?? 0) + tx.amount
       if (tx.type === 'EXPENSE') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
       if (tx.type === 'TRANSFER') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
     })
+
+    // CREDIT accounts: available limit = creditMetadata.limit − current invoice balance
+    data.accounts
+      .filter((a) => a.type === 'CREDIT')
+      .forEach((account) => {
+        if (!account.creditMetadata) {
+          map[account.id] = 0
+          return
+        }
+        const invoiceBalance = getCurrentInvoiceBalance(data.transactions, account)
+        map[account.id] = account.creditMetadata.limit - invoiceBalance
+      })
+
     return map
   }, [data])
 
@@ -395,9 +415,16 @@ export default function Settings() {
                           {t(`accounts.${acc.type.toLowerCase()}`)}
                         </p>
                       </div>
-                      <span className="text-sm font-bold text-on-surface">
-                        {formatCurrency(accountBalances[acc.id] ?? 0)}
-                      </span>
+                      <div className="text-right">
+                        {acc.type === 'CREDIT' && (
+                          <p className="text-[10px] text-on-surface/40 uppercase tracking-wide">
+                            {t('accounts.availableLimit')}
+                          </p>
+                        )}
+                        <span className="text-sm font-bold text-on-surface">
+                          {formatCurrency(accountBalances[acc.id] ?? 0)}
+                        </span>
+                      </div>
                     </button>
                   ))}
                 </div>
