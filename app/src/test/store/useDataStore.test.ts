@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useDataStore } from '@/store/useDataStore'
 import { makeDataFile } from '../fixtures/dataFile'
-import type { Account, Category, Tag, Transaction } from '@/types'
+import type { Account, Category, Tag, Transaction, CreditMetadata } from '@/types'
 
 function makeAccount(overrides: Partial<Account> = {}): Account {
   return {
@@ -213,6 +213,60 @@ describe('loadData / clearData', () => {
     useDataStore.setState({ data: makeDataFile() })
     useDataStore.getState().clearData()
     expect(useDataStore.getState().data).toBeNull()
+  })
+})
+
+describe('creditMetadata handling (CC-12)', () => {
+  const creditMeta: CreditMetadata = { limit: 5000, closingDay: 10, dueDay: 25 }
+
+  it('addAccount with CREDIT type persists creditMetadata', () => {
+    useDataStore.setState({ data: makeDataFile() })
+    const creditAccount = makeAccount({
+      id: 'acc-credit',
+      type: 'CREDIT',
+      creditMetadata: creditMeta,
+    })
+    useDataStore.getState().addAccount(creditAccount)
+    const saved = useDataStore.getState().data?.accounts[0]
+    expect(saved?.creditMetadata).toEqual(creditMeta)
+  })
+
+  it('updateAccount with CREDIT type updates creditMetadata', () => {
+    const creditAccount = makeAccount({
+      id: 'acc-credit',
+      type: 'CREDIT',
+      creditMetadata: creditMeta,
+    })
+    useDataStore.setState({ data: makeDataFile({ accounts: [creditAccount] }) })
+    const updated: CreditMetadata = { limit: 10000, closingDay: 15, dueDay: 5 }
+    useDataStore.getState().updateAccount({ ...creditAccount, creditMetadata: updated })
+    const saved = useDataStore.getState().data?.accounts[0]
+    expect(saved?.creditMetadata).toEqual(updated)
+  })
+
+  it('addAccount with non-CREDIT type does not include creditMetadata', () => {
+    useDataStore.setState({ data: makeDataFile() })
+    // Simulate a stale account object that erroneously carries creditMetadata
+    const staleAccount = makeAccount({
+      id: 'acc-retail',
+      type: 'RETAIL',
+      creditMetadata: creditMeta,
+    })
+    useDataStore.getState().addAccount(staleAccount)
+    const saved = useDataStore.getState().data?.accounts[0]
+    expect(saved?.creditMetadata).toBeUndefined()
+    expect(Object.prototype.hasOwnProperty.call(saved, 'creditMetadata')).toBe(false)
+  })
+
+  it('updateAccount changing type away from CREDIT strips creditMetadata', () => {
+    const creditAccount = makeAccount({ id: 'acc-1', type: 'CREDIT', creditMetadata: creditMeta })
+    useDataStore.setState({ data: makeDataFile({ accounts: [creditAccount] }) })
+    useDataStore
+      .getState()
+      .updateAccount({ ...creditAccount, type: 'SAVINGS', creditMetadata: creditMeta })
+    const saved = useDataStore.getState().data?.accounts[0]
+    expect(saved?.type).toBe('SAVINGS')
+    expect(saved?.creditMetadata).toBeUndefined()
   })
 })
 

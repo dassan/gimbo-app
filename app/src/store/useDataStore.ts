@@ -137,7 +137,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
   addAccount: (account) =>
     set((s) =>
       mutate(s, (d) => {
-        d.accounts.push(account)
+        d.accounts.push(sanitizeAccount(account))
         addAudit(
           d,
           makeEntry(
@@ -154,7 +154,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
     set((s) =>
       mutate(s, (d) => {
         const i = d.accounts.findIndex((a) => a.id === account.id)
-        if (i !== -1) d.accounts[i] = account
+        if (i !== -1) d.accounts[i] = sanitizeAccount(account)
         addAudit(
           d,
           makeEntry(
@@ -414,4 +414,17 @@ function mutate(state: DataStore, fn: (data: DataFile) => void): Partial<DataSto
   const unsyncedCount = state.unsyncedCount + 1
   debouncedSaveToIdb(data, unsyncedCount)
   return { data, unsyncedCount }
+}
+
+// Strips creditMetadata from accounts that are not of type CREDIT.
+// CC-12: non-CREDIT accounts must never carry creditMetadata in the saved object.
+function sanitizeAccount(account: Account): Account {
+  if (account.type === 'CREDIT') return account
+  return {
+    id: account.id,
+    name: account.name,
+    type: account.type,
+    balance: account.balance,
+    includeInBalance: account.includeInBalance,
+  }
 }
