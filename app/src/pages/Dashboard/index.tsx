@@ -216,6 +216,7 @@ export default function Dashboard() {
                   }
                   invoiceLabel={t('dashboard.invoice')}
                   availableLimitLabel={t('accounts.availableLimit')}
+                  onDetails={() => void navigate(`/credit-card/${acc.id}`)}
                 />
               ))}
             </div>
@@ -317,19 +318,30 @@ function CreditCardRow({
   invoiceBalance,
   invoiceLabel,
   availableLimitLabel,
+  onDetails,
 }: {
   account: Account
   availableLimit: number
   invoiceBalance: number
   invoiceLabel: string
   availableLimitLabel: string
+  onDetails?: () => void
 }) {
   const limit = account.creditMetadata?.limit ?? 0
   const utilizationPct = limit > 0 ? Math.min((invoiceBalance / limit) * 100, 100) : 0
   const isOverLimit = availableLimit < 0
 
   return (
-    <div className="rounded-xl border border-surface-container-low px-4 py-3 space-y-2">
+    <div
+      role={onDetails ? 'button' : undefined}
+      tabIndex={onDetails ? 0 : undefined}
+      onClick={onDetails}
+      onKeyDown={onDetails ? (e) => e.key === 'Enter' && onDetails() : undefined}
+      className={cn(
+        'rounded-xl border border-surface-container-low px-4 py-3 space-y-2',
+        onDetails && 'cursor-pointer hover:bg-surface-container-low transition-colors'
+      )}
+    >
       {/* Card name + icon */}
       <div className="flex items-center gap-3">
         <div
@@ -542,17 +554,24 @@ function TransactionRow({
   const cat = data.categories.find((c) => c.id === tx.categoryId)
   const acc = data.accounts.find((a) => a.id === tx.accountId)
   const isIncome = tx.type === 'INCOME'
+  const isCreditPayment = tx.type === 'CREDIT_PAYMENT'
   const dateStr = new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 
   return (
     <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-surface-container-low transition-colors">
-      {/* Category icon */}
-      <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white text-sm"
-        style={{ backgroundColor: cat?.color ?? '#6B7280' }}
-      >
-        {cat?.name?.[0] ?? '?'}
-      </div>
+      {/* Icon: CreditCard neutral for CREDIT_PAYMENT, category avatar otherwise */}
+      {isCreditPayment ? (
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-container-high text-on-surface/50">
+          <CreditCard size={16} strokeWidth={1.5} />
+        </div>
+      ) : (
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white text-sm"
+          style={{ backgroundColor: cat?.color ?? '#6B7280' }}
+        >
+          {cat?.name?.[0] ?? '?'}
+        </div>
+      )}
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -561,13 +580,18 @@ function TransactionRow({
           {tx.description || cat?.name || '—'}
         </p>
         <p className="text-xs text-on-surface/40 mt-0.5">
-          {cat?.name} · {acc?.name} · {dateStr}
+          {isCreditPayment ? acc?.name : `${cat?.name} · ${acc?.name}`} · {dateStr}
         </p>
       </div>
 
-      {/* Amount + status */}
+      {/* Amount + status — CREDIT_PAYMENT uses neutral colour */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className={cn('text-sm font-semibold', isIncome ? 'text-primary' : 'text-tertiary')}>
+        <span
+          className={cn(
+            'text-sm font-semibold',
+            isIncome ? 'text-primary' : isCreditPayment ? 'text-on-surface/60' : 'text-tertiary'
+          )}
+        >
           {isIncome ? '+' : '-'}
           {formatCurrency(tx.amount)}
         </span>

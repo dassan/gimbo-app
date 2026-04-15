@@ -12,6 +12,7 @@ import Dashboard from '@/pages/Dashboard'
 import Transactions from '@/pages/Transactions'
 import Analytics from '@/pages/Analytics'
 import Settings from '@/pages/Settings'
+import CreditCardPage from '@/pages/CreditCard'
 
 export default function App() {
   const initWorkspace = useWorkspaceStore((s) => s.init)
@@ -90,6 +91,7 @@ export default function App() {
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/credit-card/:accountId" element={<CreditCardPage />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
           ) : (

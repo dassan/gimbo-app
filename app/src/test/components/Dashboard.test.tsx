@@ -266,3 +266,80 @@ describe('Dashboard — CC-14: Meus Cartões section', () => {
     expect(screen.getByText('dashboard.manage')).toBeInTheDocument()
   })
 })
+
+// ─── CC-22: CREDIT_PAYMENT excluded from income/expense totals ────────────────
+
+describe('Dashboard — CC-22: CREDIT_PAYMENT excluded from totals', () => {
+  it('does not count CREDIT_PAYMENT amount in monthly income stat', () => {
+    const retailAccount = makeRetailAccount()
+    const creditAccount = makeCreditAccount()
+
+    const income = makeTransaction({
+      id: 'tx-income',
+      accountId: 'acc-retail',
+      type: 'INCOME',
+      amount: 1000,
+      date: todayStr,
+    })
+    const creditPayment = makeTransaction({
+      id: 'tx-cp',
+      accountId: 'acc-credit',
+      type: 'CREDIT_PAYMENT',
+      amount: 500,
+      date: todayStr,
+      transferAccountId: 'acc-retail',
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount, creditAccount],
+        transactions: [income, creditPayment],
+      }),
+      unsyncedCount: 0,
+    })
+
+    render(<Dashboard />)
+
+    // Income stat should show 1000, not 1500 (CREDIT_PAYMENT must not add to income)
+    const amounts = screen.getAllByText(/1\.000,00/)
+    expect(amounts.length).toBeGreaterThanOrEqual(1)
+    // If CREDIT_PAYMENT was wrongly counted as income we'd see 1500
+    expect(screen.queryByText(/1\.500,00/)).not.toBeInTheDocument()
+  })
+
+  it('does not count CREDIT_PAYMENT amount in monthly expense stat', () => {
+    const retailAccount = makeRetailAccount()
+    const creditAccount = makeCreditAccount()
+
+    const expense = makeTransaction({
+      id: 'tx-expense',
+      accountId: 'acc-retail',
+      type: 'EXPENSE',
+      amount: 200,
+      date: todayStr,
+    })
+    const creditPayment = makeTransaction({
+      id: 'tx-cp',
+      accountId: 'acc-credit',
+      type: 'CREDIT_PAYMENT',
+      amount: 800,
+      date: todayStr,
+      transferAccountId: 'acc-retail',
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount, creditAccount],
+        transactions: [expense, creditPayment],
+      }),
+      unsyncedCount: 0,
+    })
+
+    render(<Dashboard />)
+
+    // Expense stat should show 200, not 1000 (CREDIT_PAYMENT must not add to expenses)
+    expect(screen.getAllByText(/200,00/).length).toBeGreaterThanOrEqual(1)
+    // If CREDIT_PAYMENT was wrongly counted as expense we'd see 1000
+    expect(screen.queryByText(/1\.000,00/)).not.toBeInTheDocument()
+  })
+})
