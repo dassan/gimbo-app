@@ -511,6 +511,7 @@ idbQuotaExceeded: boolean      // QuotaExceededError ao salvar no IDB
 - `addCategory / updateCategory / deleteCategory`
 - `addTag / updateTag / deleteTag`
 - `addTransaction / updateTransaction / deleteTransaction`
+- `deleteInstallmentGroup(parentId)` — remove todas as transações do grupo e gera audit DELETE (CC-27)
 - `updateUser(patch)` — merge parcial com `updatedAt: now()`
 - `setRetentionLimit(limit)` — aplica política imediatamente ao `auditLog`
 
@@ -687,18 +688,18 @@ Dados derivados com `useMemo`:
 
 ## Testes
 
-### Cobertura atual (2026-04-15, atualizado pós CC-19–CC-22)
+### Cobertura atual (2026-04-15, atualizado pós CC-23–CC-27)
 
-- **301 testes unitários passando** — 22 arquivos de teste
-- Cobertura: **97.49% statements**, ~96% branches, ~95% funções
+- **333 testes unitários passando** — 22 arquivos de teste
+- Cobertura: **97.29% statements**, ~92% branches, ~95% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
 - `schema.ts`: 100% — inclui testes de migração v1→v2 e validação dos novos campos (CC-05)
 - `utils.ts`: 100% — inclui testes para `parseDateLocal` + motor de fatura virtual CC-06–CC-09 (19 novos testes)
-- `useDataStore.ts`: 100% statements — inclui 4 novos testes para `creditMetadata` (CC-12) + 3 novos testes para `CREDIT_PAYMENT` audit log (CC-21)
+- `useDataStore.ts`: 98.6% statements — inclui 4 novos testes para `creditMetadata` (CC-12) + 3 novos testes para `CREDIT_PAYMENT` audit log (CC-21) + 16 novos testes para geração de parcelas (CC-24/CC-25) + 5 novos testes para `deleteInstallmentGroup` (CC-27)
 - `Dashboard.test.tsx`: 10 novos testes — bifurcação de `accountBalances` e seção "Meus Cartões" (CC-13/14); +2 testes excluindo `CREDIT_PAYMENT` dos totais (CC-22)
 - `Settings.test.tsx`: 6 novos testes — bifurcação de saldo e label "Limite disponível" na aba Contas (CC-15)
 - `Analytics.test.tsx`: 10 novos testes — `getEffectiveCashFlowDate` no gráfico de caixa, exclusão de `CREDIT_PAYMENT`, perspectiva de orçamento no breakdown por categoria (CC-16–CC-18)
-- `TransactionDrawer.test.tsx`: 10 novos testes — dois seletores de conta CREDIT_PAYMENT (CC-19) e hint de fatura corrente (CC-20)
+- `TransactionDrawer.test.tsx`: 10 novos testes — dois seletores de conta CREDIT_PAYMENT (CC-19) e hint de fatura corrente (CC-20) + 9 novos testes seção de parcelamento (CC-23) + 6 novos testes modal de deleção (CC-26)
 - `Transactions.test.tsx`: novo arquivo — 3 testes de exibição de `CREDIT_PAYMENT` no extrato (CC-22)
 
 ### Testes unitários (Vitest)
@@ -784,7 +785,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-15, atualizado pós CC-19–CC-22)
+## Estado Atual do Projeto (2026-04-15, atualizado pós CC-23–CC-27)
 
 ### Funcionalidades implementadas
 
@@ -802,6 +803,11 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | TransactionDrawer: hint "Fatura atual: R$ X,XX" ao selecionar conta CREDIT em CREDIT_PAYMENT | CC-20 | ✅ |
 | Store: `addTransaction` persiste `transferAccountId` e gera audit log descritivo para CREDIT_PAYMENT | CC-21 | ✅ |
 | Transactions/Dashboard: CREDIT_PAYMENT com ícone neutro + label distinto + excluído dos totais mensais; página dedicada `/credit-card/:accountId` | CC-22 | ✅ |
+| TransactionDrawer: seção "Parcelar?" (toggle + campo de contagem + hint) para EXPENSE em conta CREDIT; payload inclui `installment` metadata | CC-23 | ✅ |
+| Store: `addTransaction` gera N transações com ids únicos, datas avançadas mês a mês, descrições com sufixo "(X/N)", valores divididos com resíduo na 1ª parcela | CC-24 | ✅ |
+| Store: grupo de parcelas gera **uma** entrada no Audit Log com summary descritivo | CC-25 | ✅ |
+| TransactionDrawer: ao excluir transação parcelada, exibe modal com opções "Excluir apenas esta" / "Excluir todas" / "Cancelar" | CC-26 | ✅ |
+| Store: `deleteInstallmentGroup(parentId)` remove todas as transações do grupo e gera entry DELETE no Audit Log | CC-27 | ✅ |
 | Perfil do usuário | — | ✅ |
 | CRUD de contas (8 tipos) | M-03 | ✅ |
 | CRUD de categorias (hierarquia pai/filho) | M-04 | ✅ |
@@ -890,12 +896,12 @@ Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técni
 ✅ Fase 4 — Saldo CREDIT: CC-13 a CC-15  (Dashboard + Settings: bifurcação de cálculo e label)
 ✅ Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
 ✅ Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato + página /credit-card/:accountId)
-   Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
-   Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
+✅ Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
+✅ Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
    Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
 ```
 
-**Próximo passo:** iniciar Fase 7 — CC-23 (exibir seção de parcelamento no `TransactionDrawer` quando a conta selecionada for `CREDIT` e o tipo for `EXPENSE`).
+**Próximo passo:** iniciar Fase 9 — CC-28 (atualizar `makeDataFile()` para `schemaVersion: 2` e adicionar helpers `makeCreditAccount` e `makeInstallmentGroup`).
 
 ---
 
