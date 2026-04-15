@@ -665,16 +665,17 @@ Abas: `accounts | categories | tags | profile | preferences | data | history`.
 
 ## Testes
 
-### Cobertura atual (2026-04-14, atualizado pós CC-13–CC-15)
+### Cobertura atual (2026-04-15, atualizado pós CC-16–CC-18)
 
-- **274 testes unitários passando** — 20 arquivos de teste
-- Cobertura: **97.71% statements**, 96.08% branches, 95.71% funções
+- **284 testes unitários passando** — 21 arquivos de teste
+- Cobertura: **97.71% statements**, 96.12% branches, 95.71% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
 - `schema.ts`: 100% — inclui testes de migração v1→v2 e validação dos novos campos (CC-05)
 - `utils.ts`: 100% — inclui testes para `parseDateLocal` + motor de fatura virtual CC-06–CC-09 (19 novos testes)
 - `useDataStore.ts`: 100% statements — inclui 4 novos testes para persistência de `creditMetadata` (CC-12)
 - `Dashboard.test.tsx`: 10 novos testes — bifurcação de `accountBalances` e seção "Meus Cartões" (CC-13/14)
 - `Settings.test.tsx`: 6 novos testes — bifurcação de saldo e label "Limite disponível" na aba Contas (CC-15)
+- `Analytics.test.tsx`: 10 novos testes — `getEffectiveCashFlowDate` no gráfico de caixa, exclusão de `CREDIT_PAYMENT`, perspectiva de orçamento no breakdown por categoria (CC-16–CC-18)
 
 ### Testes unitários (Vitest)
 
@@ -759,7 +760,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-14, atualizado pós CC-13–CC-15)
+## Estado Atual do Projeto (2026-04-15, atualizado pós CC-16–CC-18)
 
 ### Funcionalidades implementadas
 
@@ -770,6 +771,9 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Conta CREDIT: campos `creditMetadata` no modal de conta + `includeInBalance: false` automático + sanitização no store | CC-10–CC-12 | ✅ |
 | Saldo CREDIT: Dashboard bifurca `accountBalances` (limite disponível = limit − fatura), seção "Meus Cartões" separada com barra de utilização | CC-13–CC-14 | ✅ |
 | Saldo CREDIT: Settings aba Contas exibe "Limite disponível" e valor correto para contas CREDIT | CC-15 | ✅ |
+| Analytics: despesas CREDIT projetadas na data de vencimento da fatura no gráfico de caixa | CC-16 | ✅ |
+| Analytics: `CREDIT_PAYMENT` excluído dos gráficos de Receitas × Despesas e do breakdown de categorias | CC-17 | ✅ |
+| Analytics: breakdown de categorias usa `tx.date` (perspectiva de orçamento) com comentário inline | CC-18 | ✅ |
 | Perfil do usuário | — | ✅ |
 | CRUD de contas (8 tipos) | M-03 | ✅ |
 | CRUD de categorias (hierarquia pai/filho) | M-04 | ✅ |
@@ -856,14 +860,14 @@ Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técni
 ✅ Fase 2 — Motor virtual: CC-06 a CC-09  (getInvoicePeriod, getInvoiceDueDate, getCurrentInvoiceBalance, getEffectiveCashFlowDate)
 ✅ Fase 3 — Conta CREDIT: CC-10 a CC-12  (modal creditMetadata + includeInBalance padrão false + store)
 ✅ Fase 4 — Saldo CREDIT: CC-13 a CC-15  (Dashboard + Settings: bifurcação de cálculo e label)
-   Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
+✅ Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
    Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato)
    Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
    Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
    Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
 ```
 
-**Próximo passo:** iniciar Fase 5 — CC-16 (aplicar `getEffectiveCashFlowDate` no gráfico de fluxo de caixa em `pages/Analytics/index.tsx`).
+**Próximo passo:** iniciar Fase 6 — CC-19 (adicionar fluxo "Pagar Fatura" como opção de tipo de transação em `components/TransactionDrawer.tsx`).
 
 ---
 
