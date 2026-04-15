@@ -260,17 +260,21 @@ export const useDataStore = create<DataStore>((set, get) => ({
     set((s) =>
       mutate(s, (d) => {
         d.transactions.push(tx)
-        const catName = d.categories.find((c) => c.id === tx.categoryId)?.name ?? ''
-        const extra = `R$ ${tx.amount.toFixed(2).replace('.', ',')}${catName ? ` — ${catName}` : ''}`
-        addAudit(
-          d,
-          makeEntry(
-            'CREATE',
-            'transaction',
-            tx.id,
-            buildSummary('CREATE', 'transaction', tx.description || catName, extra)
-          )
-        )
+        let summary: string
+        if (tx.type === 'CREDIT_PAYMENT') {
+          // Special audit log for invoice payments: "Pagamento de fatura: [credit account] ← [debit account] R$ X,XX"
+          const creditAccName = d.accounts.find((a) => a.id === tx.accountId)?.name ?? tx.accountId
+          const debitAccName =
+            d.accounts.find((a) => a.id === tx.transferAccountId)?.name ??
+            tx.transferAccountId ??
+            ''
+          summary = `Pagamento de fatura: ${creditAccName} ← ${debitAccName} R$ ${tx.amount.toFixed(2).replace('.', ',')}`
+        } else {
+          const catName = d.categories.find((c) => c.id === tx.categoryId)?.name ?? ''
+          const extra = `R$ ${tx.amount.toFixed(2).replace('.', ',')}${catName ? ` — ${catName}` : ''}`
+          summary = buildSummary('CREATE', 'transaction', tx.description || catName, extra)
+        }
+        addAudit(d, makeEntry('CREATE', 'transaction', tx.id, summary))
       })
     ),
 

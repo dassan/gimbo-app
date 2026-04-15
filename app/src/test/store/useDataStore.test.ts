@@ -270,6 +270,118 @@ describe('creditMetadata handling (CC-12)', () => {
   })
 })
 
+describe('CREDIT_PAYMENT handling (CC-21)', () => {
+  function makeCreditAccount() {
+    return {
+      id: 'acc-credit',
+      name: 'Nubank Visa',
+      type: 'CREDIT' as const,
+      balance: 0,
+      includeInBalance: false,
+      creditMetadata: { limit: 5000, closingDay: 20, dueDay: 10 },
+    }
+  }
+
+  function makeCheckingAccount() {
+    return {
+      id: 'acc-checking',
+      name: 'Conta Corrente',
+      type: 'RETAIL' as const,
+      balance: 0,
+      includeInBalance: true,
+    }
+  }
+
+  it('addTransaction persists CREDIT_PAYMENT with transferAccountId', () => {
+    const credit = makeCreditAccount()
+    const checking = makeCheckingAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [credit, checking] }),
+      unsyncedCount: 0,
+    })
+
+    const tx: import('@/types').Transaction = {
+      id: 'tx-cp',
+      accountId: credit.id,
+      categoryId: '',
+      amount: 1200,
+      type: 'CREDIT_PAYMENT',
+      date: new Date().toISOString().slice(0, 10),
+      description: 'Pagamento fatura',
+      isPaid: true,
+      tags: [],
+      transferAccountId: checking.id,
+    }
+    useDataStore.getState().addTransaction(tx)
+
+    const saved = useDataStore.getState().data?.transactions[0]
+    expect(saved?.type).toBe('CREDIT_PAYMENT')
+    expect(saved?.accountId).toBe(credit.id)
+    expect(saved?.transferAccountId).toBe(checking.id)
+  })
+
+  it('addTransaction generates descriptive audit log for CREDIT_PAYMENT', () => {
+    const credit = makeCreditAccount()
+    const checking = makeCheckingAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [credit, checking] }),
+      unsyncedCount: 0,
+    })
+
+    const tx: import('@/types').Transaction = {
+      id: 'tx-cp',
+      accountId: credit.id,
+      categoryId: '',
+      amount: 500,
+      type: 'CREDIT_PAYMENT',
+      date: new Date().toISOString().slice(0, 10),
+      description: '',
+      isPaid: true,
+      tags: [],
+      transferAccountId: checking.id,
+    }
+    useDataStore.getState().addTransaction(tx)
+
+    const entry = useDataStore.getState().data?.auditLog.find((e) => e.entityId === 'tx-cp')
+    expect(entry).toBeDefined()
+    expect(entry?.summary).toContain('Pagamento de fatura')
+    expect(entry?.summary).toContain(credit.name)
+    expect(entry?.summary).toContain(checking.name)
+  })
+
+  it('regular addTransaction still generates standard audit log', () => {
+    const checking = makeCheckingAccount()
+    const cat = {
+      id: 'cat-1',
+      parentId: null,
+      name: 'Mercado',
+      icon: 'cart',
+      color: '#F00',
+      type: 'EXPENSE' as const,
+    }
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [checking], categories: [cat] }),
+      unsyncedCount: 0,
+    })
+
+    const tx: import('@/types').Transaction = {
+      id: 'tx-exp',
+      accountId: checking.id,
+      categoryId: cat.id,
+      amount: 100,
+      type: 'EXPENSE',
+      date: new Date().toISOString().slice(0, 10),
+      description: 'Feira',
+      isPaid: true,
+      tags: [],
+    }
+    useDataStore.getState().addTransaction(tx)
+
+    const entry = useDataStore.getState().data?.auditLog.find((e) => e.entityId === 'tx-exp')
+    expect(entry?.summary).toContain('Feira')
+  })
+})
+
 describe('setRetentionLimit', () => {
   it('applies new limit and trims audit log', () => {
     const manyEntries = Array.from({ length: 10 }, (_, i) => ({
