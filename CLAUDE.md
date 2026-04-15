@@ -688,9 +688,10 @@ Dados derivados com `useMemo`:
 
 ## Testes
 
-### Cobertura atual (2026-04-15, atualizado pós CC-23–CC-27)
+### Cobertura atual (2026-04-15, atualizado pós CC-28–CC-30)
 
 - **333 testes unitários passando** — 22 arquivos de teste
+- **19 testes E2E passando** — 4 arquivos de spec (incluindo `creditCard.spec.ts` com 5 cenários)
 - Cobertura: **97.29% statements**, ~92% branches, ~95% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
 - `schema.ts`: 100% — inclui testes de migração v1→v2 e validação dos novos campos (CC-05)
@@ -785,7 +786,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-15, atualizado pós CC-23–CC-27)
+## Estado Atual do Projeto (2026-04-15, atualizado pós CC-28–CC-30)
 
 ### Funcionalidades implementadas
 
@@ -898,10 +899,10 @@ Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técni
 ✅ Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato + página /credit-card/:accountId)
 ✅ Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
 ✅ Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
-   Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
+✅ Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
 ```
 
-**Próximo passo:** iniciar Fase 9 — CC-28 (atualizar `makeDataFile()` para `schemaVersion: 2` e adicionar helpers `makeCreditAccount` e `makeInstallmentGroup`).
+**Módulo de Cartão de Crédito concluído** — todas as 9 fases (CC-01 a CC-30) implementadas e cobertas por testes unitários e E2E.
 
 ---
 

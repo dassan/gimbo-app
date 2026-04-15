@@ -160,3 +160,16 @@ Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
 
 ## 10. Perguntas em Aberto
 *(Nenhuma pergunta pendente no momento)*
+
+## 11. Status de Implementação (2026-04-15)
+
+Todas as funcionalidades Must-have estão implementadas e cobertas por testes:
+
+| Feature | Descrição | Status |
+|---------|-----------|--------|
+| F-1 a F-20 | Perfil, contas, categorias, tags, transações, dashboard, analytics, sync, i18n, onboarding, IndexedDB, audit log, badge, modificações recentes, cold start, hydration, conflict, lost file, re-permissão | ✅ |
+| F-21 | Gestão de lifecycle de cartões de crédito — `creditMetadata`, motor de fatura virtual, saldo disponível, página `/credit-card/:accountId` | ✅ |
+| F-22 | Desmembramento de parcelas — N transações com sufixo `" (X/N)"`, modal de exclusão com "só esta / todas" | ✅ |
+| F-23 | Pagamento de fatura ativo — tipo `CREDIT_PAYMENT`, dois seletores no drawer, exclusão dos totais de receita/despesa | ✅ |
+
+**Cobertura de testes:** 333 testes unitários + 19 testes E2E (4 specs, incluindo `creditCard.spec.ts`).
