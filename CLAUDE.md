@@ -93,6 +93,7 @@ MyFinanceApp/
 │   │   │   ├── Transactions/      # Ledger com filtros e agrupamento
 │   │   │   ├── Analytics/         # Projeção de fluxo de caixa + breakdown por categoria
 │   │   │   ├── Accounts/          # CRUD de contas (página dedicada — não confundir com aba de Settings)
+│   │   │   ├── CreditCard/        # Detalhe de fatura: lançamentos, categorias, período, "Pagar Agora"
 │   │   │   └── Settings/          # Contas, categorias, tags, perfil, preferências, log de auditoria
 │   │   └── test/
 │   │       ├── setup.ts           # Setup Vitest (Testing Library matchers)
@@ -381,7 +382,8 @@ interface Tag        { id, name, color }
 
 interface Transaction { id, accountId, categoryId, amount, type: TransactionType,
                         date, description, isPaid, tags: string[],
-                        installment?: Installment } // apenas compras parceladas — schema v2
+                        installment?: Installment,     // apenas compras parceladas — schema v2
+                        transferAccountId?: string }   // apenas CREDIT_PAYMENT: conta debitada (CC-21)
 // TransactionType: 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'CREDIT_PAYMENT' (schema v2)
 
 // ── Schema v2 — tipos adicionados pelo módulo de Cartão de Crédito (CC-01 a CC-05) ──
@@ -596,7 +598,7 @@ Dois blocos de visualização:
 
 Todos os filtros de data usam `parseDateLocal(tx.date)` para evitar o bug UTC.
 
-**Schema v2:** o `cashFlowData` passará a usar `parseDateLocal(getEffectiveCashFlowDate(tx, accounts))` para plotagem — transações de cartão de crédito aparecem no mês do vencimento da fatura, não no mês da compra (CC-16). O breakdown de categorias mantém `tx.date` (CC-18). `CREDIT_PAYMENT` é excluído de todos os cálculos de receita/despesa (CC-17).
+**Schema v2:** o `cashFlowData` usa `parseDateLocal(getEffectiveCashFlowDate(tx, accounts))` para plotagem — transações de cartão de crédito aparecem no mês do vencimento da fatura, não no mês da compra (CC-16). O breakdown de categorias mantém `tx.date` (CC-18). `CREDIT_PAYMENT` é excluído de todos os cálculos de receita/despesa (CC-17).
 
 ---
 
@@ -614,6 +616,26 @@ Abas: `accounts | categories | tags | profile | preferences | data | history`.
 **Aba Tags:** paleta de 8 cores (`TAG_COLORS`).
 
 **Aba Dados:** importação via `<input type="file">` (FSA fallback) ou `openDataFile()` (FSA); exportação via `downloadDataFile()`. Botão "Exportar Base Local" disponível em situações de emergência (quota excedida, JSON corrompido).
+
+---
+
+### CreditCard (`pages/CreditCard/index.tsx`)
+
+Rota: `/credit-card/:accountId` — acessada ao clicar em um card de cartão no Dashboard.
+
+Blocos de UI:
+1. **Header** — botão voltar + nome do cartão.
+2. **Card de fatura** — mês/ano do período, datas de fechamento e vencimento, limite disponível, total da fatura, botão "Pagar Agora" (abre `TransactionDrawer`), navegação `< >` por período (`periodOffset`).
+3. **Chips de categoria** — filtro por categoria das transações da fatura corrente.
+4. **Lista de transações** — `InvoiceTxRow`: ícone de categoria, descrição, categoria, conta, data, valor. Clique abre `TransactionDrawer` em modo edição.
+5. **Resumo de gastos** — barras de progresso por categoria + total.
+
+Dados derivados com `useMemo`:
+- `resolvedPeriod` — aplica `getInvoicePeriod` sobre hoje + `periodOffset` para obter `{year, month}` (1-based)
+- `closingDateStr / dueDateStr` — datas do período a partir de `creditMetadata`
+- `invoiceTransactions` — apenas `EXPENSE` da conta no período resolvido (nunca inclui `CREDIT_PAYMENT`)
+- `categoryTotals` — agrupamento por categoria, ordenado por valor decrescente
+- `filteredTransactions` — `invoiceTransactions` filtrado por `filterCategory`
 
 ---
 
@@ -665,17 +687,19 @@ Abas: `accounts | categories | tags | profile | preferences | data | history`.
 
 ## Testes
 
-### Cobertura atual (2026-04-15, atualizado pós CC-16–CC-18)
+### Cobertura atual (2026-04-15, atualizado pós CC-19–CC-22)
 
-- **284 testes unitários passando** — 21 arquivos de teste
-- Cobertura: **97.71% statements**, 96.12% branches, 95.71% funções
+- **301 testes unitários passando** — 22 arquivos de teste
+- Cobertura: **97.49% statements**, ~96% branches, ~95% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
 - `schema.ts`: 100% — inclui testes de migração v1→v2 e validação dos novos campos (CC-05)
 - `utils.ts`: 100% — inclui testes para `parseDateLocal` + motor de fatura virtual CC-06–CC-09 (19 novos testes)
-- `useDataStore.ts`: 100% statements — inclui 4 novos testes para persistência de `creditMetadata` (CC-12)
-- `Dashboard.test.tsx`: 10 novos testes — bifurcação de `accountBalances` e seção "Meus Cartões" (CC-13/14)
+- `useDataStore.ts`: 100% statements — inclui 4 novos testes para `creditMetadata` (CC-12) + 3 novos testes para `CREDIT_PAYMENT` audit log (CC-21)
+- `Dashboard.test.tsx`: 10 novos testes — bifurcação de `accountBalances` e seção "Meus Cartões" (CC-13/14); +2 testes excluindo `CREDIT_PAYMENT` dos totais (CC-22)
 - `Settings.test.tsx`: 6 novos testes — bifurcação de saldo e label "Limite disponível" na aba Contas (CC-15)
 - `Analytics.test.tsx`: 10 novos testes — `getEffectiveCashFlowDate` no gráfico de caixa, exclusão de `CREDIT_PAYMENT`, perspectiva de orçamento no breakdown por categoria (CC-16–CC-18)
+- `TransactionDrawer.test.tsx`: 10 novos testes — dois seletores de conta CREDIT_PAYMENT (CC-19) e hint de fatura corrente (CC-20)
+- `Transactions.test.tsx`: novo arquivo — 3 testes de exibição de `CREDIT_PAYMENT` no extrato (CC-22)
 
 ### Testes unitários (Vitest)
 
@@ -760,7 +784,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-15, atualizado pós CC-16–CC-18)
+## Estado Atual do Projeto (2026-04-15, atualizado pós CC-19–CC-22)
 
 ### Funcionalidades implementadas
 
@@ -774,6 +798,10 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Analytics: despesas CREDIT projetadas na data de vencimento da fatura no gráfico de caixa | CC-16 | ✅ |
 | Analytics: `CREDIT_PAYMENT` excluído dos gráficos de Receitas × Despesas e do breakdown de categorias | CC-17 | ✅ |
 | Analytics: breakdown de categorias usa `tx.date` (perspectiva de orçamento) com comentário inline | CC-18 | ✅ |
+| TransactionDrawer: tipo `CREDIT_PAYMENT` com dois seletores (cartão + conta de débito) + i18n | CC-19 | ✅ |
+| TransactionDrawer: hint "Fatura atual: R$ X,XX" ao selecionar conta CREDIT em CREDIT_PAYMENT | CC-20 | ✅ |
+| Store: `addTransaction` persiste `transferAccountId` e gera audit log descritivo para CREDIT_PAYMENT | CC-21 | ✅ |
+| Transactions/Dashboard: CREDIT_PAYMENT com ícone neutro + label distinto + excluído dos totais mensais; página dedicada `/credit-card/:accountId` | CC-22 | ✅ |
 | Perfil do usuário | — | ✅ |
 | CRUD de contas (8 tipos) | M-03 | ✅ |
 | CRUD de categorias (hierarquia pai/filho) | M-04 | ✅ |
@@ -861,13 +889,13 @@ Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técni
 ✅ Fase 3 — Conta CREDIT: CC-10 a CC-12  (modal creditMetadata + includeInBalance padrão false + store)
 ✅ Fase 4 — Saldo CREDIT: CC-13 a CC-15  (Dashboard + Settings: bifurcação de cálculo e label)
 ✅ Fase 5 — Analytics: CC-16 a CC-18  (getEffectiveCashFlowDate no cash flow + exclusão CREDIT_PAYMENT)
-   Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato)
+✅ Fase 6 — CREDIT_PAYMENT: CC-19 a CC-22  (drawer + store + exibição no extrato + página /credit-card/:accountId)
    Fase 7 — Parcelamentos criação: CC-23 a CC-25  (drawer + store gera N txs + audit log agrupado)
    Fase 8 — Parcelamentos deleção: CC-26 a CC-27  (modal 2 opções + deleteInstallmentGroup)
    Fase 9 — Testes/Fixtures: CC-28 a CC-30  (makeDataFile v2 + fixture E2E + creditCard.spec.ts)
 ```
 
-**Próximo passo:** iniciar Fase 6 — CC-19 (adicionar fluxo "Pagar Fatura" como opção de tipo de transação em `components/TransactionDrawer.tsx`).
+**Próximo passo:** iniciar Fase 7 — CC-23 (exibir seção de parcelamento no `TransactionDrawer` quando a conta selecionada for `CREDIT` e o tipo for `EXPENSE`).
 
 ---
 
