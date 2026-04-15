@@ -63,6 +63,8 @@ export default function Analytics() {
     let cumulative = 0
     return months.map(({ label, m, y }) => {
       const txs = data.transactions.filter((tx) => {
+        // CC-17: CREDIT_PAYMENT is liability liquidation, not income/expense
+        if (tx.type === 'CREDIT_PAYMENT') return false
         // CC-16: credit card expenses project to their invoice due date so the
         // cash impact lands in the correct future month, not the purchase month
         const d = parseDateLocal(getEffectiveCashFlowDate(tx, data.accounts))
@@ -81,6 +83,8 @@ export default function Analytics() {
   const { incomeByCategory, expenseByCategory } = useMemo(() => {
     if (!data) return { incomeByCategory: [], expenseByCategory: [] }
     const txs = data.transactions.filter((tx) => {
+      // CC-17: CREDIT_PAYMENT is liability liquidation, not income/expense
+      if (tx.type === 'CREDIT_PAYMENT') return false
       const d = parseDateLocal(tx.date)
       const inPeriod = d >= startDate && d <= endDate
       const isPaidOk = includeUnpaid || tx.isPaid
