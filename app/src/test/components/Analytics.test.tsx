@@ -1,0 +1,383 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import Analytics from '@/pages/Analytics'
+import { useDataStore } from '@/store/useDataStore'
+import { makeDataFile } from '@/test/fixtures/dataFile'
+import type { Account, Category, Transaction } from '@/types'
+
+// ─── Recharts mock — captures LineChart data for assertions ──────────────────
+
+const capturedLineChartProps = vi.hoisted(() => ({
+  data: [] as Array<{ label: string; generalFlow: number; consolidatedBalance: number }>,
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}))
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
+}))
+
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  LineChart: ({
+    children,
+    data,
+  }: {
+    children: React.ReactNode
+    data: Array<{ label: string; generalFlow: number; consolidatedBalance: number }>
+  }) => {
+    capturedLineChartProps.data = data ?? []
+    return <div data-testid="line-chart">{children}</div>
+  },
+  Line: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+  Tooltip: () => null,
+  CartesianGrid: () => null,
+  Legend: () => null,
+  PieChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Pie: () => null,
+  Cell: () => null,
+}))
+
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
+
+function makeRetailAccount(overrides: Partial<Account> = {}): Account {
+  return {
+    id: 'acc-retail',
+    name: 'Conta Corrente',
+    type: 'RETAIL',
+    balance: 0,
+    includeInBalance: true,
+    ...overrides,
+  }
+}
+
+function makeCreditAccount(overrides: Partial<Account> = {}): Account {
+  return {
+    id: 'acc-credit',
+    name: 'Nexus Visa Gold',
+    type: 'CREDIT',
+    balance: 0,
+    includeInBalance: false,
+    creditMetadata: { limit: 12000, closingDay: 5, dueDay: 10 },
+    ...overrides,
+  }
+}
+
+function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
+  return {
+    id: 'tx-1',
+    accountId: 'acc-retail',
+    categoryId: 'cat-1',
+    amount: 100,
+    type: 'EXPENSE',
+    date: '2026-04-01',
+    description: 'Test',
+    isPaid: true,
+    tags: [],
+    ...overrides,
+  }
+}
+
+function makeCategory(overrides: Partial<Category> = {}): Category {
+  return {
+    id: 'cat-1',
+    name: 'Outros',
+    parentId: null,
+    icon: 'Tag',
+    color: '#888',
+    type: 'EXPENSE',
+    ...overrides,
+  }
+}
+
+// ─── Setup ────────────────────────────────────────────────────────────────────
+
+// Fixed date: 2026-04-15 → semester view covers Jan 2026 – Jun 2026 (months 0-5)
+const FIXED_NOW = new Date('2026-04-15')
+
+beforeEach(() => {
+  useDataStore.setState({ data: null, unsyncedCount: 0 })
+  capturedLineChartProps.data = []
+  vi.useFakeTimers()
+  vi.setSystemTime(FIXED_NOW)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+// ─── CC-16: getEffectiveCashFlowDate applied to cash flow chart ───────────────
+
+describe('Analytics — CC-16: getEffectiveCashFlowDate in cash flow chart', () => {
+  it('renders cash flow chart when retail income is in the semester range', () => {
+    const retailAccount = makeRetailAccount()
+    const income = makeTransaction({
+      id: 'tx-income',
+      type: 'INCOME',
+      amount: 500,
+      date: '2026-04-01',
+    })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [income] }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('places retail EXPENSE in the tx.date month (unchanged behavior)', () => {
+    // Retail account: getEffectiveCashFlowDate returns tx.date
+    const retailAccount = makeRetailAccount()
+    const expense = makeTransaction({
+      id: 'tx-expense',
+      accountId: 'acc-retail',
+      type: 'EXPENSE',
+      amount: 200,
+      date: '2026-04-15', // April → index 3 in semester (Jan=0 … Jun=5)
+    })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [expense] }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    // April bucket (index 3): generalFlow = −200 (expense)
+    expect(capturedLineChartProps.data[3]?.generalFlow).toBe(-200)
+  })
+
+  it('projects credit card EXPENSE to the invoice due-date month, not the purchase month', () => {
+    // System time: 2026-04-15 → semester: Jan–Jun 2026
+    // Credit account: closingDay=5, dueDay=10
+    // EXPENSE on 2026-06-10 → day 10 > closingDay 5
+    //   → invoice period = July 2026
+    //   → effective cash-flow date = 2026-08-10 (August, OUTSIDE semester range)
+    // Retail INCOME in April is added so the chart renders despite the credit
+    // expense being displaced outside the visible range.
+    const retailAccount = makeRetailAccount({ id: 'acc-retail' })
+    const creditAccount = makeCreditAccount({
+      id: 'acc-credit',
+      creditMetadata: { limit: 12000, closingDay: 5, dueDay: 10 },
+    })
+    const retailIncome = makeTransaction({
+      id: 'tx-income',
+      accountId: 'acc-retail',
+      type: 'INCOME',
+      amount: 500,
+      date: '2026-04-01', // April → index 3
+    })
+    const creditExpense = makeTransaction({
+      id: 'tx-credit-expense',
+      accountId: 'acc-credit',
+      type: 'EXPENSE',
+      amount: 300,
+      date: '2026-06-10', // tx.date in June, but effective date = August (out of range)
+    })
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount, creditAccount],
+        transactions: [retailIncome, creditExpense],
+      }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+
+    // April (index 3): retail income 500 → generalFlow = 500
+    expect(capturedLineChartProps.data[3]?.generalFlow).toBe(500)
+    // June (index 5): credit expense displaced to August → generalFlow = 0
+    expect(capturedLineChartProps.data[5]?.generalFlow).toBe(0)
+  })
+
+  it('shows "no data" when the only transaction is a credit expense displaced outside range', () => {
+    // No retail income → if credit expense also moves outside range, no data is shown
+    const creditAccount = makeCreditAccount({
+      id: 'acc-credit',
+      creditMetadata: { limit: 12000, closingDay: 5, dueDay: 10 },
+    })
+    const creditExpense = makeTransaction({
+      id: 'tx-credit-expense',
+      accountId: 'acc-credit',
+      type: 'EXPENSE',
+      amount: 300,
+      date: '2026-06-10', // effective date = August (out of range)
+    })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [creditExpense] }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    // All generalFlow values are 0 → "no data" message shown instead of chart
+    expect(screen.getByText('common.noData')).toBeInTheDocument()
+    expect(screen.queryByTestId('line-chart')).not.toBeInTheDocument()
+  })
+})
+
+// ─── CC-17: CREDIT_PAYMENT excluded from income/expense charts ───────────────
+
+describe('Analytics — CC-17: CREDIT_PAYMENT excluded from charts and categories', () => {
+  it('shows "no data" in cash flow chart when only CREDIT_PAYMENT transactions exist', () => {
+    // CREDIT_PAYMENT is not income or expense — chart should show no data
+    const retailAccount = makeRetailAccount()
+    const creditPayment = makeTransaction({
+      id: 'tx-cp',
+      accountId: 'acc-retail',
+      type: 'CREDIT_PAYMENT',
+      amount: 1000,
+      date: '2026-04-10',
+    })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [creditPayment] }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    expect(screen.getByText('common.noData')).toBeInTheDocument()
+    expect(screen.queryByTestId('line-chart')).not.toBeInTheDocument()
+  })
+
+  it('does not include CREDIT_PAYMENT in generalFlow when mixed with INCOME', () => {
+    // INCOME 500 + CREDIT_PAYMENT 300 → April generalFlow must be 500, not 800
+    const retailAccount = makeRetailAccount()
+    const income = makeTransaction({
+      id: 'tx-income',
+      type: 'INCOME',
+      amount: 500,
+      date: '2026-04-01',
+    })
+    const creditPayment = makeTransaction({
+      id: 'tx-cp',
+      type: 'CREDIT_PAYMENT',
+      amount: 300,
+      date: '2026-04-10',
+    })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [income, creditPayment] }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    // April (index 3): only income 500 contributes
+    expect(capturedLineChartProps.data[3]?.generalFlow).toBe(500)
+  })
+
+  it('does not count CREDIT_PAYMENT in income category breakdown', () => {
+    // INCOME 500 + CREDIT_PAYMENT 300 in same period → income category total = 500
+    const retailAccount = makeRetailAccount()
+    const income = makeTransaction({
+      id: 'tx-income',
+      type: 'INCOME',
+      amount: 500,
+      date: '2026-04-01',
+      categoryId: 'cat-income',
+    })
+    const creditPayment = makeTransaction({
+      id: 'tx-cp',
+      type: 'CREDIT_PAYMENT',
+      amount: 300,
+      date: '2026-04-10',
+    })
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount],
+        transactions: [income, creditPayment],
+        categories: [makeCategory({ id: 'cat-income', name: 'Salário', type: 'INCOME' })],
+      }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    // Total income = 500 (CREDIT_PAYMENT excluded); 800 must not appear
+    expect(screen.queryByText(/800/)).not.toBeInTheDocument()
+  })
+
+  it('does not count CREDIT_PAYMENT in expense category breakdown', () => {
+    // EXPENSE 400 + CREDIT_PAYMENT 200 in same period → expense category total = 400
+    const retailAccount = makeRetailAccount()
+    const expense = makeTransaction({
+      id: 'tx-expense',
+      type: 'EXPENSE',
+      amount: 400,
+      date: '2026-04-01',
+      categoryId: 'cat-expense',
+    })
+    const creditPayment = makeTransaction({
+      id: 'tx-cp',
+      type: 'CREDIT_PAYMENT',
+      amount: 200,
+      date: '2026-04-10',
+    })
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount],
+        transactions: [expense, creditPayment],
+        categories: [makeCategory({ id: 'cat-expense', name: 'Alimentação', type: 'EXPENSE' })],
+      }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    // Total expense = 400 (CREDIT_PAYMENT excluded); 600 must not appear
+    expect(screen.queryByText(/600,00/)).not.toBeInTheDocument()
+  })
+})
+
+// ─── CC-18: category breakdown uses tx.date (budget perspective) ──────────────
+
+describe('Analytics — CC-18: category breakdown uses tx.date, not effective cash-flow date', () => {
+  it('includes credit card expense in the purchase-date month for category breakdown', () => {
+    // System time: 2026-04-15 → semester: Jan–Jun 2026
+    // Credit account: closingDay=5, dueDay=10
+    // EXPENSE on 2026-06-10:
+    //   → tx.date (June 10) is INSIDE semester range → appears in category breakdown
+    //   → effective cash-flow date (Aug 10) is OUTSIDE range → absent from cash flow chart
+    const creditAccount = makeCreditAccount({
+      id: 'acc-credit',
+      creditMetadata: { limit: 12000, closingDay: 5, dueDay: 10 },
+    })
+    const expense = makeTransaction({
+      id: 'tx-credit-expense',
+      accountId: 'acc-credit',
+      type: 'EXPENSE',
+      amount: 350,
+      date: '2026-06-10',
+      categoryId: 'cat-expense',
+    })
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [creditAccount],
+        transactions: [expense],
+        categories: [makeCategory({ id: 'cat-expense', name: 'Restaurante', type: 'EXPENSE' })],
+      }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+
+    // Category breakdown uses tx.date → expense IS in range → amount 350 rendered
+    // The value appears twice: once in the donut center total, once in the legend
+    expect(screen.getAllByText(/350/).length).toBeGreaterThanOrEqual(1)
+    // Cash flow chart uses effective date → August is out of range → no data message
+    expect(screen.getByText('common.noData')).toBeInTheDocument()
+  })
+
+  it('excludes credit card expense from category breakdown when tx.date is also out of range', () => {
+    // EXPENSE on a past date outside the semester (Dec 2025)
+    // Both tx.date and effective date are outside range → not in breakdown
+    const creditAccount = makeCreditAccount()
+    const expense = makeTransaction({
+      id: 'tx-old',
+      accountId: 'acc-credit',
+      type: 'EXPENSE',
+      amount: 9999,
+      date: '2025-12-01', // December 2025, before Jan 2026 semester start
+    })
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [creditAccount],
+        transactions: [expense],
+        categories: [makeCategory({ id: 'cat-1', type: 'EXPENSE' })],
+      }),
+      unsyncedCount: 0,
+    })
+    render(<Analytics />)
+    // 9999 must not appear (outside range for category breakdown)
+    expect(screen.queryByText(/9\.999/)).not.toBeInTheDocument()
+  })
+})

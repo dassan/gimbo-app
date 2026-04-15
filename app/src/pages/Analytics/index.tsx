@@ -15,7 +15,7 @@ import {
   Cell,
 } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
-import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
+import { formatCurrency, cn, parseDateLocal, getEffectiveCashFlowDate } from '@/lib/utils'
 
 type ViewPeriod = 'month' | 'semester' | 'custom'
 
@@ -63,7 +63,9 @@ export default function Analytics() {
     let cumulative = 0
     return months.map(({ label, m, y }) => {
       const txs = data.transactions.filter((tx) => {
-        const d = parseDateLocal(tx.date)
+        // CC-16: credit card expenses project to their invoice due date so the
+        // cash impact lands in the correct future month, not the purchase month
+        const d = parseDateLocal(getEffectiveCashFlowDate(tx, data.accounts))
         const inPeriod = d.getMonth() === m && d.getFullYear() === y
         const isPaidOk = includeUnpaid || tx.isPaid
         return inPeriod && isPaidOk
