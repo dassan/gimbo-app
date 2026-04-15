@@ -47,6 +47,7 @@ import type {
   AccountType,
   Category,
   CategoryType,
+  CreditMetadata,
   Tag,
   Locale,
   Theme,
@@ -241,11 +242,16 @@ export default function Settings() {
     }
   }
 
-  function handleSaveAccount(name: string, type: AccountType, includeInBalance: boolean) {
+  function handleSaveAccount(
+    name: string,
+    type: AccountType,
+    includeInBalance: boolean,
+    creditMetadata?: CreditMetadata
+  ) {
     if (modal.open && modal.account) {
-      updateAccount({ ...modal.account, name, type, includeInBalance })
+      updateAccount({ ...modal.account, name, type, includeInBalance, creditMetadata })
     } else {
-      addAccount({ id: uuid(), name, type, balance: 0, includeInBalance })
+      addAccount({ id: uuid(), name, type, balance: 0, includeInBalance, creditMetadata })
     }
     setModal({ open: false })
   }
@@ -761,7 +767,12 @@ function AddAccountModal({
   onClose,
 }: {
   account: Account | null
-  onSave: (name: string, type: AccountType, includeInBalance: boolean) => void
+  onSave: (
+    name: string,
+    type: AccountType,
+    includeInBalance: boolean,
+    creditMetadata?: CreditMetadata
+  ) => void
   onDelete: (id: string) => void
   onClose: () => void
 }) {
@@ -773,10 +784,53 @@ function AddAccountModal({
   const [includeInBalance, setIncludeInBalance] = useState(account?.includeInBalance ?? true)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // ── Credit metadata state ──────────────────────────────────────────────────
+  const [creditLimit, setCreditLimit] = useState<string>(
+    account?.creditMetadata?.limit !== undefined ? String(account.creditMetadata.limit) : ''
+  )
+  const [closingDay, setClosingDay] = useState<string>(
+    account?.creditMetadata?.closingDay !== undefined
+      ? String(account.creditMetadata.closingDay)
+      : ''
+  )
+  const [dueDay, setDueDay] = useState<string>(
+    account?.creditMetadata?.dueDay !== undefined ? String(account.creditMetadata.dueDay) : ''
+  )
+
+  function handleTypeSelect(selected: AccountType) {
+    setType(selected)
+    // CC-11: auto-deselect "include in balance" for CREDIT accounts
+    if (selected === 'CREDIT') {
+      setIncludeInBalance(false)
+      // Clear credit fields if switching away then back
+    } else {
+      // Restore default for non-CREDIT types when switching (only on create)
+      if (!isEdit) setIncludeInBalance(true)
+    }
+  }
+
   function handleSave() {
     const trimmed = name.trim()
     if (!trimmed) return
-    onSave(trimmed, type, includeInBalance)
+
+    let creditMetadata: CreditMetadata | undefined
+    if (type === 'CREDIT') {
+      const limit = parseFloat(creditLimit) || 0
+      const closing = parseInt(closingDay, 10)
+      const due = parseInt(dueDay, 10)
+      if (
+        !Number.isNaN(closing) &&
+        closing >= 1 &&
+        closing <= 28 &&
+        !Number.isNaN(due) &&
+        due >= 1 &&
+        due <= 28
+      ) {
+        creditMetadata = { limit, closingDay: closing, dueDay: due }
+      }
+    }
+
+    onSave(trimmed, type, includeInBalance, creditMetadata)
   }
 
   function handleDelete() {
@@ -836,7 +890,7 @@ function AddAccountModal({
             {ACCOUNT_TYPES.map(({ type: t_, icon }) => (
               <button
                 key={t_}
-                onClick={() => setType(t_)}
+                onClick={() => handleTypeSelect(t_)}
                 className={cn(
                   'flex flex-col items-center gap-1.5 rounded-2xl border-2 py-3 px-1 transition-all',
                   type === t_
@@ -851,6 +905,58 @@ function AddAccountModal({
               </button>
             ))}
           </div>
+
+          {/* Credit metadata fields — shown only when type === CREDIT */}
+          {type === 'CREDIT' && (
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                  {t('accounts.creditLimit')}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={creditLimit}
+                  onChange={(e) => setCreditLimit(e.target.value)}
+                  placeholder="0,00"
+                  className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                    {t('accounts.closingDay')}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    step={1}
+                    value={closingDay}
+                    onChange={(e) => setClosingDay(e.target.value)}
+                    placeholder="1–28"
+                    className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                    {t('accounts.dueDay')}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    step={1}
+                    value={dueDay}
+                    onChange={(e) => setDueDay(e.target.value)}
+                    placeholder="1–28"
+                    className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Include in balance toggle */}

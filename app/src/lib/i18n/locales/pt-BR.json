@@ -166,7 +166,11 @@
     "asset": "Ativo",
     "stocks": "Ações",
     "other": "Outros",
-    "balance": "Saldo"
+    "balance": "Saldo",
+    "creditLimit": "Limite de Crédito Total",
+    "closingDay": "Dia de Fechamento",
+    "dueDay": "Dia de Vencimento",
+    "availableLimit": "Limite disponível"
   },
   "sync": {
     "syncNow": "Sincronizar agora",

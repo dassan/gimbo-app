@@ -166,7 +166,11 @@
     "asset": "Asset",
     "stocks": "Stocks",
     "other": "Other",
-    "balance": "Balance"
+    "balance": "Balance",
+    "creditLimit": "Total Credit Limit",
+    "closingDay": "Closing Day",
+    "dueDay": "Due Day",
+    "availableLimit": "Available limit"
   },
   "sync": {
     "syncNow": "Sync now",
