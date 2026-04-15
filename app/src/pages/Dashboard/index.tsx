@@ -16,8 +16,8 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
-import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
-import type { Transaction, AccountType } from '@/types'
+import { formatCurrency, cn, parseDateLocal, getCurrentInvoiceBalance } from '@/lib/utils'
+import type { Account, Transaction, AccountType } from '@/types'
 
 // ─── Account type config ──────────────────────────────────────────────────────
 
@@ -73,14 +73,34 @@ export default function Dashboard() {
   }, [data, now])
 
   // ── Account balances (derived from transactions) ──────────────────────────
+  // For CREDIT accounts with creditMetadata: available limit = limit − current invoice balance.
+  // For CREDIT accounts without creditMetadata: 0.
+  // For all other account types: standard flow (INCOME+, EXPENSE−, TRANSFER−).
   const accountBalances = useMemo<Record<string, number>>(() => {
     if (!data) return {}
     const map: Record<string, number> = {}
+
+    // Standard flow for non-CREDIT accounts
     data.transactions.forEach((tx) => {
+      const account = data.accounts.find((a) => a.id === tx.accountId)
+      if (!account || account.type === 'CREDIT') return
       if (tx.type === 'INCOME') map[tx.accountId] = (map[tx.accountId] ?? 0) + tx.amount
       if (tx.type === 'EXPENSE') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
       if (tx.type === 'TRANSFER') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
     })
+
+    // CREDIT accounts: available limit = creditMetadata.limit − current invoice balance
+    data.accounts
+      .filter((a) => a.type === 'CREDIT')
+      .forEach((account) => {
+        if (!account.creditMetadata) {
+          map[account.id] = 0
+          return
+        }
+        const invoiceBalance = getCurrentInvoiceBalance(data.transactions, account)
+        map[account.id] = account.creditMetadata.limit - invoiceBalance
+      })
+
     return map
   }, [data])
 
@@ -109,7 +129,11 @@ export default function Dashboard() {
 
   if (!data) return null
 
-  const visibleAccounts = data.accounts.filter((a) => a.includeInBalance)
+  // Non-CREDIT accounts with includeInBalance: displayed in "Minhas Contas"
+  const visibleAccounts = data.accounts.filter((a) => a.type !== 'CREDIT' && a.includeInBalance)
+  // All CREDIT accounts: displayed in "Meus Cartões"
+  const creditAccounts = data.accounts.filter((a) => a.type === 'CREDIT')
+
   const totalExpenses = donutData.reduce((s, d) => s + d.value, 0)
 
   return (
@@ -135,11 +159,11 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ── Accounts + Category row ───────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* My Accounts — 2/3 */}
+      {/* ── Minhas Contas + Meus Cartões row ─────────────────────────────── */}
+      <div className={cn('grid gap-4', creditAccounts.length > 0 ? 'grid-cols-2' : 'grid-cols-3')}>
+        {/* My Accounts — standard accounts with includeInBalance */}
         <div
-          className="col-span-2 rounded-2xl bg-white p-6"
+          className={cn('rounded-2xl bg-white p-6', creditAccounts.length === 0 && 'col-span-2')}
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
         >
           <h3 className="text-sm font-semibold text-on-surface mb-4">
@@ -163,97 +187,88 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Expenses by category donut — 1/3 */}
+        {/* My Cards — CREDIT accounts with invoice + available limit */}
+        {creditAccounts.length > 0 && (
+          <div
+            className="rounded-2xl bg-white p-6"
+            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.myCards')}</h3>
+              <button
+                onClick={() => {
+                  void navigate('/settings')
+                }}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {t('dashboard.manage')}
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {creditAccounts.map((acc) => (
+                <CreditCardRow
+                  key={acc.id}
+                  account={acc}
+                  availableLimit={accountBalances[acc.id] ?? 0}
+                  invoiceBalance={
+                    acc.creditMetadata ? getCurrentInvoiceBalance(data.transactions, acc) : 0
+                  }
+                  invoiceLabel={t('dashboard.invoice')}
+                  availableLimitLabel={t('accounts.availableLimit')}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Expenses by category donut — only shown when no credit accounts */}
+        {creditAccounts.length === 0 && (
+          <div
+            className="rounded-2xl bg-white p-6"
+            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+          >
+            <h3 className="text-sm font-semibold text-on-surface mb-4">
+              {t('dashboard.byCategory')}
+            </h3>
+            <DonutSection donutData={donutData} totalExpenses={totalExpenses} t={t} />
+          </div>
+        )}
+      </div>
+
+      {/* ── Bottom row: Recent transactions + Donut (when credit accounts exist) */}
+      {creditAccounts.length > 0 ? (
+        <div className="grid grid-cols-3 gap-4">
+          {/* Recent transactions — 2/3 */}
+          <div
+            className="col-span-2 rounded-2xl bg-white p-6"
+            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+          >
+            <RecentTransactionsHeader t={t} onViewAll={() => void navigate('/transactions')} />
+            <RecentTransactionsList recentTxs={recentTxs} data={data} t={t} />
+          </div>
+
+          {/* Expenses by category donut — 1/3 */}
+          <div
+            className="rounded-2xl bg-white p-6"
+            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+          >
+            <h3 className="text-sm font-semibold text-on-surface mb-4">
+              {t('dashboard.byCategory')}
+            </h3>
+            <DonutSection donutData={donutData} totalExpenses={totalExpenses} t={t} />
+          </div>
+        </div>
+      ) : (
+        /* Recent transactions full width when no credit accounts */
         <div
           className="rounded-2xl bg-white p-6"
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
         >
-          <h3 className="text-sm font-semibold text-on-surface mb-4">
-            {t('dashboard.byCategory')}
-          </h3>
-
-          {donutData.length > 0 ? (
-            <>
-              <div className="relative h-36">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={donutData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={44}
-                      outerRadius={64}
-                      paddingAngle={2}
-                      dataKey="value"
-                      strokeWidth={0}
-                    >
-                      {donutData.map((_, i) => (
-                        <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                {/* Center label */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-[10px] uppercase tracking-widest text-on-surface/40">
-                    {t('dashboard.total')}
-                  </p>
-                  <p className="text-sm font-bold text-on-surface">
-                    {formatCurrency(totalExpenses)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 space-y-2">
-                {donutData.slice(0, 4).map((d, i) => (
-                  <div key={d.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
-                      />
-                      <span className="text-xs text-on-surface/70">{d.name}</span>
-                    </div>
-                    <span className="text-xs font-medium text-on-surface">{d.pct}%</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <EmptyChart />
-          )}
+          <RecentTransactionsHeader t={t} onViewAll={() => void navigate('/transactions')} />
+          <RecentTransactionsList recentTxs={recentTxs} data={data} t={t} />
         </div>
-      </div>
-
-      {/* ── Recent transactions ───────────────────────────────────────────── */}
-      <div
-        className="rounded-2xl bg-white p-6"
-        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-on-surface">
-            {t('dashboard.recentTransactions')}
-          </h3>
-          <button
-            onClick={() => {
-              void navigate('/transactions')
-            }}
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            {t('dashboard.viewAll')}
-          </button>
-        </div>
-
-        {recentTxs.length === 0 ? (
-          <p className="py-8 text-center text-sm text-on-surface/40">{t('common.noData')}</p>
-        ) : (
-          <div className="space-y-1">
-            {recentTxs.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} data={data} />
-            ))}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }
@@ -292,6 +307,76 @@ function AccountRow({
       >
         {formatCurrency(balance)}
       </span>
+    </div>
+  )
+}
+
+function CreditCardRow({
+  account,
+  availableLimit,
+  invoiceBalance,
+  invoiceLabel,
+  availableLimitLabel,
+}: {
+  account: Account
+  availableLimit: number
+  invoiceBalance: number
+  invoiceLabel: string
+  availableLimitLabel: string
+}) {
+  const limit = account.creditMetadata?.limit ?? 0
+  const utilizationPct = limit > 0 ? Math.min((invoiceBalance / limit) * 100, 100) : 0
+  const isOverLimit = availableLimit < 0
+
+  return (
+    <div className="rounded-xl border border-surface-container-low px-4 py-3 space-y-2">
+      {/* Card name + icon */}
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
+          style={{ backgroundColor: ACCOUNT_TYPE_COLORS.CREDIT }}
+        >
+          <CreditCard size={18} strokeWidth={1.5} />
+        </div>
+        <p className="text-sm font-medium text-on-surface truncate flex-1">{account.name}</p>
+      </div>
+
+      {/* Invoice + available limit */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-on-surface/40 font-medium">
+            {invoiceLabel}
+          </p>
+          <p className="text-base font-bold text-on-surface">{formatCurrency(invoiceBalance)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-widest text-on-surface/40 font-medium">
+            {availableLimitLabel}
+          </p>
+          <p
+            className={cn('text-sm font-semibold', isOverLimit ? 'text-tertiary' : 'text-primary')}
+          >
+            {formatCurrency(availableLimit)}
+          </p>
+        </div>
+      </div>
+
+      {/* Utilization progress bar */}
+      {limit > 0 && (
+        <div className="h-1.5 w-full rounded-full bg-surface-container-low overflow-hidden">
+          <div
+            className={cn(
+              'h-full rounded-full transition-all',
+              utilizationPct >= 90
+                ? 'bg-tertiary'
+                : utilizationPct >= 70
+                  ? 'bg-amber-400'
+                  : 'bg-primary'
+            )}
+            style={{ width: `${utilizationPct}%` }}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -344,6 +429,109 @@ function StatCard({
   )
 }
 
+function RecentTransactionsHeader({
+  t,
+  onViewAll,
+}: {
+  t: (key: string) => string
+  onViewAll: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.recentTransactions')}</h3>
+      <button onClick={onViewAll} className="text-xs font-medium text-primary hover:underline">
+        {t('dashboard.viewAll')}
+      </button>
+    </div>
+  )
+}
+
+function RecentTransactionsList({
+  recentTxs,
+  data,
+  t,
+}: {
+  recentTxs: Transaction[]
+  data: NonNullable<ReturnType<typeof useDataStore.getState>['data']>
+  t: (key: string) => string
+}) {
+  if (recentTxs.length === 0) {
+    return <p className="py-8 text-center text-sm text-on-surface/40">{t('common.noData')}</p>
+  }
+  return (
+    <div className="space-y-1">
+      {recentTxs.map((tx) => (
+        <TransactionRow key={tx.id} tx={tx} data={data} />
+      ))}
+    </div>
+  )
+}
+
+function DonutSection({
+  donutData,
+  totalExpenses,
+  t,
+}: {
+  donutData: { name: string; value: number; pct: number }[]
+  totalExpenses: number
+  t: (key: string) => string
+}) {
+  if (donutData.length === 0) {
+    return (
+      <div className="flex h-full min-h-[120px] items-center justify-center">
+        <p className="text-sm text-on-surface/30">{t('common.noData')}</p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="relative h-36">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={donutData}
+              cx="50%"
+              cy="50%"
+              innerRadius={44}
+              outerRadius={64}
+              paddingAngle={2}
+              dataKey="value"
+              strokeWidth={0}
+            >
+              {donutData.map((_, i) => (
+                <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        {/* Center label */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <p className="text-[10px] uppercase tracking-widest text-on-surface/40">
+            {t('dashboard.total')}
+          </p>
+          <p className="text-sm font-bold text-on-surface">{formatCurrency(totalExpenses)}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {donutData.slice(0, 4).map((d, i) => (
+          <div key={d.name} className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
+              />
+              <span className="text-xs text-on-surface/70">{d.name}</span>
+            </div>
+            <span className="text-xs font-medium text-on-surface">{d.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 function TransactionRow({
   tx,
   data,
@@ -389,14 +577,6 @@ function TransactionRow({
           <Clock size={16} className="text-on-surface/20" strokeWidth={1.5} />
         )}
       </div>
-    </div>
-  )
-}
-
-function EmptyChart() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <p className="text-sm text-on-surface/30">Sem dados para exibir</p>
     </div>
   )
 }
