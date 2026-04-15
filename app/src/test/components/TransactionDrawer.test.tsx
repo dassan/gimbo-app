@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TransactionDrawer from '@/components/TransactionDrawer'
 import { useDataStore } from '@/store/useDataStore'
@@ -558,5 +558,30 @@ describe('TransactionDrawer — CC-26: installment deletion modal', () => {
     expect(screen.queryByText('transactions.deleteInstallmentTitle')).not.toBeInTheDocument()
     expect(deleteTransaction).toHaveBeenCalledWith(nonInstallmentTx.id)
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+// ─── M-20: auto-focus amount field on open ────────────────────────────────────
+
+describe('TransactionDrawer — M-20: auto-focus amount field on open', () => {
+  beforeEach(() => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testAccount], categories: [testCategory] }),
+      unsyncedCount: 0,
+    })
+  })
+
+  it('auto-focuses the amount input when opened in create mode', async () => {
+    renderDrawer()
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('0,00')).toHaveFocus()
+    })
+  })
+
+  it('auto-focuses the amount input when opened in edit mode', async () => {
+    renderDrawer({ transaction: testTransaction })
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('150,00')).toHaveFocus()
+    })
   })
 })

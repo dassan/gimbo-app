@@ -688,9 +688,9 @@ Dados derivados com `useMemo`:
 
 ## Testes
 
-### Cobertura atual (2026-04-15, atualizado pós CC-28–CC-30)
+### Cobertura atual (2026-04-15, atualizado pós M-20)
 
-- **333 testes unitários passando** — 22 arquivos de teste
+- **335 testes unitários passando** — 22 arquivos de teste
 - **19 testes E2E passando** — 4 arquivos de spec (incluindo `creditCard.spec.ts` com 5 cenários)
 - Cobertura: **97.29% statements**, ~92% branches, ~95% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
@@ -700,7 +700,7 @@ Dados derivados com `useMemo`:
 - `Dashboard.test.tsx`: 10 novos testes — bifurcação de `accountBalances` e seção "Meus Cartões" (CC-13/14); +2 testes excluindo `CREDIT_PAYMENT` dos totais (CC-22)
 - `Settings.test.tsx`: 6 novos testes — bifurcação de saldo e label "Limite disponível" na aba Contas (CC-15)
 - `Analytics.test.tsx`: 10 novos testes — `getEffectiveCashFlowDate` no gráfico de caixa, exclusão de `CREDIT_PAYMENT`, perspectiva de orçamento no breakdown por categoria (CC-16–CC-18)
-- `TransactionDrawer.test.tsx`: 10 novos testes — dois seletores de conta CREDIT_PAYMENT (CC-19) e hint de fatura corrente (CC-20) + 9 novos testes seção de parcelamento (CC-23) + 6 novos testes modal de deleção (CC-26)
+- `TransactionDrawer.test.tsx`: 10 novos testes — dois seletores de conta CREDIT_PAYMENT (CC-19) e hint de fatura corrente (CC-20) + 9 novos testes seção de parcelamento (CC-23) + 6 novos testes modal de deleção (CC-26) + 2 novos testes auto-foco (M-20)
 - `Transactions.test.tsx`: novo arquivo — 3 testes de exibição de `CREDIT_PAYMENT` no extrato (CC-22)
 
 ### Testes unitários (Vitest)
@@ -838,6 +838,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Versionamento do `data.json` (`schemaVersion`); rejeição de arquivos de versão futura | M-01 | ✅ |
 | Separação semântica import vs. sync (`importFileToIdb` / `syncToFile`) | M-17 | ✅ |
 | Fallback para browsers sem FSA: sync oculto, import via `<input>`, create via download, aviso dismissível | M-18 | ✅ |
+| TransactionDrawer: foco automático no campo de valor ao abrir (criar ou editar) | M-20 | ✅ |
 | `parseDateLocal()` em `utils.ts` — parsing de datas sem bug de fuso UTC | refactor | ✅ |
 | Analytics: correção de filtro `includeUnpaid` (padrão `true`) e parsing de datas | B-02/B-03 | ✅ |
 | Settings aba Contas: saldo calculado a partir de transações (não `acc.balance`) | B-04 | ✅ |
@@ -910,7 +911,6 @@ Planejamento concluído em 2026-04-14. Decisões arquiteturais e desafios técni
 
 | ID | Descrição | Prioridade |
 |----|-----------|-----------|
-| M-20 | TransactionDrawer: foco automático no campo de valor ao abrir (criar ou editar) | baixa |
 | M-22 | Estornos e chargebacks em contas CREDIT: suporte a reversões contábeis com tipo e UX dedicados. Out-of-scope neste ciclo — usuário registra manualmente. | baixa |
 
 ---

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, ChevronDown, Calendar, Tag, Plus, Trash2, CreditCard } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
@@ -50,6 +50,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const deleteInstallmentGroup = useDataStore((s) => s.deleteInstallmentGroup)
 
   const isEditMode = transaction !== undefined
+
+  // M-20: ref for auto-focusing the amount field on open
+  const amountInputRef = useRef<HTMLInputElement>(null)
 
   const [type, setType] = useState<TxType>('EXPENSE')
   const [amount, setAmount] = useState(0)
@@ -122,6 +125,14 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       setShowInstallmentDeleteModal(false)
     }
   }, [open, transaction, data, nonCreditAccounts])
+
+  // M-20: auto-focus the amount field whenever the drawer opens
+  useEffect(() => {
+    if (open) {
+      const id = setTimeout(() => amountInputRef.current?.focus(), 0)
+      return () => clearTimeout(id)
+    }
+  }, [open])
 
   // When switching to CREDIT_PAYMENT, auto-select the first credit and non-credit accounts
   function handleTypeChange(newType: TxType) {
@@ -262,6 +273,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
           <div className="text-center">
             <p className="label text-on-surface/40 mb-1">R$</p>
             <input
+              ref={amountInputRef}
               type="text"
               inputMode="numeric"
               value={amountStr}
