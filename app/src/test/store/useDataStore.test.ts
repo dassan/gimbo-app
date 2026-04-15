@@ -411,3 +411,265 @@ describe('setRetentionLimit', () => {
     expect(useDataStore.getState().data?.auditLog).toHaveLength(10)
   })
 })
+
+// ─── CC-24 + CC-25: Installment group creation ───────────────────────────────
+
+describe('addTransaction — installment group (CC-24/CC-25)', () => {
+  const creditAccount = {
+    id: 'acc-credit',
+    name: 'Nubank',
+    type: 'CREDIT' as const,
+    balance: 0,
+    includeInBalance: false,
+    creditMetadata: { limit: 5000, closingDay: 20, dueDay: 10 },
+  }
+  const expenseCat = {
+    id: 'cat-1',
+    parentId: null,
+    name: 'Viagem',
+    icon: 'plane',
+    color: '#F00',
+    type: 'EXPENSE' as const,
+  }
+
+  function makeInstallmentPayload(total: number, amount: number): import('@/types').Transaction {
+    const parentId = 'parent-uuid-1'
+    return {
+      id: parentId,
+      accountId: creditAccount.id,
+      categoryId: expenseCat.id,
+      amount,
+      type: 'EXPENSE',
+      date: '2024-03-15',
+      description: 'Passagem',
+      isPaid: false,
+      tags: [],
+      installment: { parentId, currentIndex: 1, total },
+    }
+  }
+
+  beforeEach(() => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], categories: [expenseCat] }),
+      unsyncedCount: 0,
+    })
+  })
+
+  it('generates N separate transactions for installment.total > 1', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore.getState().data?.transactions ?? []
+    expect(txs).toHaveLength(3)
+  })
+
+  it('each installment has a unique id', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore.getState().data?.transactions ?? []
+    const ids = txs.map((t) => t.id)
+    expect(new Set(ids).size).toBe(3)
+  })
+
+  it('all installments share the same parentId', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore.getState().data?.transactions ?? []
+    const parentIds = txs.map((t) => t.installment?.parentId)
+    expect(new Set(parentIds).size).toBe(1)
+    expect(parentIds[0]).toBe('parent-uuid-1')
+  })
+
+  it('installment currentIndex increments from 1 to N', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore.getState().data?.transactions ?? []
+    const indexes = txs.map((t) => t.installment?.currentIndex).sort()
+    expect(indexes).toEqual([1, 2, 3])
+  })
+
+  it('description gets (X/N) suffix on each installment', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore.getState().data?.transactions ?? []
+    const descs = txs.map((t) => t.description).sort()
+    expect(descs).toContain('Passagem (1/3)')
+    expect(descs).toContain('Passagem (2/3)')
+    expect(descs).toContain('Passagem (3/3)')
+  })
+
+  it('date advances by one month per installment', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore
+      .getState()
+      .data?.transactions.sort(
+        (a, b) => (a.installment?.currentIndex ?? 0) - (b.installment?.currentIndex ?? 0)
+      )
+    expect(txs?.[0].date).toBe('2024-03-15')
+    expect(txs?.[1].date).toBe('2024-04-15')
+    expect(txs?.[2].date).toBe('2024-05-15')
+  })
+
+  it('amount is distributed evenly (no remainder when divisible)', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore.getState().data?.transactions ?? []
+    txs.forEach((t) => expect(t.amount).toBeCloseTo(100, 2))
+  })
+
+  it('rounding remainder goes to the first installment', () => {
+    // R$ 100.00 / 3 = R$ 33.33 × 3 = R$ 99.99; first gets R$ 33.34
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 100))
+    const txs = useDataStore
+      .getState()
+      .data?.transactions.sort(
+        (a, b) => (a.installment?.currentIndex ?? 0) - (b.installment?.currentIndex ?? 0)
+      )
+    const total = (txs ?? []).reduce((sum, t) => sum + t.amount, 0)
+    expect(Math.round(total * 100) / 100).toBe(100)
+    // First parcel is >= others
+    expect(txs![0].amount).toBeGreaterThanOrEqual(txs![1].amount)
+  })
+
+  it('all installments have isPaid = false', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const txs = useDataStore.getState().data?.transactions ?? []
+    txs.forEach((t) => expect(t.isPaid).toBe(false))
+  })
+
+  it('CC-25: generates a single audit log entry for the group', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const log = useDataStore.getState().data?.auditLog ?? []
+    expect(log).toHaveLength(1)
+    const entry = log[0]
+    expect(entry.action).toBe('CREATE')
+    expect(entry.entity).toBe('transaction')
+    expect(entry.entityId).toBe('parent-uuid-1')
+  })
+
+  it('CC-25: audit summary mentions N, description, and account name', () => {
+    useDataStore.getState().addTransaction(makeInstallmentPayload(3, 300))
+    const entry = useDataStore.getState().data?.auditLog[0]
+    expect(entry?.summary).toContain('3')
+    expect(entry?.summary).toContain('Passagem')
+    expect(entry?.summary).toContain('Nubank')
+  })
+
+  it('wraps month correctly at year boundary (November + 2 = January next year)', () => {
+    const payload = makeInstallmentPayload(2, 200)
+    payload.date = '2024-11-15'
+    useDataStore.getState().addTransaction(payload)
+    const txs = useDataStore
+      .getState()
+      .data?.transactions.sort(
+        (a, b) => (a.installment?.currentIndex ?? 0) - (b.installment?.currentIndex ?? 0)
+      )
+    expect(txs?.[0].date).toBe('2024-11-15')
+    expect(txs?.[1].date).toBe('2024-12-15')
+  })
+
+  it('clamps day to last day of short month (Jan 31 + 1 month = Feb 28)', () => {
+    const payload = makeInstallmentPayload(2, 200)
+    payload.date = '2024-01-31'
+    useDataStore.getState().addTransaction(payload)
+    const txs = useDataStore
+      .getState()
+      .data?.transactions.sort(
+        (a, b) => (a.installment?.currentIndex ?? 0) - (b.installment?.currentIndex ?? 0)
+      )
+    expect(txs?.[0].date).toBe('2024-01-31')
+    expect(txs?.[1].date).toBe('2024-02-29') // 2024 is a leap year
+  })
+})
+
+// ─── CC-27: deleteInstallmentGroup ────────────────────────────────────────────
+
+describe('deleteInstallmentGroup (CC-27)', () => {
+  const installmentTxs: import('@/types').Transaction[] = [
+    {
+      id: 'inst-1',
+      accountId: 'acc-1',
+      categoryId: 'cat-1',
+      amount: 100,
+      type: 'EXPENSE',
+      date: '2024-03-15',
+      description: 'Viagem (1/3)',
+      isPaid: false,
+      tags: [],
+      installment: { parentId: 'parent-abc', currentIndex: 1, total: 3 },
+    },
+    {
+      id: 'inst-2',
+      accountId: 'acc-1',
+      categoryId: 'cat-1',
+      amount: 100,
+      type: 'EXPENSE',
+      date: '2024-04-15',
+      description: 'Viagem (2/3)',
+      isPaid: false,
+      tags: [],
+      installment: { parentId: 'parent-abc', currentIndex: 2, total: 3 },
+    },
+    {
+      id: 'inst-3',
+      accountId: 'acc-1',
+      categoryId: 'cat-1',
+      amount: 100,
+      type: 'EXPENSE',
+      date: '2024-05-15',
+      description: 'Viagem (3/3)',
+      isPaid: false,
+      tags: [],
+      installment: { parentId: 'parent-abc', currentIndex: 3, total: 3 },
+    },
+  ]
+
+  const otherTx: import('@/types').Transaction = {
+    id: 'other-tx',
+    accountId: 'acc-1',
+    categoryId: 'cat-1',
+    amount: 500,
+    type: 'EXPENSE',
+    date: '2024-03-01',
+    description: 'Aluguel',
+    isPaid: true,
+    tags: [],
+  }
+
+  beforeEach(() => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [makeAccount({ id: 'acc-1' })],
+        transactions: [...installmentTxs, otherTx],
+      }),
+      unsyncedCount: 0,
+    })
+  })
+
+  it('removes all transactions with the given parentId', () => {
+    useDataStore.getState().deleteInstallmentGroup('parent-abc')
+    const txs = useDataStore.getState().data?.transactions ?? []
+    expect(txs).toHaveLength(1)
+    expect(txs[0].id).toBe('other-tx')
+  })
+
+  it('does not affect transactions without the given parentId', () => {
+    useDataStore.getState().deleteInstallmentGroup('parent-abc')
+    const remaining = useDataStore.getState().data?.transactions ?? []
+    expect(remaining[0].id).toBe('other-tx')
+  })
+
+  it('creates a DELETE audit log entry with parentId as entityId', () => {
+    useDataStore.getState().deleteInstallmentGroup('parent-abc')
+    const log = useDataStore.getState().data?.auditLog ?? []
+    const entry = log.find((e) => e.entityId === 'parent-abc')
+    expect(entry).toBeDefined()
+    expect(entry?.action).toBe('DELETE')
+  })
+
+  it('audit summary mentions the parcel count and description', () => {
+    useDataStore.getState().deleteInstallmentGroup('parent-abc')
+    const entry = useDataStore.getState().data?.auditLog.find((e) => e.entityId === 'parent-abc')
+    expect(entry?.summary).toContain('3')
+    expect(entry?.summary).toContain('Viagem')
+  })
+
+  it('increments unsyncedCount', () => {
+    const before = useDataStore.getState().unsyncedCount
+    useDataStore.getState().deleteInstallmentGroup('parent-abc')
+    expect(useDataStore.getState().unsyncedCount).toBe(before + 1)
+  })
+})

@@ -101,6 +101,7 @@ interface DataStore {
   addTransaction: (tx: Transaction) => void
   updateTransaction: (tx: Transaction) => void
   deleteTransaction: (id: string) => void
+  deleteInstallmentGroup: (parentId: string) => void
 
   updateUser: (patch: Partial<DataFile['user']>) => void
   setRetentionLimit: (limit: number | null) => void
@@ -259,6 +260,38 @@ export const useDataStore = create<DataStore>((set, get) => ({
   addTransaction: (tx) =>
     set((s) =>
       mutate(s, (d) => {
+        // ── CC-24/CC-25: Installment group creation ──────────────────────
+        if (tx.installment && tx.installment.total > 1) {
+          const N = tx.installment.total
+          const parentId = tx.installment.parentId
+          const accName = d.accounts.find((a) => a.id === tx.accountId)?.name ?? tx.accountId
+
+          // Distribute amount evenly; first installment absorbs rounding remainder
+          const perInstallment = Math.round((tx.amount / N) * 100) / 100
+          const remainder = Math.round((tx.amount - perInstallment * N) * 100) / 100
+
+          for (let i = 1; i <= N; i++) {
+            const installmentAmount = i === 1 ? perInstallment + remainder : perInstallment
+            const installmentTx: Transaction = {
+              ...tx,
+              id: i === 1 ? tx.id : uuid(),
+              amount: installmentAmount,
+              date: advanceMonths(tx.date, i - 1),
+              description: (tx.description + ` (${i}/${N})`).trim(),
+              isPaid: false,
+              installment: { parentId, currentIndex: i, total: N },
+            }
+            d.transactions.push(installmentTx)
+          }
+
+          // CC-25: Single audit entry for the whole group
+          const totalStr = `R$ ${tx.amount.toFixed(2).replace('.', ',')}`
+          const groupSummary = `Compra parcelada em ${N}x: ${tx.description || accName} — ${totalStr} em ${accName}`
+          addAudit(d, makeEntry('CREATE', 'transaction', parentId, groupSummary))
+          return
+        }
+
+        // ── Standard single transaction ──────────────────────────────────
         d.transactions.push(tx)
         let summary: string
         if (tx.type === 'CREDIT_PAYMENT') {
@@ -307,6 +340,24 @@ export const useDataStore = create<DataStore>((set, get) => ({
           d,
           makeEntry('DELETE', 'transaction', id, buildSummary('DELETE', 'transaction', name))
         )
+      })
+    ),
+
+  // ── CC-27: Delete all installments sharing a parentId ─────────────────────
+
+  deleteInstallmentGroup: (parentId) =>
+    set((s) =>
+      mutate(s, (d) => {
+        // Find any installment in the group to extract description and count
+        const sample = d.transactions.find((t) => t.installment?.parentId === parentId)
+        const N = sample?.installment?.total ?? 0
+        // Strip the " (X/N)" suffix from the description for the audit summary
+        const rawDesc = sample?.description?.replace(/\s*\(\d+\/\d+\)$/, '') ?? ''
+        const accName =
+          d.accounts.find((a) => a.id === sample?.accountId)?.name ?? sample?.accountId ?? ''
+        d.transactions = d.transactions.filter((t) => t.installment?.parentId !== parentId)
+        const summary = `Compra parcelada cancelada: ${rawDesc || accName} — ${N} parcelas removidas`
+        addAudit(d, makeEntry('DELETE', 'transaction', parentId, summary))
       })
     ),
 
@@ -418,6 +469,23 @@ function mutate(state: DataStore, fn: (data: DataFile) => void): Partial<DataSto
   const unsyncedCount = state.unsyncedCount + 1
   debouncedSaveToIdb(data, unsyncedCount)
   return { data, unsyncedCount }
+}
+
+// Advances a "YYYY-MM-DD" date string by the given number of months using local
+// date arithmetic (no UTC conversions). If the target month has fewer days than
+// the original day, the day is clamped to the last day of that month.
+function advanceMonths(dateStr: string, months: number): string {
+  if (months === 0) return dateStr
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+  let newMonth = m + months
+  let newYear = y
+  while (newMonth > 12) {
+    newMonth -= 12
+    newYear += 1
+  }
+  const lastDay = new Date(newYear, newMonth, 0).getDate()
+  const clampedDay = Math.min(d, lastDay)
+  return `${newYear}-${String(newMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`
 }
 
 // Strips creditMetadata from accounts that are not of type CREDIT.
