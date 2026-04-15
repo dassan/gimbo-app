@@ -74,6 +74,12 @@
     "cardToPay": "Cartão a pagar",
     "payFrom": "Pagar com",
     "currentInvoice": "Fatura atual",
+    "installments": "Parcelar?",
+    "installmentCount": "Número de parcelas",
+    "installmentHint": "Dividido em {{count}}x de {{value}}",
+    "deleteInstallmentTitle": "Esta transação é parcelada",
+    "deleteOnlyThis": "Excluir apenas esta ({{current}}/{{total}})",
+    "deleteAllInstallments": "Excluir todas as {{total}} parcelas",
     "save": {
       "expense": "Salvar Despesa",
       "income": "Salvar Receita",

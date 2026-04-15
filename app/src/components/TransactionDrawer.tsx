@@ -47,6 +47,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const addTransaction = useDataStore((s) => s.addTransaction)
   const updateTransaction = useDataStore((s) => s.updateTransaction)
   const deleteTransaction = useDataStore((s) => s.deleteTransaction)
+  const deleteInstallmentGroup = useDataStore((s) => s.deleteInstallmentGroup)
 
   const isEditMode = transaction !== undefined
 
@@ -61,6 +62,13 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const [description, setDescription] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
+  // ── CC-23: Installment state ──────────────────────────────────────────────────
+  const [installmentsEnabled, setInstallmentsEnabled] = useState(false)
+  const [installmentCount, setInstallmentCount] = useState(2)
+
+  // ── CC-26: Installment deletion modal state ───────────────────────────────────
+  const [showInstallmentDeleteModal, setShowInstallmentDeleteModal] = useState(false)
+
   // Derived account lists for CREDIT_PAYMENT selectors
   const creditAccounts = useMemo(
     () => (data?.accounts ?? []).filter((a) => a.type === 'CREDIT'),
@@ -70,6 +78,19 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
     () => (data?.accounts ?? []).filter((a) => a.type !== 'CREDIT'),
     [data]
   )
+
+  // Derived: selected account for standard (non-CREDIT_PAYMENT) mode
+  const selectedAccount = useMemo(
+    () =>
+      type !== 'CREDIT_PAYMENT'
+        ? (data?.accounts ?? []).find((a) => a.id === accountId)
+        : undefined,
+    [type, accountId, data]
+  )
+
+  // CC-23: Show installment section only when creating an EXPENSE on a CREDIT account
+  const showInstallmentSection =
+    !isEditMode && type === 'EXPENSE' && selectedAccount?.type === 'CREDIT'
 
   // Reset or pre-fill on open — intentional setState-in-effect to initialise form fields
   useEffect(() => {
@@ -96,6 +117,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
         setDescription('')
         setSelectedTags([])
       }
+      setInstallmentsEnabled(false)
+      setInstallmentCount(2)
+      setShowInstallmentDeleteModal(false)
     }
   }, [open, transaction, data, nonCreditAccounts])
 
@@ -109,6 +133,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
     } else {
       setAccountId(data?.accounts[0]?.id ?? '')
     }
+    // Reset installment state when type changes
+    setInstallmentsEnabled(false)
+    setInstallmentCount(2)
   }
 
   function handleAmountInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -124,8 +151,18 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
 
   function handleSave() {
     if (!data || amount === 0) return
+
+    // CC-23: Build installment metadata if applicable (create mode, EXPENSE, CREDIT account)
+    const parentId = uuid()
+    const hasInstallments =
+      !isEditMode &&
+      installmentsEnabled &&
+      installmentCount >= 2 &&
+      type === 'EXPENSE' &&
+      selectedAccount?.type === 'CREDIT'
+
     const payload: Transaction = {
-      id: isEditMode ? transaction.id : uuid(),
+      id: hasInstallments ? parentId : isEditMode ? transaction.id : uuid(),
       accountId: accountId || data.accounts[0]?.id || '',
       categoryId: type === 'CREDIT_PAYMENT' ? '' : categoryId,
       amount,
@@ -136,6 +173,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       tags: selectedTags,
       ...(type === 'CREDIT_PAYMENT' && transferAccountId ? { transferAccountId } : {}),
       ...(isEditMode && transaction.installment ? { installment: transaction.installment } : {}),
+      ...(hasInstallments
+        ? { installment: { parentId, currentIndex: 1, total: installmentCount } }
+        : {}),
     }
     if (isEditMode) {
       updateTransaction(payload)
@@ -145,9 +185,28 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
     onClose()
   }
 
+  // CC-26: Intercept delete for installment transactions
   function handleDelete() {
     if (!transaction) return
+    if (transaction.installment) {
+      setShowInstallmentDeleteModal(true)
+    } else {
+      deleteTransaction(transaction.id)
+      onClose()
+    }
+  }
+
+  function handleDeleteOnlyThis() {
+    if (!transaction) return
     deleteTransaction(transaction.id)
+    setShowInstallmentDeleteModal(false)
+    onClose()
+  }
+
+  function handleDeleteAllInstallments() {
+    if (!transaction?.installment) return
+    deleteInstallmentGroup(transaction.installment.parentId)
+    setShowInstallmentDeleteModal(false)
     onClose()
   }
 
@@ -162,6 +221,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   )
 
   const cfg = TYPE_CONFIG[type]
+
+  // CC-23: Per-installment amount for hint
+  const perInstallmentAmount = installmentCount >= 2 ? amount / installmentCount : 0
 
   return (
     <>
@@ -309,7 +371,12 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
               <div className="relative">
                 <select
                   value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
+                  onChange={(e) => {
+                    setAccountId(e.target.value)
+                    // Reset installment toggle when account changes
+                    setInstallmentsEnabled(false)
+                    setInstallmentCount(2)
+                  }}
                   className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
                 >
                   {(data?.accounts ?? []).map((a) => (
@@ -326,6 +393,67 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
                 />
               </div>
+            </div>
+          )}
+
+          {/* ── CC-23: Installment section (EXPENSE on CREDIT account, create only) ── */}
+          {showInstallmentSection && (
+            <div className="rounded-xl bg-surface-container-low px-4 py-3 space-y-3">
+              {/* Toggle row */}
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-on-surface">
+                  {t('transactions.installments')}
+                </label>
+                <button
+                  role="switch"
+                  aria-checked={installmentsEnabled}
+                  onClick={() => {
+                    setInstallmentsEnabled((v) => !v)
+                    if (!installmentsEnabled) setInstallmentCount(2)
+                  }}
+                  className={cn(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    installmentsEnabled ? 'bg-primary' : 'bg-on-surface/20'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                      installmentsEnabled ? 'translate-x-6' : 'translate-x-1'
+                    )}
+                  />
+                </button>
+              </div>
+
+              {/* Count field + hint */}
+              {installmentsEnabled && (
+                <>
+                  <div>
+                    <label className="label text-on-surface/40 block mb-2">
+                      {t('transactions.installmentCount')}
+                    </label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={36}
+                      value={installmentCount}
+                      onChange={(e) => {
+                        const v = Math.max(2, Math.min(36, parseInt(e.target.value, 10) || 2))
+                        setInstallmentCount(v)
+                      }}
+                      className="w-full rounded-xl bg-white border border-surface-container-high py-3 px-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  {amount > 0 && (
+                    <p className="text-xs text-on-surface/50">
+                      {t('transactions.installmentHint', {
+                        count: installmentCount,
+                        value: formatCurrency(perInstallmentAmount),
+                      })}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -442,6 +570,40 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
             </button>
           )}
         </div>
+
+        {/* ── CC-26: Installment deletion modal ────────────────────────────── */}
+        {showInstallmentDeleteModal && transaction?.installment && (
+          <div className="absolute inset-0 z-10 flex items-end bg-on-surface/30 backdrop-blur-sm">
+            <div className="w-full rounded-t-2xl bg-white px-6 pb-8 pt-6 space-y-3">
+              <h3 className="text-base font-semibold text-on-surface">
+                {t('transactions.deleteInstallmentTitle')}
+              </h3>
+              <button
+                onClick={handleDeleteOnlyThis}
+                className="w-full rounded-2xl border border-tertiary/30 py-3 text-sm font-medium text-tertiary hover:bg-tertiary/5 transition-colors"
+              >
+                {t('transactions.deleteOnlyThis', {
+                  current: transaction.installment.currentIndex,
+                  total: transaction.installment.total,
+                })}
+              </button>
+              <button
+                onClick={handleDeleteAllInstallments}
+                className="w-full rounded-2xl bg-tertiary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
+              >
+                {t('transactions.deleteAllInstallments', {
+                  total: transaction.installment.total,
+                })}
+              </button>
+              <button
+                onClick={() => setShowInstallmentDeleteModal(false)}
+                className="w-full rounded-2xl py-3 text-sm font-medium text-on-surface/50 hover:bg-surface-container-low transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        )}
       </aside>
     </>
   )

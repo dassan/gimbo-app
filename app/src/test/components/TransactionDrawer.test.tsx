@@ -328,3 +328,235 @@ describe('TransactionDrawer — CC-20: invoice balance hint', () => {
     expect(screen.queryByText('transactions.currentInvoice')).not.toBeInTheDocument()
   })
 })
+
+// ─── CC-23: Installment section ───────────────────────────────────────────────
+
+describe('TransactionDrawer — CC-23: installment section', () => {
+  beforeEach(() => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [testAccount, testCreditAccount],
+        categories: [testCategory],
+      }),
+      unsyncedCount: 0,
+    })
+  })
+
+  it('shows installment toggle when EXPENSE on CREDIT account (select changed to credit)', async () => {
+    renderDrawer()
+    // By default, first account (testAccount = RETAIL) is selected — no installment section
+    expect(screen.queryByText('transactions.installments')).not.toBeInTheDocument()
+    // Change account selector to credit account (first combobox is the account selector)
+    const selects = screen.getAllByRole('combobox')
+    await userEvent.selectOptions(selects[0], testCreditAccount.id)
+    // Now the installment toggle should appear
+    expect(screen.getByText('transactions.installments')).toBeInTheDocument()
+  })
+
+  it('does not show installment toggle for EXPENSE on non-CREDIT account', () => {
+    renderDrawer()
+    // testAccount is RETAIL — no installment section
+    expect(screen.queryByText('transactions.installments')).not.toBeInTheDocument()
+  })
+
+  it('does not show installment toggle when type is INCOME even with CREDIT account', async () => {
+    // Set up store with only a credit account so it auto-selects
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testCreditAccount], categories: [testCategory] }),
+      unsyncedCount: 0,
+    })
+    renderDrawer()
+    // Switch to INCOME type
+    await userEvent.click(screen.getByRole('button', { name: 'transactions.income' }))
+    expect(screen.queryByText('transactions.installments')).not.toBeInTheDocument()
+  })
+
+  it('shows installment toggle when EXPENSE and only a CREDIT account is in store', () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testCreditAccount], categories: [testCategory] }),
+      unsyncedCount: 0,
+    })
+    renderDrawer()
+    // With only the credit account auto-selected and EXPENSE type, toggle appears
+    expect(screen.getByText('transactions.installments')).toBeInTheDocument()
+  })
+
+  it('shows installment count field when toggle is enabled', async () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testCreditAccount], categories: [testCategory] }),
+      unsyncedCount: 0,
+    })
+    renderDrawer()
+    const toggle = screen.getByRole('switch')
+    await userEvent.click(toggle)
+    expect(screen.getByText('transactions.installmentCount')).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton')).toBeInTheDocument()
+  })
+
+  it('does not show installment section in edit mode', () => {
+    const creditTx: Transaction = {
+      id: 'tx-inst',
+      accountId: testCreditAccount.id,
+      categoryId: 'cat-1',
+      amount: 300,
+      type: 'EXPENSE',
+      date: '2024-03-15',
+      description: 'Compra',
+      isPaid: false,
+      tags: [],
+      installment: { parentId: 'parent-1', currentIndex: 1, total: 3 },
+    }
+    renderDrawer({ transaction: creditTx })
+    expect(screen.queryByText('transactions.installments')).not.toBeInTheDocument()
+  })
+
+  it('shows installment hint when toggle enabled and amount > 0', async () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testCreditAccount], categories: [testCategory] }),
+      unsyncedCount: 0,
+    })
+    renderDrawer()
+    const toggle = screen.getByRole('switch')
+    await userEvent.click(toggle)
+
+    // Enter an amount so the hint appears
+    const amountInput = screen.getByPlaceholderText('0,00')
+    await userEvent.clear(amountInput)
+    await userEvent.type(amountInput, '30000')
+
+    expect(screen.getByText(/transactions\.installmentHint/i)).toBeInTheDocument()
+  })
+
+  it('calls addTransaction with installment data when enabled', async () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testCreditAccount], categories: [testCategory] }),
+      unsyncedCount: 0,
+    })
+    const addTransaction = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'addTransaction').mockImplementation(addTransaction)
+
+    renderDrawer()
+    // Enable installment toggle
+    const toggle = screen.getByRole('switch')
+    await userEvent.click(toggle)
+
+    // Enter amount
+    const amountInput = screen.getByPlaceholderText('0,00')
+    await userEvent.clear(amountInput)
+    await userEvent.type(amountInput, '30000')
+
+    await userEvent.click(screen.getByRole('button', { name: /transactions\.save\.expense/i }))
+
+    expect(addTransaction).toHaveBeenCalledOnce()
+    const arg = addTransaction.mock.calls[0][0] as Transaction
+    expect(arg.installment).toBeDefined()
+    expect(arg.installment?.total).toBe(2) // default installmentCount is 2
+    expect(arg.installment?.currentIndex).toBe(1)
+    expect(arg.installment?.parentId).toBeDefined()
+  })
+})
+
+// ─── CC-26: Installment deletion modal ───────────────────────────────────────
+
+describe('TransactionDrawer — CC-26: installment deletion modal', () => {
+  const installmentTx: Transaction = {
+    id: 'tx-inst-1',
+    accountId: testCreditAccount.id,
+    categoryId: 'cat-1',
+    amount: 100,
+    type: 'EXPENSE',
+    date: '2024-03-15',
+    description: 'Viagem (1/3)',
+    isPaid: false,
+    tags: [],
+    installment: { parentId: 'parent-123', currentIndex: 1, total: 3 },
+  }
+
+  const nonInstallmentTx: Transaction = {
+    ...testTransaction,
+    id: 'tx-regular',
+  }
+
+  beforeEach(() => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [testAccount, testCreditAccount],
+        categories: [testCategory],
+        transactions: [installmentTx],
+      }),
+      unsyncedCount: 0,
+    })
+  })
+
+  it('shows installment delete modal when delete is clicked for installment transaction', async () => {
+    renderDrawer({ transaction: installmentTx })
+    await userEvent.click(screen.getByRole('button', { name: /transactions\.deleteTransaction/i }))
+    expect(screen.getByText('transactions.deleteInstallmentTitle')).toBeInTheDocument()
+  })
+
+  it('shows delete options with current/total and total count', async () => {
+    renderDrawer({ transaction: installmentTx })
+    await userEvent.click(screen.getByRole('button', { name: /transactions\.deleteTransaction/i }))
+    expect(screen.getByText(/transactions\.deleteOnlyThis/i)).toBeInTheDocument()
+    expect(screen.getByText(/transactions\.deleteAllInstallments/i)).toBeInTheDocument()
+    expect(screen.getByText(/common\.cancel/i)).toBeInTheDocument()
+  })
+
+  it('calls deleteTransaction when "delete only this" is clicked', async () => {
+    const deleteTransaction = vi.fn()
+    const onClose = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'deleteTransaction').mockImplementation(deleteTransaction)
+
+    render(<TransactionDrawer open={true} onClose={onClose} transaction={installmentTx} />)
+    await userEvent.click(screen.getByRole('button', { name: /transactions\.deleteTransaction/i }))
+    await userEvent.click(screen.getByText(/transactions\.deleteOnlyThis/i))
+
+    expect(deleteTransaction).toHaveBeenCalledWith(installmentTx.id)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('calls deleteInstallmentGroup when "delete all" is clicked', async () => {
+    const deleteInstallmentGroup = vi.fn()
+    const onClose = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'deleteInstallmentGroup').mockImplementation(
+      deleteInstallmentGroup
+    )
+
+    render(<TransactionDrawer open={true} onClose={onClose} transaction={installmentTx} />)
+    await userEvent.click(screen.getByRole('button', { name: /transactions\.deleteTransaction/i }))
+    await userEvent.click(screen.getByText(/transactions\.deleteAllInstallments/i))
+
+    expect(deleteInstallmentGroup).toHaveBeenCalledWith(installmentTx.installment!.parentId)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('dismisses modal when cancel is clicked', async () => {
+    renderDrawer({ transaction: installmentTx })
+    await userEvent.click(screen.getByRole('button', { name: /transactions\.deleteTransaction/i }))
+    expect(screen.getByText('transactions.deleteInstallmentTitle')).toBeInTheDocument()
+    await userEvent.click(screen.getByText(/common\.cancel/i))
+    expect(screen.queryByText('transactions.deleteInstallmentTitle')).not.toBeInTheDocument()
+  })
+
+  it('calls deleteTransaction directly for non-installment transaction (no modal)', async () => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [testAccount, testCreditAccount],
+        categories: [testCategory],
+        transactions: [nonInstallmentTx],
+      }),
+      unsyncedCount: 0,
+    })
+    const deleteTransaction = vi.fn()
+    const onClose = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'deleteTransaction').mockImplementation(deleteTransaction)
+
+    render(<TransactionDrawer open={true} onClose={onClose} transaction={nonInstallmentTx} />)
+    await userEvent.click(screen.getByRole('button', { name: /transactions\.deleteTransaction/i }))
+
+    // No modal, direct deletion
+    expect(screen.queryByText('transactions.deleteInstallmentTitle')).not.toBeInTheDocument()
+    expect(deleteTransaction).toHaveBeenCalledWith(nonInstallmentTx.id)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+})

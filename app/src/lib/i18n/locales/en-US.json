@@ -74,6 +74,12 @@
     "cardToPay": "Card to pay",
     "payFrom": "Pay from",
     "currentInvoice": "Current invoice",
+    "installments": "Split into installments?",
+    "installmentCount": "Number of installments",
+    "installmentHint": "Split into {{count}}x of {{value}}",
+    "deleteInstallmentTitle": "This is an installment transaction",
+    "deleteOnlyThis": "Delete only this one ({{current}}/{{total}})",
+    "deleteAllInstallments": "Delete all {{total}} installments",
     "save": {
       "expense": "Save Expense",
       "income": "Save Income",
