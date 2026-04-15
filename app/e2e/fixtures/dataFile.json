@@ -1,9 +1,17 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "user": { "name": "E2E User", "email": "e2e@test.com", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z" },
   "settings": { "fileCreatedAt": "2024-01-01T00:00:00.000Z", "fileUpdatedAt": "2024-01-01T00:00:00.000Z", "auditLogRetentionLimit": 200 },
   "accounts": [
-    { "id": "acc-e2e-1", "name": "Conta E2E", "type": "RETAIL", "balance": 1000, "includeInBalance": true }
+    { "id": "acc-e2e-1", "name": "Conta E2E", "type": "RETAIL", "balance": 1000, "includeInBalance": true },
+    {
+      "id": "acc-e2e-credit",
+      "name": "Cartão E2E",
+      "type": "CREDIT",
+      "balance": 0,
+      "includeInBalance": false,
+      "creditMetadata": { "limit": 5000, "closingDay": 20, "dueDay": 10 }
+    }
   ],
   "categories": [
     { "id": "cat-e2e-1", "parentId": null, "name": "Salário", "icon": "briefcase", "color": "#22C55E", "type": "INCOME" },
