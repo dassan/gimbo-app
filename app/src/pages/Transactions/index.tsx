@@ -1,20 +1,24 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
-import { Search, CheckCircle2, Clock, ChevronDown } from 'lucide-react'
+import { Search, CheckCircle2, Clock, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
-import { formatCurrency, cn } from '@/lib/utils'
+import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
 import type { AppLayoutContext } from '@/components/AppLayout'
 import type { Transaction } from '@/types'
 
-type TimePeriod = 'today' | 'week' | 'month' | 'custom'
+// M-27: month | semester | custom — mirrors Analytics granularity
+type ViewPeriod = 'month' | 'semester' | 'custom'
 
 export default function Transactions() {
   const { t } = useTranslation()
   const data = useDataStore((s) => s.data)
   const { openTransactionDrawer } = useOutletContext<AppLayoutContext>()
 
-  const [period, setPeriod] = useState<TimePeriod>('month')
+  // M-27: month-based navigation (replaces period chips)
+  const [viewPeriod, setViewPeriod] = useState<ViewPeriod>('month')
+  const [monthOffset, setMonthOffset] = useState(0)
+
   const [search, setSearch] = useState('')
   const [filterAccountId, setFilterAccountId] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all')
@@ -27,6 +31,30 @@ export default function Transactions() {
     return new Set(data.accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id))
   }, [data])
 
+  // M-27: Compute date range and period label from viewPeriod + monthOffset
+  const { startDate, endDate, periodLabel } = useMemo(() => {
+    const ref = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+    if (viewPeriod === 'month') {
+      const start = ref
+      const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0)
+      const raw = ref.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      return {
+        startDate: start,
+        endDate: end,
+        periodLabel: raw.charAt(0).toUpperCase() + raw.slice(1),
+      }
+    }
+    if (viewPeriod === 'semester') {
+      const start = new Date(ref.getFullYear(), ref.getMonth() - 3, 1)
+      const end = new Date(ref.getFullYear(), ref.getMonth() + 3, 0)
+      const fmt = (d: Date) =>
+        d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
+      return { startDate: start, endDate: end, periodLabel: `${fmt(start)} – ${fmt(end)}` }
+    }
+    // custom: no date restriction
+    return { startDate: null, endDate: null, periodLabel: t('analytics.custom') }
+  }, [viewPeriod, monthOffset, now, t])
+
   const filtered = useMemo(() => {
     if (!data) return []
     let txs = [...data.transactions]
@@ -34,20 +62,14 @@ export default function Transactions() {
     // M-26: exclude CREDIT account transactions and CREDIT_PAYMENT — cash-flow ledger only
     txs = txs.filter((tx) => !creditAccountIds.has(tx.accountId) && tx.type !== 'CREDIT_PAYMENT')
 
-    // Period filter
-    txs = txs.filter((tx) => {
-      const d = new Date(tx.date)
-      if (period === 'today') {
-        return d.toDateString() === now.toDateString()
-      } else if (period === 'week') {
-        const weekAgo = new Date(now)
-        weekAgo.setDate(now.getDate() - 7)
-        return d >= weekAgo
-      } else if (period === 'month') {
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-      }
-      return true
-    })
+    // M-27: Period filter using parseDateLocal (avoids UTC date parsing bug)
+    if (startDate && endDate) {
+      txs = txs.filter((tx) => {
+        const d = parseDateLocal(tx.date)
+        return d >= startDate && d <= endDate
+      })
+    }
+    // viewPeriod === 'custom': no date filter — all transactions shown
 
     // Account filter
     if (filterAccountId !== 'all') txs = txs.filter((tx) => tx.accountId === filterAccountId)
@@ -62,8 +84,8 @@ export default function Transactions() {
       txs = txs.filter((tx) => tx.description.toLowerCase().includes(q))
     }
 
-    return txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [data, period, filterAccountId, filterStatus, search, now, creditAccountIds])
+    return txs.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime())
+  }, [data, filterAccountId, filterStatus, search, creditAccountIds, startDate, endDate])
 
   // Group by date
   const grouped = useMemo(() => {
@@ -101,6 +123,48 @@ export default function Transactions() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
+      {/* ── M-27: Period navigation (replaces period chips) ──────────────── */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        {/* Month arrows + label */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMonthOffset((o) => o - 1)}
+            aria-label="previous-period"
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+          >
+            <ChevronLeft size={18} strokeWidth={1.5} className="text-on-surface/60" />
+          </button>
+          <span className="text-xl font-bold text-on-surface min-w-44 text-center">
+            {periodLabel}
+          </span>
+          <button
+            onClick={() => setMonthOffset((o) => o + 1)}
+            aria-label="next-period"
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+          >
+            <ChevronRight size={18} strokeWidth={1.5} className="text-on-surface/60" />
+          </button>
+        </div>
+
+        {/* Granularity tabs */}
+        <div className="flex gap-1">
+          {(['month', 'semester', 'custom'] as ViewPeriod[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setViewPeriod(p)}
+              className={cn(
+                'rounded-full px-3 py-1.5 text-xs font-medium transition-all',
+                viewPeriod === p
+                  ? 'bg-primary text-white'
+                  : 'bg-surface-container-low text-on-surface/50 hover:text-on-surface/70'
+              )}
+            >
+              {t(`analytics.${p === 'month' ? 'month' : p === 'semester' ? 'semester' : 'custom'}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Filter bar ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-5">
         <FilterDropdown
@@ -149,26 +213,6 @@ export default function Transactions() {
             className="rounded-xl bg-surface-container-low py-2 pl-8 pr-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 w-48"
           />
         </div>
-      </div>
-
-      {/* ── Period tabs ──────────────────────────────────────────────────── */}
-      <div className="flex gap-1 mb-6">
-        {(['today', 'week', 'month', 'custom'] as TimePeriod[]).map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={cn(
-              'rounded-full px-4 py-1.5 text-sm font-medium transition-all',
-              period === p
-                ? 'bg-primary text-white'
-                : 'bg-surface-container-low text-on-surface/50 hover:text-on-surface/70'
-            )}
-          >
-            {t(
-              `transactions.${p === 'today' ? 'today' : p === 'week' ? 'thisWeek' : p === 'month' ? 'thisMonth' : 'custom'}`
-            )}
-          </button>
-        ))}
       </div>
 
       {/* ── M-32: Two-column layout: transaction list | spending summary ──── */}

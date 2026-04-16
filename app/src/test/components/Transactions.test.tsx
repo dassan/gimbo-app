@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import Transactions from '@/pages/Transactions'
 import { useDataStore } from '@/store/useDataStore'
 import { makeDataFile } from '@/test/fixtures/dataFile'
@@ -19,6 +20,10 @@ vi.mock('react-router-dom', () => ({
 
 const today = new Date()
 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+// Date string in the previous month (always the 1st to avoid edge-cases)
+const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+const prevMonthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}-01`
 
 function makeRetailAccount(overrides: Partial<Account> = {}): Account {
   return {
@@ -62,6 +67,158 @@ function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
 
 beforeEach(() => {
   useDataStore.setState({ data: null, unsyncedCount: 0 })
+})
+
+// ─── M-27: Period navigation ──────────────────────────────────────────────────
+
+describe('Transactions — M-27: period navigation', () => {
+  it('renders the three granularity tabs (month, semester, custom)', () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    expect(screen.getByText('analytics.month')).toBeInTheDocument()
+    expect(screen.getByText('analytics.semester')).toBeInTheDocument()
+    expect(screen.getByText('analytics.custom')).toBeInTheDocument()
+  })
+
+  it('renders navigation arrows (previous / next period)', () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    expect(screen.getByLabelText('previous-period')).toBeInTheDocument()
+    expect(screen.getByLabelText('next-period')).toBeInTheDocument()
+  })
+
+  it('does not show old period chips (today, thisWeek, thisMonth)', () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    expect(screen.queryByText('transactions.today')).not.toBeInTheDocument()
+    expect(screen.queryByText('transactions.thisWeek')).not.toBeInTheDocument()
+    expect(screen.queryByText('transactions.thisMonth')).not.toBeInTheDocument()
+  })
+
+  it('hides transactions from previous months by default (month view)', () => {
+    const retailAccount = makeRetailAccount()
+    const currentMonthTx = makeTransaction({
+      id: 'tx-curr',
+      description: 'Mês Atual',
+      date: todayStr,
+    })
+    const prevMonthTx = makeTransaction({
+      id: 'tx-prev',
+      description: 'Mês Anterior',
+      date: prevMonthStr,
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount],
+        transactions: [currentMonthTx, prevMonthTx],
+      }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    expect(screen.getByText('Mês Atual')).toBeInTheDocument()
+    expect(screen.queryByText('Mês Anterior')).not.toBeInTheDocument()
+  })
+
+  it('shows all transactions when custom granularity is selected', async () => {
+    const retailAccount = makeRetailAccount()
+    const currentMonthTx = makeTransaction({
+      id: 'tx-curr',
+      description: 'Mês Atual',
+      date: todayStr,
+    })
+    const prevMonthTx = makeTransaction({
+      id: 'tx-prev',
+      description: 'Mês Anterior',
+      date: prevMonthStr,
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount],
+        transactions: [currentMonthTx, prevMonthTx],
+      }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // Previous month hidden by default
+    expect(screen.queryByText('Mês Anterior')).not.toBeInTheDocument()
+
+    // Switch to custom view — no date filter applied
+    await userEvent.click(screen.getByText('analytics.custom'))
+
+    expect(screen.getByText('Mês Atual')).toBeInTheDocument()
+    expect(screen.getByText('Mês Anterior')).toBeInTheDocument()
+  })
+
+  it('shows previous month transactions after navigating back with the ‹ arrow', async () => {
+    const retailAccount = makeRetailAccount()
+    const prevMonthTx = makeTransaction({
+      id: 'tx-prev',
+      description: 'Lançamento Anterior',
+      date: prevMonthStr,
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [prevMonthTx] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // Not visible in current month
+    expect(screen.queryByText('Lançamento Anterior')).not.toBeInTheDocument()
+
+    // Navigate back one month
+    await userEvent.click(screen.getByLabelText('previous-period'))
+
+    expect(screen.getByText('Lançamento Anterior')).toBeInTheDocument()
+  })
+
+  it('hides transactions from the previous month again after navigating forward', async () => {
+    const retailAccount = makeRetailAccount()
+    const prevMonthTx = makeTransaction({
+      id: 'tx-prev',
+      description: 'Só no Mês Anterior',
+      date: prevMonthStr,
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [prevMonthTx] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // Navigate back and then forward (back to current month)
+    await userEvent.click(screen.getByLabelText('previous-period'))
+    expect(screen.getByText('Só no Mês Anterior')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByLabelText('next-period'))
+    expect(screen.queryByText('Só no Mês Anterior')).not.toBeInTheDocument()
+  })
 })
 
 // ─── M-32: Spending summary right column ─────────────────────────────────────
