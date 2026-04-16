@@ -201,9 +201,23 @@ describe('TransactionDrawer — edit mode', () => {
   })
 })
 
-// ─── CC-19: CREDIT_PAYMENT two-account flow ───────────────────────────────────
+// ─── CC-19 / M-28: CREDIT_PAYMENT tab removed from type selector ─────────────
 
-describe('TransactionDrawer — CC-19: CREDIT_PAYMENT flow', () => {
+// Fixture for editing an existing CREDIT_PAYMENT transaction (still possible from /credit-card)
+const testCreditPaymentTransaction: Transaction = {
+  id: 'tx-cp-1',
+  accountId: 'acc-credit',
+  categoryId: '',
+  amount: 500,
+  type: 'CREDIT_PAYMENT',
+  date: '2024-03-15',
+  description: 'Pagamento fatura',
+  isPaid: true,
+  tags: [],
+  transferAccountId: 'acc-1',
+}
+
+describe('TransactionDrawer — M-28: CREDIT_PAYMENT tab removed from type selector', () => {
   beforeEach(() => {
     useDataStore.setState({
       data: makeDataFile({
@@ -214,79 +228,60 @@ describe('TransactionDrawer — CC-19: CREDIT_PAYMENT flow', () => {
     })
   })
 
-  it('shows "transactions.creditPayment" tab in type selector', () => {
+  it('does NOT show "transactions.creditPayment" tab in create mode', () => {
     renderDrawer()
-    expect(screen.getByRole('button', { name: 'transactions.creditPayment' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'transactions.creditPayment' })
+    ).not.toBeInTheDocument()
   })
 
-  it('shows cardToPay and payFrom labels when CREDIT_PAYMENT is selected', async () => {
+  it('shows only EXPENSE, INCOME and TRANSFER tabs in create mode', () => {
     renderDrawer()
-    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+    expect(screen.getByRole('button', { name: 'transactions.expense' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'transactions.income' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'transactions.transfer' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'transactions.creditPayment' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides the type selector entirely when editing a CREDIT_PAYMENT transaction', () => {
+    renderDrawer({ transaction: testCreditPaymentTransaction })
+    // None of the type tabs should be visible
+    expect(screen.queryByRole('button', { name: 'transactions.expense' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'transactions.income' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'transactions.transfer' })).not.toBeInTheDocument()
+  })
+
+  it('shows cardToPay and payFrom labels when editing a CREDIT_PAYMENT', () => {
+    renderDrawer({ transaction: testCreditPaymentTransaction })
     expect(screen.getByText('transactions.cardToPay')).toBeInTheDocument()
     expect(screen.getByText('transactions.payFrom')).toBeInTheDocument()
   })
 
-  it('hides standard account selector and category when CREDIT_PAYMENT is selected', async () => {
-    renderDrawer()
-    // Standard account label is visible before switch
-    expect(screen.getByText('transactions.account')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+  it('hides standard account selector and category when editing a CREDIT_PAYMENT', () => {
+    renderDrawer({ transaction: testCreditPaymentTransaction })
     expect(screen.queryByText('transactions.account')).not.toBeInTheDocument()
     expect(screen.queryByText('transactions.category')).not.toBeInTheDocument()
   })
 
-  it('cardToPay selector only lists CREDIT accounts', async () => {
-    renderDrawer()
-    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
-    // The credit account should be in the cardToPay select options
+  it('cardToPay selector only lists CREDIT accounts in edit mode', () => {
+    renderDrawer({ transaction: testCreditPaymentTransaction })
     const selects = screen.getAllByRole('combobox')
     // First select = cardToPay (credit accounts)
-    const cardToPaySelect = selects[0]
-    expect(cardToPaySelect).toHaveDisplayValue(testCreditAccount.name)
+    expect(selects[0]).toHaveDisplayValue(testCreditAccount.name)
   })
 
-  it('payFrom selector only lists non-CREDIT accounts', async () => {
-    renderDrawer()
-    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+  it('payFrom selector only lists non-CREDIT accounts in edit mode', () => {
+    renderDrawer({ transaction: testCreditPaymentTransaction })
     const selects = screen.getAllByRole('combobox')
     // Second select = payFrom (non-credit accounts)
-    const payFromSelect = selects[1]
-    expect(payFromSelect).toHaveDisplayValue(testAccount.name)
+    expect(selects[1]).toHaveDisplayValue(testAccount.name)
   })
 
-  it('save button shows credit_payment label', async () => {
-    renderDrawer()
-    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
-    expect(
-      screen.getByRole('button', { name: /transactions\.save\.credit_payment/i })
-    ).toBeInTheDocument()
-  })
-
-  it('calls addTransaction with transferAccountId when CREDIT_PAYMENT is saved', async () => {
-    const addTransaction = vi.fn()
-    const onClose = vi.fn()
-    vi.spyOn(useDataStore.getState(), 'addTransaction').mockImplementation(addTransaction)
-
-    render(<TransactionDrawer open={true} onClose={onClose} />)
-    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
-
-    const amountInput = screen.getByPlaceholderText('0,00')
-    await userEvent.clear(amountInput)
-    await userEvent.type(amountInput, '50000')
-
-    await userEvent.click(
-      screen.getByRole('button', { name: /transactions\.save\.credit_payment/i })
-    )
-
-    expect(addTransaction).toHaveBeenCalledOnce()
-    expect(addTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'CREDIT_PAYMENT',
-        accountId: testCreditAccount.id,
-        transferAccountId: testAccount.id,
-      })
-    )
-    expect(onClose).toHaveBeenCalledOnce()
+  it('save button shows credit_payment label in edit mode', () => {
+    renderDrawer({ transaction: testCreditPaymentTransaction })
+    expect(screen.getByRole('button', { name: /transactions\.saveUpdate/i })).toBeInTheDocument()
   })
 })
 
@@ -317,9 +312,9 @@ describe('TransactionDrawer — CC-20: invoice balance hint', () => {
     })
   })
 
-  it('shows invoice hint when CREDIT_PAYMENT is selected and credit account has creditMetadata', async () => {
-    renderDrawer()
-    await userEvent.click(screen.getByRole('button', { name: 'transactions.creditPayment' }))
+  // M-28: CREDIT_PAYMENT can no longer be selected in create mode — hint is shown when editing
+  it('shows invoice hint when editing a CREDIT_PAYMENT on a credit account with creditMetadata', () => {
+    renderDrawer({ transaction: testCreditPaymentTransaction })
     expect(screen.getByText('transactions.currentInvoice')).toBeInTheDocument()
   })
 

@@ -288,23 +288,27 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
             />
           </div>
 
-          {/* Type selector */}
-          <div className="flex rounded-2xl bg-surface-container-low p-1 gap-1">
-            {(Object.keys(TYPE_CONFIG) as TxType[]).map((key) => (
-              <button
-                key={key}
-                onClick={() => handleTypeChange(key)}
-                className={cn(
-                  'flex-1 rounded-xl py-2 text-sm font-medium transition-all',
-                  type === key
-                    ? cn('bg-white shadow-ambient', TYPE_CONFIG[key].color)
-                    : 'text-on-surface/40 hover:text-on-surface/60'
-                )}
-              >
-                {t(TYPE_CONFIG[key].label)}
-              </button>
-            ))}
-          </div>
+          {/* Type selector — M-28: CREDIT_PAYMENT removed from tabs (payment initiated via
+              "Pagar Agora" on /credit-card/:id instead). When editing an existing
+              CREDIT_PAYMENT the type is fixed, so the selector is hidden entirely. */}
+          {!(isEditMode && type === 'CREDIT_PAYMENT') && (
+            <div className="flex rounded-2xl bg-surface-container-low p-1 gap-1">
+              {(['EXPENSE', 'INCOME', 'TRANSFER'] as TxType[]).map((key) => (
+                <button
+                  key={key}
+                  onClick={() => handleTypeChange(key)}
+                  className={cn(
+                    'flex-1 rounded-xl py-2 text-sm font-medium transition-all',
+                    type === key
+                      ? cn('bg-white shadow-ambient', TYPE_CONFIG[key].color)
+                      : 'text-on-surface/40 hover:text-on-surface/60'
+                  )}
+                >
+                  {t(TYPE_CONFIG[key].label)}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Date */}
           <div>
