@@ -16,7 +16,13 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
-import { formatCurrency, cn, parseDateLocal, getCurrentInvoiceBalance } from '@/lib/utils'
+import {
+  formatCurrency,
+  cn,
+  parseDateLocal,
+  getCurrentInvoiceBalance,
+  getEffectiveCashFlowDate,
+} from '@/lib/utils'
 import type { Account, Transaction, AccountType } from '@/types'
 
 // ─── Account type config ──────────────────────────────────────────────────────
@@ -58,9 +64,13 @@ export default function Dashboard() {
     if (!data) return { income: 0, expenses: 0, balance: 0, recentTxs: [] }
     const m = now.getMonth(),
       y = now.getFullYear()
+    // Use effective cash-flow date (B-09): CREDIT expenses land in the invoice due month,
+    // not the purchase month. CREDIT_PAYMENT is excluded — it is liability settlement,
+    // not income or expense (same rule applied in Analytics CC-17).
     const monthly = data.transactions.filter((tx) => {
-      const d = parseDateLocal(tx.date)
-      return d.getMonth() === m && d.getFullYear() === y
+      if (tx.type === 'CREDIT_PAYMENT') return false
+      const effectiveDate = parseDateLocal(getEffectiveCashFlowDate(tx, data.accounts))
+      return effectiveDate.getMonth() === m && effectiveDate.getFullYear() === y
     })
     const income = monthly.filter((tx) => tx.type === 'INCOME').reduce((s, tx) => s + tx.amount, 0)
     const expenses = monthly
