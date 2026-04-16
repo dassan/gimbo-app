@@ -246,8 +246,7 @@ export default function CreditCardPage() {
           </span>
           <button
             onClick={() => setPeriodOffset((o) => o + 1)}
-            disabled={periodOffset >= 0}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-container-low text-on-surface/60 hover:bg-surface-container-high transition-colors disabled:opacity-40"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-container-low text-on-surface/60 hover:bg-surface-container-high transition-colors"
           >
             <ChevronRight size={14} />
           </button>
