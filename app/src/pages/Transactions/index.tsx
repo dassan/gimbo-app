@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
-import { Search, CheckCircle2, Clock, ChevronDown, CreditCard } from 'lucide-react'
+import { Search, CheckCircle2, Clock, ChevronDown } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { AppLayoutContext } from '@/components/AppLayout'
@@ -21,9 +21,18 @@ export default function Transactions() {
 
   const now = useMemo(() => new Date(), [])
 
+  // M-26: Set of CREDIT account IDs — their transactions live in /credit-card/:id, not here
+  const creditAccountIds = useMemo(() => {
+    if (!data) return new Set<string>()
+    return new Set(data.accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id))
+  }, [data])
+
   const filtered = useMemo(() => {
     if (!data) return []
     let txs = [...data.transactions]
+
+    // M-26: exclude CREDIT account transactions and CREDIT_PAYMENT — cash-flow ledger only
+    txs = txs.filter((tx) => !creditAccountIds.has(tx.accountId) && tx.type !== 'CREDIT_PAYMENT')
 
     // Period filter
     txs = txs.filter((tx) => {
@@ -54,7 +63,7 @@ export default function Transactions() {
     }
 
     return txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [data, period, filterAccountId, filterStatus, search, now])
+  }, [data, period, filterAccountId, filterStatus, search, now, creditAccountIds])
 
   // Group by date
   const grouped = useMemo(() => {
@@ -67,7 +76,7 @@ export default function Transactions() {
     return Array.from(map.entries())
   }, [filtered])
 
-  // Summary — CREDIT_PAYMENT is excluded (it is a liability settlement, not income/expense)
+  // Summary — CREDIT account txs and CREDIT_PAYMENT already excluded by M-26 filter above
   const income = filtered.filter((tx) => tx.type === 'INCOME').reduce((s, tx) => s + tx.amount, 0)
   const expenses = filtered
     .filter((tx) => tx.type === 'EXPENSE')
@@ -86,7 +95,10 @@ export default function Transactions() {
           onChange={setFilterAccountId}
           options={[
             { value: 'all', label: t('transactions.filterAccounts') },
-            ...data.accounts.map((a) => ({ value: a.id, label: a.name })),
+            // M-26: CREDIT accounts are excluded — their transactions live in /credit-card/:id
+            ...data.accounts
+              .filter((a) => a.type !== 'CREDIT')
+              .map((a) => ({ value: a.id, label: a.name })),
           ]}
         />
         <FilterDropdown
@@ -258,26 +270,18 @@ function TxRow({
   isLast: boolean
   onEdit: (tx: Transaction) => void
 }) {
-  const { t } = useTranslation()
   const cat = data.categories.find((c) => c.id === tx.categoryId)
   const acc = data.accounts.find((a) => a.id === tx.accountId)
   const txTags = data.tags.filter((tag) => tx.tags.includes(tag.id))
   const isIncome = tx.type === 'INCOME'
-  const isCreditPayment = tx.type === 'CREDIT_PAYMENT'
 
   const timeStr = new Date(tx.date).toLocaleTimeString('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',
   })
 
-  // Type label shown above the description
-  const typeLabel = isCreditPayment
-    ? t('transactions.creditPayment')
-    : tx.type === 'INCOME'
-      ? 'Receita'
-      : tx.type === 'EXPENSE'
-        ? 'Despesa'
-        : 'Transf.'
+  // Type label shown above the description (CREDIT and CREDIT_PAYMENT filtered upstream — M-26)
+  const typeLabel = tx.type === 'INCOME' ? 'Receita' : tx.type === 'EXPENSE' ? 'Despesa' : 'Transf.'
 
   return (
     <div
@@ -290,19 +294,13 @@ function TxRow({
         !isLast && 'border-b border-surface-container-low'
       )}
     >
-      {/* Icon: CreditCard for CREDIT_PAYMENT, category avatar otherwise */}
-      {isCreditPayment ? (
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-container-high text-on-surface/50">
-          <CreditCard size={18} strokeWidth={1.5} />
-        </div>
-      ) : (
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white text-sm font-semibold"
-          style={{ backgroundColor: cat?.color ?? '#6B7280' }}
-        >
-          {cat?.name?.[0] ?? '?'}
-        </div>
-      )}
+      {/* Category avatar */}
+      <div
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white text-sm font-semibold"
+        style={{ backgroundColor: cat?.color ?? '#6B7280' }}
+      >
+        {cat?.name?.[0] ?? '?'}
+      </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -333,17 +331,12 @@ function TxRow({
       {/* Amount + paid status */}
       <div className="flex items-center gap-3 shrink-0">
         <div className="text-right">
-          <p
-            className={cn(
-              'text-sm font-bold',
-              isIncome ? 'text-primary' : isCreditPayment ? 'text-on-surface/60' : 'text-tertiary'
-            )}
-          >
+          <p className={cn('text-sm font-bold', isIncome ? 'text-primary' : 'text-tertiary')}>
             {isIncome ? '+' : '-'}
             {formatCurrency(tx.amount)}
           </p>
           <p className="text-[10px] text-on-surface/30 mt-0.5">
-            {isIncome ? 'Depósito' : isCreditPayment ? 'Pag. Fatura' : 'Débito'}
+            {isIncome ? 'Depósito' : 'Débito'}
           </p>
         </div>
         <div className="flex h-8 w-8 items-center justify-center rounded-full">

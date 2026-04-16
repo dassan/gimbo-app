@@ -64,93 +64,133 @@ beforeEach(() => {
   useDataStore.setState({ data: null, unsyncedCount: 0 })
 })
 
-// ─── CC-22: CREDIT_PAYMENT display in ledger ──────────────────────────────────
+// ─── M-26: Cash-flow ledger filters ──────────────────────────────────────────
 
-describe('Transactions — CC-22: CREDIT_PAYMENT display', () => {
-  it('shows transactions.creditPayment label for CREDIT_PAYMENT row', () => {
+describe('Transactions — M-26: cash-flow ledger filters', () => {
+  it('does not show EXPENSE transactions from a CREDIT account', () => {
+    const retailAccount = makeRetailAccount()
     const creditAccount = makeCreditAccount()
-    const creditPayment = makeTransaction({
-      id: 'tx-cp',
-      accountId: creditAccount.id,
-      type: 'CREDIT_PAYMENT',
-      amount: 750,
-      description: 'Pagamento fatura',
-      transferAccountId: 'acc-retail',
+
+    const retailExpense = makeTransaction({
+      id: 'tx-retail',
+      accountId: 'acc-retail',
+      type: 'EXPENSE',
+      description: 'Mercado Corrente',
+    })
+    const creditExpense = makeTransaction({
+      id: 'tx-credit',
+      accountId: 'acc-credit',
+      type: 'EXPENSE',
+      description: 'Cinema no Cartão',
     })
 
     useDataStore.setState({
       data: makeDataFile({
-        accounts: [makeRetailAccount(), creditAccount],
-        transactions: [creditPayment],
+        accounts: [retailAccount, creditAccount],
+        transactions: [retailExpense, creditExpense],
       }),
       unsyncedCount: 0,
     })
 
     render(<Transactions />)
 
-    expect(screen.getByText('transactions.creditPayment')).toBeInTheDocument()
+    expect(screen.getByText('Mercado Corrente')).toBeInTheDocument()
+    expect(screen.queryByText('Cinema no Cartão')).not.toBeInTheDocument()
   })
 
-  it('does not count CREDIT_PAYMENT in consolidated result', () => {
+  it('does not show CREDIT_PAYMENT transactions', () => {
     const retailAccount = makeRetailAccount()
     const creditAccount = makeCreditAccount()
 
-    const income = makeTransaction({
-      id: 'tx-income',
+    const regularExpense = makeTransaction({
+      id: 'tx-expense',
       accountId: 'acc-retail',
-      type: 'INCOME',
-      amount: 1000,
+      description: 'Supermercado',
     })
     const creditPayment = makeTransaction({
       id: 'tx-cp',
       accountId: 'acc-credit',
       type: 'CREDIT_PAYMENT',
       amount: 500,
+      description: 'Pagamento fatura',
       transferAccountId: 'acc-retail',
     })
 
     useDataStore.setState({
       data: makeDataFile({
         accounts: [retailAccount, creditAccount],
-        transactions: [income, creditPayment],
+        transactions: [regularExpense, creditPayment],
       }),
       unsyncedCount: 0,
     })
 
     render(<Transactions />)
 
-    // Consolidated = income - expense = 1000 (CREDIT_PAYMENT not counted as expense)
-    // The footer shows "+1.000,00" for a positive flow
-    // If CREDIT_PAYMENT was wrongly counted as expense: consolidated = 1000 - 500 = 500
-    const positiveFlow = screen.getByText('transactions.positiveFlow')
-    expect(positiveFlow).toBeInTheDocument()
-    // The amount next to positiveFlow label should be +1.000,00 (the parent element)
-    const footerSection = positiveFlow.closest('div')
-    expect(footerSection?.textContent).toContain('1.000,00')
-    expect(footerSection?.textContent).not.toContain('500,00')
+    expect(screen.getByText('Supermercado')).toBeInTheDocument()
+    expect(screen.queryByText('Pagamento fatura')).not.toBeInTheDocument()
   })
 
-  it('shows CREDIT_PAYMENT transaction description in ledger', () => {
+  it('does not include CREDIT account in the filter dropdown', () => {
+    const retailAccount = makeRetailAccount({ name: 'Nubank Conta' })
+    const creditAccount = makeCreditAccount({ name: 'Nubank Cartão' })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount, creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // The accounts filter dropdown should list the retail account but not the credit account
+    expect(screen.getByText('Nubank Conta')).toBeInTheDocument()
+    expect(screen.queryByText('Nubank Cartão')).not.toBeInTheDocument()
+  })
+
+  it('consolidated flow excludes CREDIT account EXPENSE and CREDIT_PAYMENT', () => {
+    const retailAccount = makeRetailAccount()
     const creditAccount = makeCreditAccount()
+
+    const income = makeTransaction({
+      id: 'tx-income',
+      type: 'INCOME',
+      amount: 3000,
+      description: 'Salário',
+    })
+    const retailExpense = makeTransaction({
+      id: 'tx-retail-exp',
+      type: 'EXPENSE',
+      amount: 500,
+      description: 'Aluguel',
+    })
+    // These should NOT affect the consolidated total
+    const creditExpense = makeTransaction({
+      id: 'tx-credit-exp',
+      accountId: 'acc-credit',
+      type: 'EXPENSE',
+      amount: 200,
+      description: 'Restaurante Cartão',
+    })
     const creditPayment = makeTransaction({
       id: 'tx-cp',
-      accountId: creditAccount.id,
+      accountId: 'acc-credit',
       type: 'CREDIT_PAYMENT',
-      amount: 1200,
-      description: 'Pag. Nubank',
+      amount: 200,
+      description: 'Pag. Cartão',
       transferAccountId: 'acc-retail',
     })
 
     useDataStore.setState({
       data: makeDataFile({
-        accounts: [makeRetailAccount(), creditAccount],
-        transactions: [creditPayment],
+        accounts: [retailAccount, creditAccount],
+        transactions: [income, retailExpense, creditExpense, creditPayment],
       }),
       unsyncedCount: 0,
     })
 
     render(<Transactions />)
 
-    expect(screen.getByText('Pag. Nubank')).toBeInTheDocument()
+    // Flow = 3000 - 500 = 2500 (credit expense and payment ignored)
+    const footerSection = screen.getByText('transactions.positiveFlow').closest('div')
+    expect(footerSection?.textContent).toContain('2.500,00')
   })
 })
