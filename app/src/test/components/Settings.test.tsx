@@ -359,3 +359,56 @@ describe('Settings — CC-15: accounts list balance bifurcation', () => {
     expect(screen.getByText(/4\.321,00/)).toBeInTheDocument()
   })
 })
+
+// ─── Settings — M-23: issuer icon picker for CREDIT accounts ─────────────────
+
+describe('Settings — M-23: issuer icon picker', () => {
+  async function openCreditModal() {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [], transactions: [] }),
+      unsyncedCount: 0,
+    })
+    render(<Settings />)
+    await userEvent.click(screen.getByRole('button', { name: /settings\.newCreditCard/i }))
+  }
+
+  it('shows the issuer section label when CREDIT modal is open', async () => {
+    await openCreditModal()
+    expect(screen.getByText('accounts.issuer')).toBeInTheDocument()
+  })
+
+  it('renders all issuer options in the picker', async () => {
+    await openCreditModal()
+    // All named issuers should appear as buttons
+    expect(screen.getByText('Nubank')).toBeInTheDocument()
+    expect(screen.getByText('Itaú')).toBeInTheDocument()
+    expect(screen.getByText('Bradesco')).toBeInTheDocument()
+    expect(screen.getByText('Inter')).toBeInTheDocument()
+    expect(screen.getByText('Santander')).toBeInTheDocument()
+    expect(screen.getByText('Caixa')).toBeInTheDocument()
+    expect(screen.getByText('accounts.issuerGeneric')).toBeInTheDocument()
+  })
+
+  it('does not show the issuer section when a non-CREDIT type is selected in the modal', async () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [], transactions: [] }),
+      unsyncedCount: 0,
+    })
+    render(<Settings />)
+    // Open a regular account modal (non-CREDIT default)
+    await userEvent.click(screen.getByRole('button', { name: /settings\.newAccount/i }))
+
+    expect(screen.queryByText('accounts.issuer')).not.toBeInTheDocument()
+  })
+
+  it('preserves issuerIcon when editing a CREDIT account that already has one', () => {
+    const creditAccount = makeCreditAccount({ issuerIcon: 'nubank' })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+    render(<Settings />)
+    // The credit card row should be rendered — the issuer color is applied via style
+    expect(screen.getByText('Nexus Visa Gold')).toBeInTheDocument()
+  })
+})

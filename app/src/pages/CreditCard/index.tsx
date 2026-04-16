@@ -16,6 +16,20 @@ import {
 import type { AppLayoutContext } from '@/components/AppLayout'
 import type { Account, Transaction } from '@/types'
 
+// ─── Credit issuer colors (M-23) ─────────────────────────────────────────────
+const CREDIT_ISSUER_COLORS: Record<string, string> = {
+  nubank: '#820AD1',
+  itau: '#EC7000',
+  bradesco: '#CC092F',
+  inter: '#FF7A00',
+  santander: '#EC0000',
+  caixa: '#006CB4',
+}
+function getIssuerColor(issuerIcon?: string): string {
+  if (!issuerIcon || issuerIcon === 'generic') return '#1F2937'
+  return CREDIT_ISSUER_COLORS[issuerIcon] ?? '#1F2937'
+}
+
 // Months labels in pt-BR for the invoice period heading
 const MONTH_NAMES_PT = [
   'Janeiro',
@@ -181,7 +195,11 @@ export default function CreditCardPage() {
           <ChevronLeft size={16} />
         </button>
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-on-surface text-white">
+          {/* M-23: header icon color reflects the card issuer */}
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+            style={{ backgroundColor: getIssuerColor(account.issuerIcon) }}
+          >
             <CreditCard size={14} strokeWidth={1.5} />
           </div>
           <h1 className="text-base font-semibold text-on-surface">{account.name}</h1>

@@ -49,6 +49,20 @@ const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
   OTHER: '#9CA3AF',
 }
 
+// ─── Credit issuer colors (M-23) ─────────────────────────────────────────────
+const CREDIT_ISSUER_COLORS: Record<string, string> = {
+  nubank: '#820AD1',
+  itau: '#EC7000',
+  bradesco: '#CC092F',
+  inter: '#FF7A00',
+  santander: '#EC0000',
+  caixa: '#006CB4',
+}
+function getIssuerColor(issuerIcon?: string): string {
+  if (!issuerIcon || issuerIcon === 'generic') return ACCOUNT_TYPE_COLORS.CREDIT
+  return CREDIT_ISSUER_COLORS[issuerIcon] ?? ACCOUNT_TYPE_COLORS.CREDIT
+}
+
 // ─── Colour palette for donut chart ──────────────────────────────────────────
 const DONUT_COLORS = ['#006E2F', '#22C55E', '#FF8A83', '#B91A24', '#6B7280', '#F59E0B', '#3B82F6']
 
@@ -355,11 +369,11 @@ function CreditCardRow({
         onDetails && 'cursor-pointer hover:bg-surface-container-low transition-colors'
       )}
     >
-      {/* Card name + icon */}
+      {/* Card name + icon — M-23: color reflects issuer branding */}
       <div className="flex items-center gap-3">
         <div
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
-          style={{ backgroundColor: ACCOUNT_TYPE_COLORS.CREDIT }}
+          style={{ backgroundColor: getIssuerColor(account.issuerIcon) }}
         >
           <CreditCard size={18} strokeWidth={1.5} />
         </div>

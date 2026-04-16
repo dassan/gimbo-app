@@ -200,7 +200,9 @@
     "creditLimit": "Limite de Crédito Total",
     "closingDay": "Dia de Fechamento",
     "dueDay": "Dia de Vencimento",
-    "availableLimit": "Limite disponível"
+    "availableLimit": "Limite disponível",
+    "issuer": "Emissor",
+    "issuerGeneric": "Genérico"
   },
   "sync": {
     "syncNow": "Sincronizar agora",

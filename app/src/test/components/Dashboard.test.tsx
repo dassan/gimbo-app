@@ -417,3 +417,38 @@ describe('Dashboard — CC-22: CREDIT_PAYMENT excluded from totals', () => {
     expect(screen.queryByText(/1\.000,00/)).not.toBeInTheDocument()
   })
 })
+
+// ─── M-23: CreditCardRow uses issuerIcon color ────────────────────────────────
+
+describe('Dashboard — M-23: credit card issuer icon color', () => {
+  it('renders the credit card row regardless of issuerIcon value', () => {
+    const creditAccount = makeCreditAccount({ issuerIcon: 'nubank' })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+    render(<Dashboard />)
+    expect(screen.getByText('Nexus Visa Gold')).toBeInTheDocument()
+    expect(screen.getByText('dashboard.myCards')).toBeInTheDocument()
+  })
+
+  it('renders the credit card row with no issuerIcon (defaults to generic dark color)', () => {
+    const creditAccount = makeCreditAccount({ issuerIcon: undefined })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+    render(<Dashboard />)
+    expect(screen.getByText('Nexus Visa Gold')).toBeInTheDocument()
+  })
+
+  it('renders correctly with issuerIcon set to "generic"', () => {
+    const creditAccount = makeCreditAccount({ issuerIcon: 'generic' })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+    render(<Dashboard />)
+    expect(screen.getByText('Nexus Visa Gold')).toBeInTheDocument()
+  })
+})

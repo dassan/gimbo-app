@@ -497,8 +497,8 @@ function advanceMonths(dateStr: string, months: number): string {
   return `${newYear}-${String(newMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`
 }
 
-// Strips creditMetadata from accounts that are not of type CREDIT.
-// CC-12: non-CREDIT accounts must never carry creditMetadata in the saved object.
+// Strips CREDIT-only fields (creditMetadata, issuerIcon) from non-CREDIT accounts.
+// CC-12: non-CREDIT accounts must never carry creditMetadata or issuerIcon in the saved object.
 function sanitizeAccount(account: Account): Account {
   if (account.type === 'CREDIT') return account
   return {

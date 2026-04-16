@@ -56,6 +56,18 @@ import type {
 
 type Section = 'accounts' | 'categories' | 'tags' | 'profile' | 'preferences' | 'data' | 'history'
 
+// ─── Credit issuer config ─────────────────────────────────────────────────────
+
+const CREDIT_ISSUERS: { key: string; label: string; color: string }[] = [
+  { key: 'nubank', label: 'Nubank', color: '#820AD1' },
+  { key: 'itau', label: 'Itaú', color: '#EC7000' },
+  { key: 'bradesco', label: 'Bradesco', color: '#CC092F' },
+  { key: 'inter', label: 'Inter', color: '#FF7A00' },
+  { key: 'santander', label: 'Santander', color: '#EC0000' },
+  { key: 'caixa', label: 'Caixa', color: '#006CB4' },
+  { key: 'generic', label: '', color: '#1F2937' }, // label resolved via t('accounts.issuerGeneric')
+]
+
 // ─── Account type config ──────────────────────────────────────────────────────
 
 const ACCOUNT_TYPES: { type: AccountType; icon: React.ReactNode }[] = [
@@ -248,12 +260,21 @@ export default function Settings() {
     name: string,
     type: AccountType,
     includeInBalance: boolean,
-    creditMetadata?: CreditMetadata
+    creditMetadata?: CreditMetadata,
+    issuerIcon?: string
   ) {
     if (modal.open && modal.account) {
-      updateAccount({ ...modal.account, name, type, includeInBalance, creditMetadata })
+      updateAccount({ ...modal.account, name, type, includeInBalance, creditMetadata, issuerIcon })
     } else {
-      addAccount({ id: uuid(), name, type, balance: 0, includeInBalance, creditMetadata })
+      addAccount({
+        id: uuid(),
+        name,
+        type,
+        balance: 0,
+        includeInBalance,
+        creditMetadata,
+        issuerIcon,
+      })
     }
     setModal({ open: false })
   }
@@ -454,32 +475,41 @@ export default function Settings() {
                             {t('common.noData')}
                           </p>
                         )}
-                        {creditAccounts.map((acc) => (
-                          <button
-                            key={acc.id}
-                            onClick={() => setModal({ open: true, account: acc })}
-                            className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
-                            style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                          >
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                              <span className="text-primary">{accountTypeIcon(acc.type)}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-on-surface">{acc.name}</p>
-                              <p className="text-xs text-on-surface/40">
-                                {t(`accounts.${acc.type.toLowerCase()}`)}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] text-on-surface/40 uppercase tracking-wide">
-                                {t('accounts.availableLimit')}
-                              </p>
-                              <span className="text-sm font-bold text-on-surface">
-                                {formatCurrency(accountBalances[acc.id] ?? 0)}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
+                        {creditAccounts.map((acc) => {
+                          const issuerColor =
+                            (acc.issuerIcon && acc.issuerIcon !== 'generic'
+                              ? CREDIT_ISSUERS.find((i) => i.key === acc.issuerIcon)?.color
+                              : undefined) ?? '#1F2937'
+                          return (
+                            <button
+                              key={acc.id}
+                              onClick={() => setModal({ open: true, account: acc })}
+                              className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
+                              style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                            >
+                              <div
+                                className="flex h-10 w-10 items-center justify-center rounded-xl text-white"
+                                style={{ backgroundColor: issuerColor }}
+                              >
+                                <CreditCard size={20} strokeWidth={1.5} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-on-surface">{acc.name}</p>
+                                <p className="text-xs text-on-surface/40">
+                                  {t(`accounts.${acc.type.toLowerCase()}`)}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] text-on-surface/40 uppercase tracking-wide">
+                                  {t('accounts.availableLimit')}
+                                </p>
+                                <span className="text-sm font-bold text-on-surface">
+                                  {formatCurrency(accountBalances[acc.id] ?? 0)}
+                                </span>
+                              </div>
+                            </button>
+                          )
+                        })}
                       </div>
                       <button
                         onClick={() =>
@@ -858,7 +888,8 @@ function AddAccountModal({
     name: string,
     type: AccountType,
     includeInBalance: boolean,
-    creditMetadata?: CreditMetadata
+    creditMetadata?: CreditMetadata,
+    issuerIcon?: string
   ) => void
   onDelete: (id: string) => void
   onClose: () => void
@@ -873,6 +904,8 @@ function AddAccountModal({
     account?.includeInBalance ?? (defaultType === 'CREDIT' ? false : true)
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // M-23: issuer icon for CREDIT accounts — defaults to 'generic' (no visual branding)
+  const [issuerIcon, setIssuerIcon] = useState<string>(account?.issuerIcon ?? 'generic')
 
   // ── Credit metadata state ──────────────────────────────────────────────────
   const [creditLimit, setCreditLimit] = useState<string>(
@@ -892,10 +925,11 @@ function AddAccountModal({
     // CC-11: auto-deselect "include in balance" for CREDIT accounts
     if (selected === 'CREDIT') {
       setIncludeInBalance(false)
-      // Clear credit fields if switching away then back
     } else {
       // Restore default for non-CREDIT types when switching (only on create)
       if (!isEdit) setIncludeInBalance(true)
+      // Reset issuer icon when switching away from CREDIT
+      setIssuerIcon('generic')
     }
   }
 
@@ -904,6 +938,7 @@ function AddAccountModal({
     if (!trimmed) return
 
     let creditMetadata: CreditMetadata | undefined
+    let resolvedIssuerIcon: string | undefined
     if (type === 'CREDIT') {
       const limit = parseFloat(creditLimit) || 0
       const closing = parseInt(closingDay, 10)
@@ -918,9 +953,10 @@ function AddAccountModal({
       ) {
         creditMetadata = { limit, closingDay: closing, dueDay: due }
       }
+      resolvedIssuerIcon = issuerIcon
     }
 
-    onSave(trimmed, type, includeInBalance, creditMetadata)
+    onSave(trimmed, type, includeInBalance, creditMetadata, resolvedIssuerIcon)
   }
 
   function handleDelete() {
@@ -1043,6 +1079,33 @@ function AddAccountModal({
                     placeholder="1–31"
                     className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
+                </div>
+              </div>
+
+              {/* M-23: Issuer icon picker */}
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-3">
+                  {t('accounts.issuer')}
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {CREDIT_ISSUERS.map(({ key, label, color }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setIssuerIcon(key)}
+                      className={cn(
+                        'flex flex-col items-center gap-1.5 rounded-2xl border-2 py-2.5 px-1 transition-all',
+                        issuerIcon === key
+                          ? 'border-primary bg-primary/5'
+                          : 'border-transparent bg-surface-container-low hover:border-outline-variant'
+                      )}
+                    >
+                      <div className="h-5 w-5 rounded-full" style={{ backgroundColor: color }} />
+                      <span className="text-[9px] font-semibold uppercase tracking-wide leading-none text-on-surface/60 text-center">
+                        {key === 'generic' ? t('accounts.issuerGeneric') : label}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>

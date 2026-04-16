@@ -200,7 +200,9 @@
     "creditLimit": "Total Credit Limit",
     "closingDay": "Closing Day",
     "dueDay": "Due Day",
-    "availableLimit": "Available limit"
+    "availableLimit": "Available limit",
+    "issuer": "Issuer",
+    "issuerGeneric": "Generic"
   },
   "sync": {
     "syncNow": "Sync now",
