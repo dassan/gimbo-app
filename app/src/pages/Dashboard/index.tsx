@@ -76,7 +76,10 @@ export default function Dashboard() {
     const expenses = monthly
       .filter((tx) => tx.type === 'EXPENSE')
       .reduce((s, tx) => s + tx.amount, 0)
+    // M-25: for installment groups, show only the first installment (currentIndex === 1)
+    // to prevent a single purchase split into N parts from flooding the list.
     const recentTxs = [...data.transactions]
+      .filter((tx) => !tx.installment || tx.installment.currentIndex === 1)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5)
     return { income, expenses, balance: income - expenses, recentTxs }

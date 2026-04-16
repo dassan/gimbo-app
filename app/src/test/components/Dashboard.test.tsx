@@ -267,6 +267,80 @@ describe('Dashboard — CC-14: Meus Cartões section', () => {
   })
 })
 
+// ─── M-25: Últimos Lançamentos — only first installment per group ─────────────
+
+describe('Dashboard — M-25: recent transactions show only first installment', () => {
+  it('shows non-installment transactions normally', () => {
+    const account = makeRetailAccount()
+    const tx = makeTransaction({ id: 'tx-solo', description: 'Compra simples', date: todayStr })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [account], transactions: [tx] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Dashboard />)
+
+    expect(screen.getByText('Compra simples')).toBeInTheDocument()
+  })
+
+  it('shows only the first installment (currentIndex === 1) in recent transactions', () => {
+    const account = makeRetailAccount()
+    const parentId = 'parent-uuid'
+    const installments = [1, 2, 3].map((i) =>
+      makeTransaction({
+        id: `tx-inst-${i}`,
+        description: `Parcela (${i}/3)`,
+        date: todayStr,
+        installment: { parentId, currentIndex: i, total: 3 },
+      })
+    )
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [account], transactions: installments }),
+      unsyncedCount: 0,
+    })
+
+    render(<Dashboard />)
+
+    // Only the first installment should appear
+    expect(screen.getByText('Parcela (1/3)')).toBeInTheDocument()
+    expect(screen.queryByText('Parcela (2/3)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Parcela (3/3)')).not.toBeInTheDocument()
+  })
+
+  it('a 10-installment purchase occupies only 1 slot, leaving room for other transactions', () => {
+    const account = makeRetailAccount()
+    const parentId = 'parent-10x'
+    const installments = Array.from({ length: 10 }, (_, i) =>
+      makeTransaction({
+        id: `tx-10x-${i + 1}`,
+        description: `Notebook (${i + 1}/10)`,
+        date: todayStr,
+        installment: { parentId, currentIndex: i + 1, total: 10 },
+      })
+    )
+    // Add 4 other distinct transactions
+    const others = [1, 2, 3, 4].map((i) =>
+      makeTransaction({
+        id: `tx-other-${i}`,
+        description: `Outra compra ${i}`,
+        date: todayStr,
+      })
+    )
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [account], transactions: [...installments, ...others] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Dashboard />)
+
+    // First installment visible, others (2-10) not
+    expect(screen.getByText('Notebook (1/10)')).toBeInTheDocument()
+    expect(screen.queryByText('Notebook (2/10)')).not.toBeInTheDocument()
+    // At least some of the other transactions should also appear
+    expect(screen.getByText('Outra compra 1')).toBeInTheDocument()
+  })
+})
+
 // ─── CC-22: CREDIT_PAYMENT excluded from income/expense totals ────────────────
 
 describe('Dashboard — CC-22: CREDIT_PAYMENT excluded from totals', () => {
