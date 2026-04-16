@@ -177,6 +177,8 @@
     "closingDate": "Closing",
     "dueDate": "Due date",
     "payNow": "Pay Now",
+    "payInvoice": "Pay invoice",
+    "referenceMonth": "Reference month",
     "allCategories": "All categories",
     "noTransactions": "No transactions in this invoice",
     "spendingSummary": "Spending Summary",

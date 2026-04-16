@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, CreditCard, X } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { useOutletContext } from 'react-router-dom'
 import {
@@ -11,9 +11,10 @@ import {
   getInvoicePeriod,
   getInvoiceDueDate,
   getCurrentInvoiceBalance,
+  uuid,
 } from '@/lib/utils'
 import type { AppLayoutContext } from '@/components/AppLayout'
-import type { Transaction } from '@/types'
+import type { Account, Transaction } from '@/types'
 
 // Months labels in pt-BR for the invoice period heading
 const MONTH_NAMES_PT = [
@@ -36,14 +37,23 @@ export default function CreditCardPage() {
   const navigate = useNavigate()
   const { accountId } = useParams<{ accountId: string }>()
   const data = useDataStore((s) => s.data)
+  const addTransaction = useDataStore((s) => s.addTransaction)
   const { openTransactionDrawer } = useOutletContext<AppLayoutContext>()
 
   // Invoice period navigation offset (0 = current, -1 = previous, etc.)
   const [periodOffset, setPeriodOffset] = useState(0)
   // Category filter
   const [filterCategory, setFilterCategory] = useState<string>('all')
+  // M-30: Pay Invoice modal
+  const [showPayModal, setShowPayModal] = useState(false)
 
   const account = useMemo(() => data?.accounts.find((a) => a.id === accountId), [data, accountId])
+
+  // M-30: accounts that can be used to pay (non-CREDIT)
+  const nonCreditAccounts = useMemo(
+    () => (data?.accounts ?? []).filter((a) => a.type !== 'CREDIT'),
+    [data]
+  )
 
   // Resolve the invoice period (1-based month) for the current offset
   const resolvedPeriod = useMemo(() => {
@@ -143,6 +153,23 @@ export default function CreditCardPage() {
 
   const monthLabel = MONTH_NAMES_PT[(resolvedPeriod.month - 1 + 12) % 12]
 
+  // M-30: handle payment confirmation — creates a CREDIT_PAYMENT transaction
+  function handlePayConfirm(amount: number, date: string, fromAccountId: string) {
+    addTransaction({
+      id: uuid(),
+      accountId: account!.id,
+      transferAccountId: fromAccountId,
+      type: 'CREDIT_PAYMENT',
+      amount,
+      date,
+      description: '',
+      categoryId: '',
+      isPaid: true,
+      tags: [],
+    })
+    setShowPayModal(false)
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8 space-y-6">
       {/* ── Header: back + card name ──────────────────────────────────────── */}
@@ -224,8 +251,9 @@ export default function CreditCardPage() {
               </p>
               <p className="text-2xl font-bold text-on-surface">{formatCurrency(invoiceTotal)}</p>
             </div>
+            {/* M-30: opens dedicated PayInvoiceModal instead of generic TransactionDrawer */}
             <button
-              onClick={() => openTransactionDrawer()}
+              onClick={() => setShowPayModal(true)}
               className="rounded-2xl bg-primary px-5 py-2 text-sm font-semibold text-white hover:brightness-110 transition-all"
             >
               {t('creditCard.payNow')}
@@ -342,6 +370,18 @@ export default function CreditCardPage() {
           </div>
         </div>
       )}
+
+      {/* ── M-30: Pay Invoice Modal ───────────────────────────────────────── */}
+      {showPayModal && (
+        <PayInvoiceModal
+          onClose={() => setShowPayModal(false)}
+          resolvedPeriod={resolvedPeriod}
+          monthLabel={monthLabel}
+          invoiceTotal={invoiceTotal}
+          nonCreditAccounts={nonCreditAccounts}
+          onConfirm={handlePayConfirm}
+        />
+      )}
     </div>
   )
 }
@@ -401,5 +441,149 @@ function InvoiceTxRow({
         </p>
       </div>
     </div>
+  )
+}
+
+// ─── PayInvoiceModal ──────────────────────────────────────────────────────────
+
+function PayInvoiceModal({
+  onClose,
+  resolvedPeriod,
+  monthLabel,
+  invoiceTotal,
+  nonCreditAccounts,
+  onConfirm,
+}: {
+  onClose: () => void
+  resolvedPeriod: { year: number; month: number }
+  monthLabel: string
+  invoiceTotal: number
+  nonCreditAccounts: Account[]
+  onConfirm: (amount: number, date: string, fromAccountId: string) => void
+}) {
+  const { t } = useTranslation()
+
+  const [amountStr, setAmountStr] = useState(invoiceTotal.toFixed(2).replace('.', ','))
+  const [amount, setAmount] = useState(invoiceTotal)
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [fromAccountId, setFromAccountId] = useState(nonCreditAccounts[0]?.id ?? '')
+
+  // Re-sync defaults if parent invoiceTotal changes (e.g. period offset navigated while modal open)
+  useEffect(() => {
+    setAmount(invoiceTotal)
+    setAmountStr(invoiceTotal.toFixed(2).replace('.', ','))
+  }, [invoiceTotal])
+
+  function handleAmountInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value.replace(/\D/g, '')
+    const cents = parseInt(raw || '0', 10)
+    setAmount(cents / 100)
+    setAmountStr((cents / 100).toFixed(2).replace('.', ','))
+  }
+
+  const referenceLabel = `${monthLabel} ${resolvedPeriod.year}`
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-50 bg-on-surface/20 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-5"
+          style={{ boxShadow: '0px 20px 60px rgba(25,28,29,0.15)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-on-surface">
+              {t('creditCard.payInvoice')}
+            </h3>
+            <button
+              onClick={onClose}
+              aria-label={t('common.close')}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-on-surface/40 hover:bg-surface-container-low transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Reference month (read-only) */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface/40 mb-1">
+              {t('creditCard.referenceMonth')}
+            </p>
+            <p className="text-sm font-medium text-on-surface">{referenceLabel}</p>
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-on-surface/40 block mb-2">
+              {t('transactions.amount')}
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-on-surface/40 pointer-events-none">
+                R$
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={amountStr}
+                onChange={handleAmountInput}
+                className="w-full rounded-xl bg-surface-container-low py-3 pl-9 pr-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-on-surface/40 block mb-2">
+              {t('transactions.date')}
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-xl bg-surface-container-low py-3 px-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+
+          {/* From account */}
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-on-surface/40 block mb-2">
+              {t('transactions.account')}
+            </label>
+            <div className="relative">
+              <select
+                value={fromAccountId}
+                onChange={(e) => setFromAccountId(e.target.value)}
+                className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {nonCreditAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+                {nonCreditAccounts.length === 0 && <option value="">{t('common.noData')}</option>}
+              </select>
+              <ChevronDown
+                size={16}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+              />
+            </div>
+          </div>
+
+          {/* Confirm */}
+          <button
+            onClick={() => onConfirm(amount, date, fromAccountId)}
+            disabled={amount === 0 || !fromAccountId}
+            className="w-full rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white hover:brightness-110 transition-all disabled:opacity-40"
+          >
+            {t('creditCard.payInvoice')}
+          </button>
+        </div>
+      </div>
+    </>
   )
 }

@@ -177,6 +177,8 @@
     "closingDate": "Fechamento",
     "dueDate": "Vencimento",
     "payNow": "Pagar Agora",
+    "payInvoice": "Pagar fatura",
+    "referenceMonth": "Mês de referência",
     "allCategories": "Todas as categorias",
     "noTransactions": "Nenhuma transação nesta fatura",
     "spendingSummary": "Resumo de Gastos",
