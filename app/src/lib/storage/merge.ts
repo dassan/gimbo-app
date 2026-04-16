@@ -18,6 +18,9 @@ import { applyRetention } from '@/lib/storage/schema'
  * - auditLog:     union by id, sorted ascending by timestamp, retention applied
  */
 export function mergeDataFiles(local: DataFile, disk: DataFile): DataFile {
+  // B-11: Union tombstones from both sides so deletions from either device are respected.
+  const tombstones = new Set([...(local.deletedIds ?? []), ...(disk.deletedIds ?? [])])
+
   return {
     schemaVersion: local.schemaVersion,
     user: local.user,
@@ -25,21 +28,27 @@ export function mergeDataFiles(local: DataFile, disk: DataFile): DataFile {
       ...local.settings,
       fileCreatedAt: disk.settings.fileCreatedAt,
     },
-    accounts: mergeById(local.accounts, disk.accounts),
-    categories: mergeById(local.categories, disk.categories),
-    tags: mergeById(local.tags, disk.tags),
-    transactions: mergeById(local.transactions, disk.transactions),
+    accounts: mergeById(local.accounts, disk.accounts, tombstones),
+    categories: mergeById(local.categories, disk.categories, tombstones),
+    tags: mergeById(local.tags, disk.tags, tombstones),
+    transactions: mergeById(local.transactions, disk.transactions, tombstones),
     auditLog: mergeAuditLog(local, disk),
+    deletedIds: [...tombstones],
   }
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-/** Union two arrays by `id`. Local items take precedence for duplicate ids. */
-function mergeById<T extends { id: string }>(local: T[], disk: T[]): T[] {
+/**
+ * Union two arrays by `id`. Local items take precedence for duplicate ids.
+ * Items whose id appears in `tombstones` are excluded from the result — this
+ * prevents entities deleted on one device from being recovered from the other
+ * device's file snapshot (B-11).
+ */
+function mergeById<T extends { id: string }>(local: T[], disk: T[], tombstones: Set<string>): T[] {
   const localIds = new Set(local.map((item) => item.id))
-  const diskOnly = disk.filter((item) => !localIds.has(item.id))
-  return [...local, ...diskOnly]
+  const diskOnly = disk.filter((item) => !localIds.has(item.id) && !tombstones.has(item.id))
+  return [...local.filter((item) => !tombstones.has(item.id)), ...diskOnly]
 }
 
 /** Union audit logs by id, sort ascending by timestamp, apply retention. */

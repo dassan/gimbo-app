@@ -259,3 +259,52 @@ describe('mergeDataFiles — idempotency', () => {
     expect(result.auditLog).toHaveLength(1)
   })
 })
+
+// ─── deletedIds tombstone (B-11) ─────────────────────────────────────────────
+
+describe('mergeDataFiles — deletedIds tombstone (B-11)', () => {
+  it('item deleted locally does not return from disk', () => {
+    const tx = makeTransaction({ id: 'tx-deleted' })
+    // local has deleted it (empty transactions + tombstone)
+    const local = makeDataFile({ transactions: [], deletedIds: ['tx-deleted'] })
+    // disk still has it
+    const disk = makeDataFile({ transactions: [tx] })
+    const result = mergeDataFiles(local, disk)
+    expect(result.transactions.map((t) => t.id)).not.toContain('tx-deleted')
+  })
+
+  it('item deleted on disk does not return to local', () => {
+    const acc = makeAccount({ id: 'acc-deleted' })
+    const local = makeDataFile({ accounts: [acc] })
+    const disk = makeDataFile({ accounts: [], deletedIds: ['acc-deleted'] })
+    const result = mergeDataFiles(local, disk)
+    expect(result.accounts.map((a) => a.id)).not.toContain('acc-deleted')
+  })
+
+  it('tombstones are unioned from both sides', () => {
+    const local = makeDataFile({ deletedIds: ['id-a'] })
+    const disk = makeDataFile({ deletedIds: ['id-b'] })
+    const result = mergeDataFiles(local, disk)
+    expect(result.deletedIds).toContain('id-a')
+    expect(result.deletedIds).toContain('id-b')
+  })
+
+  it('disk-only item with no tombstone is still recovered', () => {
+    const tx = makeTransaction({ id: 'tx-new-from-disk' })
+    const local = makeDataFile({ transactions: [] })
+    const disk = makeDataFile({ transactions: [tx] })
+    const result = mergeDataFiles(local, disk)
+    expect(result.transactions.map((t) => t.id)).toContain('tx-new-from-disk')
+  })
+
+  it('result deletedIds has no duplicates', () => {
+    const local = makeDataFile({ deletedIds: ['shared-id', 'local-only'] })
+    const disk = makeDataFile({ deletedIds: ['shared-id', 'disk-only'] })
+    const result = mergeDataFiles(local, disk)
+    const counts = result.deletedIds.reduce<Record<string, number>>((acc, id) => {
+      acc[id] = (acc[id] ?? 0) + 1
+      return acc
+    }, {})
+    expect(counts['shared-id']).toBe(1)
+  })
+})

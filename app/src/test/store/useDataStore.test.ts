@@ -673,3 +673,66 @@ describe('deleteInstallmentGroup (CC-27)', () => {
     expect(useDataStore.getState().unsyncedCount).toBe(before + 1)
   })
 })
+
+// ─── deletedIds tombstone (B-11) ──────────────────────────────────────────────
+
+describe('deletedIds tombstone (B-11)', () => {
+  it('deleteAccount registers id in deletedIds', () => {
+    useDataStore.setState({ data: makeDataFile({ accounts: [makeAccount({ id: 'acc-del' })] }) })
+    useDataStore.getState().deleteAccount('acc-del')
+    expect(useDataStore.getState().data?.deletedIds).toContain('acc-del')
+  })
+
+  it('deleteCategory registers id in deletedIds', () => {
+    useDataStore.setState({
+      data: makeDataFile({ categories: [makeCategory({ id: 'cat-del' })] }),
+    })
+    useDataStore.getState().deleteCategory('cat-del')
+    expect(useDataStore.getState().data?.deletedIds).toContain('cat-del')
+  })
+
+  it('deleteTag registers id in deletedIds', () => {
+    useDataStore.setState({ data: makeDataFile({ tags: [makeTag({ id: 'tag-del' })] }) })
+    useDataStore.getState().deleteTag('tag-del')
+    expect(useDataStore.getState().data?.deletedIds).toContain('tag-del')
+  })
+
+  it('deleteTransaction registers id in deletedIds', () => {
+    useDataStore.setState({
+      data: makeDataFile({ transactions: [makeTransaction({ id: 'tx-del' })] }),
+    })
+    useDataStore.getState().deleteTransaction('tx-del')
+    expect(useDataStore.getState().data?.deletedIds).toContain('tx-del')
+  })
+
+  it('deleteInstallmentGroup registers all installment IDs in deletedIds', () => {
+    const txs = [
+      makeTransaction({
+        id: 'tx-i1',
+        installment: { parentId: 'par-1', currentIndex: 1, total: 2 },
+      }),
+      makeTransaction({
+        id: 'tx-i2',
+        installment: { parentId: 'par-1', currentIndex: 2, total: 2 },
+      }),
+    ]
+    useDataStore.setState({ data: makeDataFile({ transactions: txs }) })
+    useDataStore.getState().deleteInstallmentGroup('par-1')
+    const deletedIds = useDataStore.getState().data?.deletedIds ?? []
+    expect(deletedIds).toContain('tx-i1')
+    expect(deletedIds).toContain('tx-i2')
+  })
+
+  it('deletedIds accumulates across multiple delete operations', () => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [makeAccount({ id: 'acc-a' }), makeAccount({ id: 'acc-b', name: 'B' })],
+      }),
+    })
+    useDataStore.getState().deleteAccount('acc-a')
+    useDataStore.getState().deleteAccount('acc-b')
+    const deletedIds = useDataStore.getState().data?.deletedIds ?? []
+    expect(deletedIds).toContain('acc-a')
+    expect(deletedIds).toContain('acc-b')
+  })
+})

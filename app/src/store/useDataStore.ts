@@ -173,6 +173,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
       mutate(s, (d) => {
         const name = d.accounts.find((a) => a.id === id)?.name ?? id
         d.accounts = d.accounts.filter((a) => a.id !== id)
+        d.deletedIds = [...new Set([...d.deletedIds, id])]
         addAudit(d, makeEntry('DELETE', 'account', id, buildSummary('DELETE', 'account', name)))
       })
     ),
@@ -217,6 +218,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
       mutate(s, (d) => {
         const name = d.categories.find((c) => c.id === id)?.name ?? id
         d.categories = d.categories.filter((c) => c.id !== id)
+        d.deletedIds = [...new Set([...d.deletedIds, id])]
         addAudit(d, makeEntry('DELETE', 'category', id, buildSummary('DELETE', 'category', name)))
       })
     ),
@@ -251,6 +253,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
       mutate(s, (d) => {
         const name = d.tags.find((t) => t.id === id)?.name ?? id
         d.tags = d.tags.filter((t) => t.id !== id)
+        d.deletedIds = [...new Set([...d.deletedIds, id])]
         addAudit(d, makeEntry('DELETE', 'tag', id, buildSummary('DELETE', 'tag', `#${name}`)))
       })
     ),
@@ -336,6 +339,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
         const name =
           tx?.description ?? d.categories.find((c) => c.id === tx?.categoryId)?.name ?? id
         d.transactions = d.transactions.filter((t) => t.id !== id)
+        d.deletedIds = [...new Set([...d.deletedIds, id])]
         addAudit(
           d,
           makeEntry('DELETE', 'transaction', id, buildSummary('DELETE', 'transaction', name))
@@ -355,7 +359,12 @@ export const useDataStore = create<DataStore>((set, get) => ({
         const rawDesc = sample?.description?.replace(/\s*\(\d+\/\d+\)$/, '') ?? ''
         const accName =
           d.accounts.find((a) => a.id === sample?.accountId)?.name ?? sample?.accountId ?? ''
+        // Collect IDs before filtering for tombstone registration
+        const groupIds = d.transactions
+          .filter((t) => t.installment?.parentId === parentId)
+          .map((t) => t.id)
         d.transactions = d.transactions.filter((t) => t.installment?.parentId !== parentId)
+        d.deletedIds = [...new Set([...d.deletedIds, ...groupIds])]
         const summary = `Compra parcelada cancelada: ${rawDesc || accName} — ${N} parcelas removidas`
         addAudit(d, makeEntry('DELETE', 'transaction', parentId, summary))
       })

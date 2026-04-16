@@ -34,6 +34,7 @@ const MINIMAL_VALID: DataFile = {
   tags: [],
   transactions: [],
   auditLog: [],
+  deletedIds: [],
 }
 
 // ─── applyRetention ───────────────────────────────────────────────────────────
@@ -316,6 +317,7 @@ describe('validateDataFile — v1 → v2 migration', () => {
       },
     ],
     auditLog: [],
+    deletedIds: [],
   }
 
   it('migrates a v1 file to schemaVersion 2', () => {
@@ -377,7 +379,7 @@ describe('validateDataFile — schema v2 new fields', () => {
     expect(() => validateDataFile(data)).not.toThrow()
   })
 
-  it('rejects creditMetadata with closingDay > 28', () => {
+  it('accepts creditMetadata with closingDay=31 and dueDay=31 (B-06)', () => {
     const data = {
       ...MINIMAL_VALID,
       accounts: [
@@ -387,7 +389,41 @@ describe('validateDataFile — schema v2 new fields', () => {
           type: 'CREDIT',
           balance: 0,
           includeInBalance: false,
-          creditMetadata: { limit: 1000, closingDay: 29, dueDay: 10 },
+          creditMetadata: { limit: 1000, closingDay: 31, dueDay: 31 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).not.toThrow()
+  })
+
+  it('rejects creditMetadata with closingDay > 31 (B-06)', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      accounts: [
+        {
+          id: 'a1',
+          name: 'Cartão',
+          type: 'CREDIT',
+          balance: 0,
+          includeInBalance: false,
+          creditMetadata: { limit: 1000, closingDay: 32, dueDay: 10 },
+        },
+      ],
+    }
+    expect(() => validateDataFile(data)).toThrow()
+  })
+
+  it('rejects creditMetadata with dueDay > 31 (B-06)', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      accounts: [
+        {
+          id: 'a1',
+          name: 'Cartão',
+          type: 'CREDIT',
+          balance: 0,
+          includeInBalance: false,
+          creditMetadata: { limit: 1000, closingDay: 10, dueDay: 32 },
         },
       ],
     }
@@ -512,5 +548,27 @@ describe('validateDataFile — schema v2 new fields', () => {
       ],
     }
     expect(() => validateDataFile(data)).toThrow()
+  })
+})
+
+// ─── deletedIds tombstone (B-11) ──────────────────────────────────────────────
+
+describe('validateDataFile — deletedIds tombstone (B-11)', () => {
+  it('accepts a file with deletedIds array', () => {
+    const data = { ...MINIMAL_VALID, deletedIds: ['id-1', 'id-2'] }
+    expect(() => validateDataFile(data)).not.toThrow()
+    expect(validateDataFile(data).deletedIds).toEqual(['id-1', 'id-2'])
+  })
+
+  it('defaults deletedIds to [] when field is absent (legacy files)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { deletedIds: _deletedIds, ...withoutField } = { ...MINIMAL_VALID, deletedIds: [] }
+    const result = validateDataFile(withoutField)
+    expect(result.deletedIds).toEqual([])
+  })
+
+  it('createEmptyDataFile includes deletedIds: []', () => {
+    const file = createEmptyDataFile('Test', 'test@example.com')
+    expect(file.deletedIds).toEqual([])
   })
 })
