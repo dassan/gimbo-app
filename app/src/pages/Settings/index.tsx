@@ -113,7 +113,9 @@ function accountTypeIcon(type: AccountType): React.ReactNode {
 
 // ─── Modal state ──────────────────────────────────────────────────────────────
 
-type ModalState = { open: false } | { open: true; account: Account | null }
+type ModalState =
+  | { open: false }
+  | { open: true; account: Account | null; defaultType?: AccountType }
 type CategoryModalState = { open: false } | { open: true; category: Category | null }
 type TagModalState = { open: false } | { open: true; tag: Tag | null }
 
@@ -133,7 +135,7 @@ const DATA_SECTIONS: { key: Section; icon: React.ReactNode; labelKey: string }[]
   {
     key: 'accounts',
     icon: <Landmark size={16} strokeWidth={1.5} />,
-    labelKey: 'settings.accounts',
+    labelKey: 'settings.accountsAndCards',
   },
   {
     key: 'categories',
@@ -390,53 +392,108 @@ export default function Settings() {
 
           {/* ── Content ─────────────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            {/* Accounts */}
-            {activeSection === 'accounts' && (
-              <Section title={t('settings.accounts')}>
-                <div className="space-y-2 mb-4">
-                  {data.accounts.length === 0 && (
-                    <p className="py-4 text-center text-sm text-on-surface/40">
-                      {t('common.noData')}
-                    </p>
-                  )}
-                  {data.accounts.map((acc) => (
-                    <button
-                      key={acc.id}
-                      onClick={() => setModal({ open: true, account: acc })}
-                      className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
-                      style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                        <span className="text-primary">{accountTypeIcon(acc.type)}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-on-surface">{acc.name}</p>
-                        <p className="text-xs text-on-surface/40">
-                          {t(`accounts.${acc.type.toLowerCase()}`)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        {acc.type === 'CREDIT' && (
-                          <p className="text-[10px] text-on-surface/40 uppercase tracking-wide">
-                            {t('accounts.availableLimit')}
+            {/* Accounts & Cards */}
+            {activeSection === 'accounts' &&
+              (() => {
+                const nonCreditAccounts = data.accounts.filter((a) => a.type !== 'CREDIT')
+                const creditAccounts = data.accounts.filter((a) => a.type === 'CREDIT')
+                return (
+                  <Section title={t('settings.accountsAndCards')}>
+                    {/* ── Regular accounts (non-CREDIT) ──────────────────── */}
+                    <div className="mb-8">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-3">
+                        {t('settings.accounts')}
+                      </p>
+                      <div className="space-y-2 mb-4">
+                        {nonCreditAccounts.length === 0 && (
+                          <p className="py-4 text-center text-sm text-on-surface/40">
+                            {t('common.noData')}
                           </p>
                         )}
-                        <span className="text-sm font-bold text-on-surface">
-                          {formatCurrency(accountBalances[acc.id] ?? 0)}
-                        </span>
+                        {nonCreditAccounts.map((acc) => (
+                          <button
+                            key={acc.id}
+                            onClick={() => setModal({ open: true, account: acc })}
+                            className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
+                            style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                          >
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                              <span className="text-primary">{accountTypeIcon(acc.type)}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-on-surface">{acc.name}</p>
+                              <p className="text-xs text-on-surface/40">
+                                {t(`accounts.${acc.type.toLowerCase()}`)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-sm font-bold text-on-surface">
+                                {formatCurrency(accountBalances[acc.id] ?? 0)}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
                       </div>
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setModal({ open: true, account: null })}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
-                >
-                  <Plus size={16} strokeWidth={2.5} />
-                  {t('settings.newAccount')}
-                </button>
-              </Section>
-            )}
+                      <button
+                        onClick={() => setModal({ open: true, account: null })}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
+                      >
+                        <Plus size={16} strokeWidth={2.5} />
+                        {t('settings.newAccount')}
+                      </button>
+                    </div>
+
+                    {/* ── Credit cards (CREDIT) ────────────────────────────── */}
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-3">
+                        {t('settings.creditCards')}
+                      </p>
+                      <div className="space-y-2 mb-4">
+                        {creditAccounts.length === 0 && (
+                          <p className="py-4 text-center text-sm text-on-surface/40">
+                            {t('common.noData')}
+                          </p>
+                        )}
+                        {creditAccounts.map((acc) => (
+                          <button
+                            key={acc.id}
+                            onClick={() => setModal({ open: true, account: acc })}
+                            className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
+                            style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                          >
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                              <span className="text-primary">{accountTypeIcon(acc.type)}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-on-surface">{acc.name}</p>
+                              <p className="text-xs text-on-surface/40">
+                                {t(`accounts.${acc.type.toLowerCase()}`)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] text-on-surface/40 uppercase tracking-wide">
+                                {t('accounts.availableLimit')}
+                              </p>
+                              <span className="text-sm font-bold text-on-surface">
+                                {formatCurrency(accountBalances[acc.id] ?? 0)}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() =>
+                          setModal({ open: true, account: null, defaultType: 'CREDIT' })
+                        }
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all"
+                      >
+                        <Plus size={16} strokeWidth={2.5} />
+                        {t('settings.newCreditCard')}
+                      </button>
+                    </div>
+                  </Section>
+                )
+              })()}
 
             {/* Categories */}
             {activeSection === 'categories' && (
@@ -755,6 +812,7 @@ export default function Settings() {
       {modal.open && (
         <AddAccountModal
           account={modal.account}
+          defaultType={modal.defaultType}
           onSave={handleSaveAccount}
           onDelete={handleDeleteAccount}
           onClose={() => setModal({ open: false })}
@@ -789,11 +847,13 @@ export default function Settings() {
 
 function AddAccountModal({
   account,
+  defaultType = 'RETAIL',
   onSave,
   onDelete,
   onClose,
 }: {
   account: Account | null
+  defaultType?: AccountType
   onSave: (
     name: string,
     type: AccountType,
@@ -807,8 +867,11 @@ function AddAccountModal({
   const isEdit = account !== null
 
   const [name, setName] = useState(account?.name ?? '')
-  const [type, setType] = useState<AccountType>(account?.type ?? 'RETAIL')
-  const [includeInBalance, setIncludeInBalance] = useState(account?.includeInBalance ?? true)
+  const [type, setType] = useState<AccountType>(account?.type ?? defaultType)
+  // CC-11: CREDIT accounts default to excluded from balance; respect saved value in edit mode
+  const [includeInBalance, setIncludeInBalance] = useState(
+    account?.includeInBalance ?? (defaultType === 'CREDIT' ? false : true)
+  )
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // ── Credit metadata state ──────────────────────────────────────────────────

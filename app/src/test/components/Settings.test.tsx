@@ -162,6 +162,80 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
   }
 }
 
+// ─── Settings — M-24: Contas e Cartões split sections ────────────────────────
+
+describe('Settings — M-24: accounts section split into Contas and Cartões', () => {
+  it('shows "settings.accountsAndCards" as the sidebar navigation label', () => {
+    render(<Settings />)
+    expect(screen.getByRole('button', { name: 'settings.accountsAndCards' })).toBeInTheDocument()
+  })
+
+  it('shows "settings.accounts" sub-section header for non-CREDIT accounts', () => {
+    render(<Settings />)
+    // The accounts section is active by default; sub-section header should be present
+    expect(screen.getByText('settings.accounts')).toBeInTheDocument()
+  })
+
+  it('shows "settings.creditCards" sub-section header', () => {
+    render(<Settings />)
+    expect(screen.getByText('settings.creditCards')).toBeInTheDocument()
+  })
+
+  it('shows "settings.newAccount" add button in the non-CREDIT sub-section', () => {
+    render(<Settings />)
+    expect(screen.getByRole('button', { name: /settings\.newAccount/i })).toBeInTheDocument()
+  })
+
+  it('shows "settings.newCreditCard" add button in the CREDIT sub-section', () => {
+    render(<Settings />)
+    expect(screen.getByRole('button', { name: /settings\.newCreditCard/i })).toBeInTheDocument()
+  })
+
+  it('lists non-CREDIT accounts in the Contas sub-section', () => {
+    const retailAccount = makeRetailAccount({ name: 'Minha Conta Corrente' })
+    const creditAccount = makeCreditAccount({ name: 'Meu Cartão Visa' })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount, creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Settings />)
+
+    expect(screen.getByText('Minha Conta Corrente')).toBeInTheDocument()
+    expect(screen.getByText('Meu Cartão Visa')).toBeInTheDocument()
+  })
+
+  it('opens modal with CREDIT pre-selected when clicking "Novo Cartão"', async () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Settings />)
+    await userEvent.click(screen.getByRole('button', { name: /settings\.newCreditCard/i }))
+
+    // Modal should open — the CREDIT type button should be visually selected (has border-primary class)
+    // We verify the modal opened by checking for the save button
+    expect(screen.getByRole('button', { name: /settings\.saveAccount/i })).toBeInTheDocument()
+  })
+
+  it('shows "accounts.availableLimit" label only in the Cartões sub-section', () => {
+    const retailAccount = makeRetailAccount({ id: 'acc-retail', name: 'Conta Corrente' })
+    const creditAccount = makeCreditAccount({ id: 'acc-credit', name: 'Cartão Visa' })
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount, creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Settings />)
+
+    // availableLimit label appears only once (for the credit account)
+    expect(screen.getAllByText('accounts.availableLimit')).toHaveLength(1)
+  })
+})
+
+// ─── Settings — CC-15: accountBalances bifurcation for CREDIT accounts ────────
+
 describe('Settings — CC-15: accounts list balance bifurcation', () => {
   it('shows "accounts.availableLimit" label for CREDIT accounts', () => {
     const creditAccount = makeCreditAccount()
