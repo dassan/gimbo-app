@@ -303,10 +303,10 @@ function CategoryDonut({
             <PieChart width={120} height={120}>
               <Pie
                 data={data}
-                cx={55}
-                cy={55}
-                innerRadius={36}
-                outerRadius={54}
+                cx={60}
+                cy={60}
+                innerRadius={40}
+                outerRadius={56}
                 paddingAngle={2}
                 dataKey="value"
                 strokeWidth={0}
@@ -316,8 +316,20 @@ function CategoryDonut({
                 ))}
               </Pie>
             </PieChart>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <p className="text-xs font-bold text-on-surface">{formatCurrency(total)}</p>
+            {/* M-29: font size scales down for long currency values to avoid overflow */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-1">
+              <p
+                className={cn(
+                  'font-bold text-on-surface text-center leading-tight',
+                  formatCurrency(total).length >= 12
+                    ? 'text-[9px]'
+                    : formatCurrency(total).length >= 10
+                      ? 'text-[10px]'
+                      : 'text-xs'
+                )}
+              >
+                {formatCurrency(total)}
+              </p>
             </div>
           </div>
 
