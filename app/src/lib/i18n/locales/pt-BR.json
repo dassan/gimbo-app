@@ -69,6 +69,7 @@
     "category": "Categoria",
     "account": "Conta",
     "tags": "Tags",
+    "isPaid": "Pago",
     "shortcutHint": "Pressione Enter para salvar rapidamente",
     "creditPayment": "Pag. Fatura",
     "cardToPay": "Cartão a pagar",

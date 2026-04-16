@@ -69,6 +69,7 @@
     "category": "Category",
     "account": "Account",
     "tags": "Tags",
+    "isPaid": "Paid",
     "shortcutHint": "Press Enter to save quickly",
     "creditPayment": "Bill Payment",
     "cardToPay": "Card to pay",

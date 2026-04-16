@@ -65,6 +65,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const [description, setDescription] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
+  // ── B-10: isPaid toggle ───────────────────────────────────────────────────────
+  const [isPaid, setIsPaid] = useState(false)
+
   // ── CC-23: Installment state ──────────────────────────────────────────────────
   const [installmentsEnabled, setInstallmentsEnabled] = useState(false)
   const [installmentCount, setInstallmentCount] = useState(2)
@@ -109,6 +112,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
         setCategoryId(transaction.categoryId)
         setDescription(transaction.description)
         setSelectedTags(transaction.tags)
+        setIsPaid(transaction.isPaid)
       } else {
         setType('EXPENSE')
         setAmount(0)
@@ -119,6 +123,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
         setCategoryId('')
         setDescription('')
         setSelectedTags([])
+        setIsPaid(false)
       }
       setInstallmentsEnabled(false)
       setInstallmentCount(2)
@@ -180,7 +185,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       type,
       date,
       description,
-      isPaid: isEditMode ? transaction.isPaid : false,
+      isPaid,
       tags: selectedTags,
       ...(type === 'CREDIT_PAYMENT' && transferAccountId ? { transferAccountId } : {}),
       ...(isEditMode && transaction.installment ? { installment: transaction.installment } : {}),
@@ -418,6 +423,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                 </label>
                 <button
                   role="switch"
+                  aria-label={t('transactions.installments')}
                   aria-checked={installmentsEnabled}
                   onClick={() => {
                     setInstallmentsEnabled((v) => !v)
@@ -539,6 +545,31 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
               className="w-full rounded-xl bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
+
+          {/* ── B-10: isPaid toggle (INCOME and EXPENSE only) ─────────────── */}
+          {(type === 'INCOME' || type === 'EXPENSE') && (
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-on-surface">
+                {t('transactions.isPaid')}
+              </label>
+              <button
+                role="switch"
+                aria-checked={isPaid}
+                onClick={() => setIsPaid((v) => !v)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  isPaid ? 'bg-primary' : 'bg-on-surface/20'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    isPaid ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
+          )}
 
           {/* ── CC-20: current invoice balance hint for CREDIT_PAYMENT ────── */}
           {type === 'CREDIT_PAYMENT' && selectedCreditAccount?.creditMetadata && (

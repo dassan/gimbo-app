@@ -387,7 +387,7 @@ describe('TransactionDrawer — CC-23: installment section', () => {
       unsyncedCount: 0,
     })
     renderDrawer()
-    const toggle = screen.getByRole('switch')
+    const toggle = screen.getByRole('switch', { name: 'transactions.installments' })
     await userEvent.click(toggle)
     expect(screen.getByText('transactions.installmentCount')).toBeInTheDocument()
     expect(screen.getByRole('spinbutton')).toBeInTheDocument()
@@ -416,7 +416,7 @@ describe('TransactionDrawer — CC-23: installment section', () => {
       unsyncedCount: 0,
     })
     renderDrawer()
-    const toggle = screen.getByRole('switch')
+    const toggle = screen.getByRole('switch', { name: 'transactions.installments' })
     await userEvent.click(toggle)
 
     // Enter an amount so the hint appears
@@ -437,7 +437,7 @@ describe('TransactionDrawer — CC-23: installment section', () => {
 
     renderDrawer()
     // Enable installment toggle
-    const toggle = screen.getByRole('switch')
+    const toggle = screen.getByRole('switch', { name: 'transactions.installments' })
     await userEvent.click(toggle)
 
     // Enter amount
