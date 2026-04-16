@@ -171,7 +171,7 @@ export default function CreditCardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 space-y-6">
+    <div className="mx-auto max-w-5xl px-6 py-8 space-y-6">
       {/* ── Header: back + card name ──────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <button
@@ -188,7 +188,7 @@ export default function CreditCardPage() {
         </div>
       </div>
 
-      {/* ── Invoice period + summary card ─────────────────────────────────── */}
+      {/* ── Invoice period + summary card (full width) ────────────────────── */}
       <div
         className="rounded-2xl bg-white p-6"
         style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
@@ -281,95 +281,105 @@ export default function CreditCardPage() {
         </div>
       </div>
 
-      {/* ── Category filter chips ─────────────────────────────────────────── */}
-      {categoryOptions.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => setFilterCategory('all')}
-            className={cn(
-              'shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all',
-              filterCategory === 'all'
-                ? 'bg-primary text-white'
-                : 'bg-surface-container-low text-on-surface/60 hover:text-on-surface/80'
-            )}
+      {/* ── M-31: Two-column layout: chips + list | spending summary ─────── */}
+      <div className="grid grid-cols-3 gap-6 items-start">
+        {/* Left column: category chips + transaction list */}
+        <div className="col-span-2 space-y-4">
+          {/* Category filter chips */}
+          {categoryOptions.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <button
+                onClick={() => setFilterCategory('all')}
+                className={cn(
+                  'shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all',
+                  filterCategory === 'all'
+                    ? 'bg-primary text-white'
+                    : 'bg-surface-container-low text-on-surface/60 hover:text-on-surface/80'
+                )}
+              >
+                {t('creditCard.allCategories')}
+              </button>
+              {categoryOptions.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setFilterCategory(cat.id)}
+                  className={cn(
+                    'shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all',
+                    filterCategory === cat.id
+                      ? 'bg-primary text-white'
+                      : 'bg-surface-container-low text-on-surface/60 hover:text-on-surface/80'
+                  )}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Transaction list */}
+          <div
+            className="rounded-2xl bg-white overflow-hidden"
+            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
           >
-            {t('creditCard.allCategories')}
-          </button>
-          {categoryOptions.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setFilterCategory(cat.id)}
-              className={cn(
-                'shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all',
-                filterCategory === cat.id
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-container-low text-on-surface/60 hover:text-on-surface/80'
-              )}
+            {filteredTransactions.length === 0 ? (
+              <div className="p-12 text-center">
+                <p className="text-sm text-on-surface/40">{t('creditCard.noTransactions')}</p>
+              </div>
+            ) : (
+              filteredTransactions.map((tx, i) => (
+                <InvoiceTxRow
+                  key={tx.id}
+                  tx={tx}
+                  data={data}
+                  isLast={i === filteredTransactions.length - 1}
+                  onEdit={openTransactionDrawer}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right column: spending summary (sticky) */}
+        <div className="col-span-1 sticky top-8">
+          {categoryTotals.length > 0 && (
+            <div
+              className="rounded-2xl bg-white p-6"
+              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
             >
-              {cat.name}
-            </button>
-          ))}
+              <h3 className="text-sm font-semibold text-on-surface mb-4">
+                {t('creditCard.spendingSummary')}
+              </h3>
+              <div className="space-y-3">
+                {categoryTotals.map(({ name, total }) => {
+                  const pct = invoiceTotal > 0 ? (total / invoiceTotal) * 100 : 0
+                  return (
+                    <div key={name}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-on-surface/70">{name}</span>
+                        <span className="text-xs font-semibold text-on-surface">
+                          {formatCurrency(total)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-surface-container-low overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-tertiary transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-4 pt-4 border-t border-surface-container-low flex items-center justify-between">
+                <span className="text-xs font-semibold text-on-surface">{t('common.total')}</span>
+                <span className="text-sm font-bold text-tertiary">
+                  {formatCurrency(invoiceTotal)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* ── Transaction list ──────────────────────────────────────────────── */}
-      <div
-        className="rounded-2xl bg-white overflow-hidden"
-        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-      >
-        {filteredTransactions.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-sm text-on-surface/40">{t('creditCard.noTransactions')}</p>
-          </div>
-        ) : (
-          filteredTransactions.map((tx, i) => (
-            <InvoiceTxRow
-              key={tx.id}
-              tx={tx}
-              data={data}
-              isLast={i === filteredTransactions.length - 1}
-              onEdit={openTransactionDrawer}
-            />
-          ))
-        )}
       </div>
-
-      {/* ── Spending summary ──────────────────────────────────────────────── */}
-      {categoryTotals.length > 0 && (
-        <div
-          className="rounded-2xl bg-white p-6"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
-          <h3 className="text-sm font-semibold text-on-surface mb-4">
-            {t('creditCard.spendingSummary')}
-          </h3>
-          <div className="space-y-3">
-            {categoryTotals.map(({ name, total }) => {
-              const pct = invoiceTotal > 0 ? (total / invoiceTotal) * 100 : 0
-              return (
-                <div key={name}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-on-surface/70">{name}</span>
-                    <span className="text-xs font-semibold text-on-surface">
-                      {formatCurrency(total)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-surface-container-low overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-tertiary transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          <div className="mt-4 pt-4 border-t border-surface-container-low flex items-center justify-between">
-            <span className="text-xs font-semibold text-on-surface">{t('common.total')}</span>
-            <span className="text-sm font-bold text-tertiary">{formatCurrency(invoiceTotal)}</span>
-          </div>
-        </div>
-      )}
 
       {/* ── M-30: Pay Invoice Modal ───────────────────────────────────────── */}
       {showPayModal && (

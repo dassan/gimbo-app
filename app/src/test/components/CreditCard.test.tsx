@@ -60,6 +60,78 @@ beforeEach(() => {
   mockNavigate.mockReset()
 })
 
+// ─── M-31: Spending summary in right column ───────────────────────────────────
+
+describe('CreditCardPage — M-31: spending summary in right column', () => {
+  it('renders the spending summary when there are invoice transactions', () => {
+    const creditAccount = makeCreditAccountFixed()
+    const expense = makeTransaction({ amount: 200, description: 'Restaurante' })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [expense] }),
+      unsyncedCount: 0,
+    })
+
+    render(<CreditCardPage />)
+
+    expect(screen.getByText('creditCard.spendingSummary')).toBeInTheDocument()
+    expect(screen.getByText('common.total')).toBeInTheDocument()
+  })
+
+  it('does not render the spending summary when there are no invoice transactions', () => {
+    const creditAccount = makeCreditAccountFixed()
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<CreditCardPage />)
+
+    expect(screen.queryByText('creditCard.spendingSummary')).not.toBeInTheDocument()
+  })
+
+  it('shows category breakdown in spending summary', () => {
+    const creditAccount = makeCreditAccountFixed()
+    const cat = {
+      id: 'cat-food',
+      name: 'Alimentação',
+      icon: 'ShoppingCart',
+      color: '#F00',
+      parentId: null,
+      type: 'EXPENSE' as const,
+    }
+    const expense = makeTransaction({ amount: 150, categoryId: 'cat-food' })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [expense], categories: [cat] }),
+      unsyncedCount: 0,
+    })
+
+    render(<CreditCardPage />)
+
+    // Category name appears in the spending summary breakdown
+    expect(screen.getAllByText('Alimentação').length).toBeGreaterThan(0)
+  })
+
+  it('shows invoice total in spending summary', () => {
+    const creditAccount = makeCreditAccountFixed()
+    const expense1 = makeTransaction({ id: 'tx-1', amount: 100, description: 'Compra 1' })
+    const expense2 = makeTransaction({ id: 'tx-2', amount: 200, description: 'Compra 2' })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [creditAccount], transactions: [expense1, expense2] }),
+      unsyncedCount: 0,
+    })
+
+    render(<CreditCardPage />)
+
+    // Invoice total (300) should appear in the spending summary total row
+    const totalRow = screen.getByText('common.total').closest('div')
+    expect(totalRow?.textContent).toContain('300,00')
+  })
+})
+
 // ─── M-30: PayInvoiceModal ────────────────────────────────────────────────────
 
 describe('CreditCardPage — M-30: PayInvoiceModal', () => {
