@@ -359,6 +359,7 @@ interface DataFile {
   tags: Tag[]
   transactions: Transaction[]
   auditLog: AuditEntry[]
+  deletedIds: string[]         // tombstones (B-11) — UUIDs de entidades deletadas; default [] em arquivos legados
 }
 ```
 
@@ -688,9 +689,9 @@ Dados derivados com `useMemo`:
 
 ## Testes
 
-### Cobertura atual (2026-04-15, atualizado pós M-20)
+### Cobertura atual (2026-04-15, atualizado pós B-06–B-11)
 
-- **335 testes unitários passando** — 22 arquivos de teste
+- **351 testes unitários passando** — 22 arquivos de teste
 - **19 testes E2E passando** — 4 arquivos de spec (incluindo `creditCard.spec.ts` com 5 cenários)
 - Cobertura: **97.29% statements**, ~92% branches, ~95% funções
 - Arquivos críticos (schema, merge, sync, indexedDb, store): 97–100% de cobertura
@@ -786,7 +787,7 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 
 ---
 
-## Estado Atual do Projeto (2026-04-15, atualizado pós CC-28–CC-30)
+## Estado Atual do Projeto (2026-04-15, atualizado pós B-06–B-11)
 
 ### Funcionalidades implementadas
 
@@ -843,6 +844,11 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | Analytics: correção de filtro `includeUnpaid` (padrão `true`) e parsing de datas | B-02/B-03 | ✅ |
 | Settings aba Contas: saldo calculado a partir de transações (não `acc.balance`) | B-04 | ✅ |
 | Settings modal conta: labels de tipo traduzidos via i18n (não enum bruto) | B-05 | ✅ |
+| CREDIT closingDay/dueDay: limite máximo corrigido de 28 para 31 | B-06/B-07 | ✅ |
+| CreditCard: botão "›" de navegação para frente desbloqueado | B-08 | ✅ |
+| Dashboard: despesas CREDIT projetadas para o mês do vencimento da fatura (não data da compra) | B-09 | ✅ |
+| TransactionDrawer: toggle isPaid restaurado para INCOME e EXPENSE | B-10 | ✅ |
+| Sync: tombstone `deletedIds` previne re-aparecimento de entidades deletadas após merge | B-11 | ✅ |
 
 ### Bugs resolvidos
 
@@ -853,6 +859,12 @@ Referência obrigatória ao ID do milestone (M-XX) ou bug (B-XX) quando aplicáv
 | B-03 | Analytics: gráfico de Despesas por Categoria vazio | Mesma causa raiz que B-02 | Mesma correção que B-02 |
 | B-04 | Settings aba Contas: saldo sempre zero | `acc.balance` é campo estático sempre `0`; saldo real deve ser derivado de transações | `accountBalances` useMemo (INCOME+, EXPENSE−, TRANSFER−) |
 | B-05 | Modal Adicionar/Editar Conta: tipos exibiam enum inglês (RETAIL, SAVINGS…) | `{t_}` renderizava o enum bruto em vez de chamar `t(...)` | `{t(\`accounts.${t_.toLowerCase()}\`)}` |
+| B-06 | Modal conta CREDIT: campos closingDay/dueDay rejeitavam valores 29–31 | `CreditMetadataSchema` e inputs com `.max(28)` | `.max(31)` no schema + `max={31}` nos inputs |
+| B-07 | CreditCard: datas de fechamento/vencimento não exibidas quando closingDay/dueDay > 28 | Schema rejeitava o valor → campos `undefined` → datas não calculadas | Resolvido como side-effect de B-06 |
+| B-08 | CreditCard: botão "›" (avançar período) não respondia ao clique | `disabled={periodOffset >= 0}` bloqueava navegação para o futuro | Removido o guard de `disabled` do botão direito |
+| B-09 | Dashboard: despesas CREDIT somadas no mês da compra, não do vencimento | `useMemo` de income/expenses usava `parseDateLocal(tx.date)` sem `getEffectiveCashFlowDate` | Substituído por `parseDateLocal(getEffectiveCashFlowDate(tx, accounts))`; `CREDIT_PAYMENT` excluído |
+| B-10 | TransactionDrawer: toggle "Pago" (`isPaid`) sumiu do formulário | Campo removido acidentalmente durante refatoração do CC; hardcoded a `false` | Restaurado com estado `isPaid` dedicado, visível para INCOME e EXPENSE |
+| B-11 | Sync: entidades deletadas reapareciam após merge com disco | `mergeDataFiles` recuperava por UUID sem distinguir "nunca existiu" de "foi deletado" | Campo `deletedIds: string[]` no DataFile; mutações de delete registram tombstones; `mergeById` filtra por tombstones |
 
 ### Melhorias — todas resolvidas até aqui
 
