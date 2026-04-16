@@ -39,8 +39,8 @@ const SettingsSchema = z.object({
 
 const CreditMetadataSchema = z.object({
   limit: z.number(),
-  closingDay: z.number().int().min(1).max(28),
-  dueDay: z.number().int().min(1).max(28),
+  closingDay: z.number().int().min(1).max(31),
+  dueDay: z.number().int().min(1).max(31),
 })
 
 const AccountSchema = z.object({
@@ -105,6 +105,7 @@ export const DataFileSchema = z.object({
   tags: z.array(TagSchema),
   transactions: z.array(TransactionSchema),
   auditLog: z.array(AuditEntrySchema),
+  deletedIds: z.array(z.string()).default([]), // tombstone — B-11; absent in v1/v2 files defaults to []
 })
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -159,6 +160,7 @@ export function createEmptyDataFile(name: string, email: string): DataFile {
     tags: [],
     transactions: [],
     auditLog: [],
+    deletedIds: [],
   }
 }
 

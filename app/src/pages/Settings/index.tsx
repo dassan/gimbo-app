@@ -848,10 +848,10 @@ function AddAccountModal({
       if (
         !Number.isNaN(closing) &&
         closing >= 1 &&
-        closing <= 28 &&
+        closing <= 31 &&
         !Number.isNaN(due) &&
         due >= 1 &&
-        due <= 28
+        due <= 31
       ) {
         creditMetadata = { limit, closingDay: closing, dueDay: due }
       }
@@ -958,11 +958,11 @@ function AddAccountModal({
                   <input
                     type="number"
                     min={1}
-                    max={28}
+                    max={31}
                     step={1}
                     value={closingDay}
                     onChange={(e) => setClosingDay(e.target.value)}
-                    placeholder="1–28"
+                    placeholder="1–31"
                     className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
@@ -973,11 +973,11 @@ function AddAccountModal({
                   <input
                     type="number"
                     min={1}
-                    max={28}
+                    max={31}
                     step={1}
                     value={dueDay}
                     onChange={(e) => setDueDay(e.target.value)}
-                    placeholder="1–28"
+                    placeholder="1–31"
                     className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                 </div>

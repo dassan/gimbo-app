@@ -32,8 +32,8 @@ export interface Settings {
 
 export interface CreditMetadata {
   limit: number
-  closingDay: number // 1–28
-  dueDay: number // 1–28
+  closingDay: number // 1–31
+  dueDay: number // 1–31
 }
 
 export interface Account {
@@ -100,6 +100,7 @@ export interface DataFile {
   tags: Tag[]
   transactions: Transaction[]
   auditLog: AuditEntry[]
+  deletedIds: string[] // tombstone: IDs explicitly deleted on this device (B-11)
 }
 
 // ─── workspace.json shape ─────────────────────────────────────────────────────
