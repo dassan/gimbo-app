@@ -64,6 +64,128 @@ beforeEach(() => {
   useDataStore.setState({ data: null, unsyncedCount: 0 })
 })
 
+// ─── M-32: Spending summary right column ─────────────────────────────────────
+
+describe('Transactions — M-32: spending summary right column', () => {
+  it('renders spending summary when there are EXPENSE transactions', () => {
+    const retailAccount = makeRetailAccount()
+    const expense = makeTransaction({ type: 'EXPENSE', amount: 250, description: 'Aluguel' })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [expense] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    expect(screen.getByText('creditCard.spendingSummary')).toBeInTheDocument()
+    expect(screen.getByText('common.total')).toBeInTheDocument()
+  })
+
+  it('does not render spending summary when there are no EXPENSE transactions', () => {
+    const retailAccount = makeRetailAccount()
+    const income = makeTransaction({
+      id: 'tx-inc',
+      type: 'INCOME',
+      amount: 3000,
+      description: 'Salário',
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [income] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    expect(screen.queryByText('creditCard.spendingSummary')).not.toBeInTheDocument()
+  })
+
+  it('shows category name in spending summary breakdown', () => {
+    const retailAccount = makeRetailAccount()
+    const cat = {
+      id: 'cat-food',
+      name: 'Alimentação',
+      icon: 'ShoppingCart',
+      color: '#F00',
+      parentId: null,
+      type: 'EXPENSE' as const,
+    }
+    const expense = makeTransaction({ type: 'EXPENSE', amount: 120, categoryId: 'cat-food' })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [expense], categories: [cat] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    expect(screen.getAllByText('Alimentação').length).toBeGreaterThan(0)
+  })
+
+  it('spending summary total reflects only EXPENSE transactions', () => {
+    const retailAccount = makeRetailAccount()
+    const income = makeTransaction({
+      id: 'tx-inc',
+      type: 'INCOME',
+      amount: 3000,
+      description: 'Salário',
+    })
+    const expense = makeTransaction({
+      id: 'tx-exp',
+      type: 'EXPENSE',
+      amount: 400,
+      description: 'Mercado',
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [income, expense] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // The spending summary total row should show expenses only (400, not 3000 or 2600)
+    const totalRow = screen.getByText('common.total').closest('div')
+    expect(totalRow?.textContent).toContain('400,00')
+    expect(totalRow?.textContent).not.toContain('3.000,00')
+  })
+
+  it('spending summary does not include CREDIT account transactions', () => {
+    const retailAccount = makeRetailAccount()
+    const creditAccount = makeCreditAccount()
+    const retailExpense = makeTransaction({
+      id: 'tx-retail',
+      accountId: 'acc-retail',
+      type: 'EXPENSE',
+      amount: 100,
+      description: 'Conta retail',
+    })
+    const creditExpense = makeTransaction({
+      id: 'tx-credit',
+      accountId: 'acc-credit',
+      type: 'EXPENSE',
+      amount: 999,
+      description: 'Compra no cartão',
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount, creditAccount],
+        transactions: [retailExpense, creditExpense],
+      }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // Only retail expense (100) goes into the summary; credit (999) is excluded
+    const totalRow = screen.getByText('common.total').closest('div')
+    expect(totalRow?.textContent).toContain('100,00')
+    expect(totalRow?.textContent).not.toContain('999')
+  })
+})
+
 // ─── M-26: Cash-flow ledger filters ──────────────────────────────────────────
 
 describe('Transactions — M-26: cash-flow ledger filters', () => {

@@ -83,10 +83,24 @@ export default function Transactions() {
     .reduce((s, tx) => s + tx.amount, 0)
   const consolidated = income - expenses
 
+  // M-32: category breakdown for the spending summary panel
+  const categoryTotals = useMemo(() => {
+    if (!data) return []
+    const map: Record<string, number> = {}
+    filtered.forEach((tx) => {
+      if (tx.type !== 'EXPENSE') return
+      const catName = data.categories.find((c) => c.id === tx.categoryId)?.name ?? 'Outros'
+      map[catName] = (map[catName] ?? 0) + tx.amount
+    })
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, total]) => ({ name, total }))
+  }, [filtered, data])
+
   if (!data) return null
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-5xl px-6 py-8">
       {/* ── Filter bar ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-5">
         <FilterDropdown
@@ -157,59 +171,104 @@ export default function Transactions() {
         ))}
       </div>
 
-      {/* ── Transaction list ──────────────────────────────────────────────── */}
-      {grouped.length === 0 ? (
-        <div
-          className="rounded-2xl bg-white p-12 text-center"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
-          <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {grouped.map(([dateKey, txs]) => (
-            <DateGroup
-              key={dateKey}
-              dateKey={dateKey}
-              txs={txs}
-              data={data}
-              onEditTx={openTransactionDrawer}
-            />
-          ))}
-        </div>
-      )}
+      {/* ── M-32: Two-column layout: transaction list | spending summary ──── */}
+      <div className="grid grid-cols-3 gap-6 items-start">
+        {/* Left column: transaction list + footer */}
+        <div className="col-span-2 space-y-6">
+          {/* Transaction list */}
+          {grouped.length === 0 ? (
+            <div
+              className="rounded-2xl bg-white p-12 text-center"
+              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+            >
+              <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
+            </div>
+          ) : (
+            grouped.map(([dateKey, txs]) => (
+              <DateGroup
+                key={dateKey}
+                dateKey={dateKey}
+                txs={txs}
+                data={data}
+                onEditTx={openTransactionDrawer}
+              />
+            ))
+          )}
 
-      {/* ── Footer summary ────────────────────────────────────────────────── */}
-      {filtered.length > 0 && (
-        <div
-          className="mt-8 flex items-center justify-between rounded-2xl bg-white px-6 py-4"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
-          <p className="text-xs text-on-surface/40">
-            <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
-            {t('transactions.listed')}
-          </p>
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                'label text-xs font-bold',
-                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-              )}
+          {/* Footer summary */}
+          {filtered.length > 0 && (
+            <div
+              className="flex items-center justify-between rounded-2xl bg-white px-6 py-4"
+              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
             >
-              {consolidated >= 0 ? t('transactions.positiveFlow') : t('transactions.negativeFlow')}
-            </span>
-            <span
-              className={cn(
-                'text-sm font-bold',
-                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-              )}
-            >
-              {consolidated >= 0 ? '+' : ''}
-              {formatCurrency(consolidated)}
-            </span>
-          </div>
+              <p className="text-xs text-on-surface/40">
+                <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
+                {t('transactions.listed')}
+              </p>
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    'label text-xs font-bold',
+                    consolidated >= 0 ? 'text-primary' : 'text-tertiary'
+                  )}
+                >
+                  {consolidated >= 0
+                    ? t('transactions.positiveFlow')
+                    : t('transactions.negativeFlow')}
+                </span>
+                <span
+                  className={cn(
+                    'text-sm font-bold',
+                    consolidated >= 0 ? 'text-primary' : 'text-tertiary'
+                  )}
+                >
+                  {consolidated >= 0 ? '+' : ''}
+                  {formatCurrency(consolidated)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Right column: spending summary (sticky) */}
+        <div className="col-span-1 sticky top-8">
+          {categoryTotals.length > 0 && (
+            <div
+              className="rounded-2xl bg-white p-6"
+              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+            >
+              <h3 className="text-sm font-semibold text-on-surface mb-4">
+                {t('creditCard.spendingSummary')}
+              </h3>
+              <div className="space-y-3">
+                {categoryTotals.map(({ name, total }) => {
+                  const pct = expenses > 0 ? (total / expenses) * 100 : 0
+                  return (
+                    <div key={name}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-on-surface/70">{name}</span>
+                        <span className="text-xs font-semibold text-on-surface">
+                          {formatCurrency(total)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-surface-container-low overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-tertiary transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-4 pt-4 border-t border-surface-container-low flex items-center justify-between">
+                <span className="text-xs font-semibold text-on-surface">{t('common.total')}</span>
+                <span className="text-sm font-bold text-tertiary">{formatCurrency(expenses)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
