@@ -22,6 +22,7 @@ export default function Transactions() {
   const [search, setSearch] = useState('')
   const [filterAccountId, setFilterAccountId] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all')
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense' | 'transfer'>('all')
 
   const now = useMemo(() => new Date(), [])
 
@@ -78,6 +79,11 @@ export default function Transactions() {
     if (filterStatus === 'paid') txs = txs.filter((tx) => tx.isPaid)
     if (filterStatus === 'pending') txs = txs.filter((tx) => !tx.isPaid)
 
+    // Type filter
+    if (filterType === 'income') txs = txs.filter((tx) => tx.type === 'INCOME')
+    if (filterType === 'expense') txs = txs.filter((tx) => tx.type === 'EXPENSE')
+    if (filterType === 'transfer') txs = txs.filter((tx) => tx.type === 'TRANSFER')
+
     // Search
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -85,7 +91,16 @@ export default function Transactions() {
     }
 
     return txs.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime())
-  }, [data, filterAccountId, filterStatus, search, creditAccountIds, startDate, endDate])
+  }, [
+    data,
+    filterAccountId,
+    filterStatus,
+    filterType,
+    search,
+    creditAccountIds,
+    startDate,
+    endDate,
+  ])
 
   // Group by date
   const grouped = useMemo(() => {
@@ -196,6 +211,17 @@ export default function Transactions() {
           options={[
             { value: 'all', label: t('transactions.filterTags') },
             ...data.tags.map((tag) => ({ value: tag.id, label: `#${tag.name}` })),
+          ]}
+        />
+        <FilterDropdown
+          label={t('transactions.filterType')}
+          value={filterType}
+          onChange={(v) => setFilterType(v as typeof filterType)}
+          options={[
+            { value: 'all', label: t('transactions.filterType') },
+            { value: 'income', label: t('transactions.income') },
+            { value: 'expense', label: t('transactions.expense') },
+            { value: 'transfer', label: t('transactions.transfer') },
           ]}
         />
 

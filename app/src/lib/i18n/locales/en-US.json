@@ -90,6 +90,7 @@
     "filterAccounts": "Accounts",
     "filterStatus": "Status",
     "filterTags": "Tags",
+    "filterType": "Type",
     "today": "Today",
     "thisWeek": "This Week",
     "thisMonth": "This Month",
