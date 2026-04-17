@@ -47,6 +47,7 @@
     "myCards": "My Cards",
     "noCards": "No cards registered",
     "manage": "Manage",
+    "totalInvoices": "{{month}} Invoices",
     "invoice": "Invoice",
     "byCategory": "Expenses by Category",
     "recentTransactions": "Recent Transactions",

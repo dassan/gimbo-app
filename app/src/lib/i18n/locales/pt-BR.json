@@ -47,6 +47,7 @@
     "myCards": "Meus Cartões",
     "noCards": "Nenhum cartão cadastrado",
     "manage": "Gerenciar",
+    "totalInvoices": "Faturas de {{month}}",
     "invoice": "Fatura",
     "byCategory": "Despesas por Categoria",
     "recentTransactions": "Últimos Lançamentos",
