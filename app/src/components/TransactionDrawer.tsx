@@ -393,10 +393,14 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                 <select
                   value={accountId}
                   onChange={(e) => {
-                    setAccountId(e.target.value)
+                    const newAccountId = e.target.value
+                    setAccountId(newAccountId)
                     // Reset installment toggle when account changes
                     setInstallmentsEnabled(false)
                     setInstallmentCount(2)
+                    // Hide isPaid when switching to a CREDIT account
+                    const newAccount = (data?.accounts ?? []).find((a) => a.id === newAccountId)
+                    if (newAccount?.type === 'CREDIT') setIsPaid(false)
                   }}
                   className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
                 >
@@ -550,8 +554,8 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
             />
           </div>
 
-          {/* ── B-10: isPaid toggle (INCOME and EXPENSE only) ─────────────── */}
-          {(type === 'INCOME' || type === 'EXPENSE') && (
+          {/* ── B-10: isPaid toggle (INCOME and EXPENSE only; hidden for CREDIT accounts) ── */}
+          {(type === 'INCOME' || (type === 'EXPENSE' && selectedAccount?.type !== 'CREDIT')) && (
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-on-surface">
                 {t('transactions.isPaid')}
