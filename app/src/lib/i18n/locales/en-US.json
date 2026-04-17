@@ -99,7 +99,8 @@
     "consolidatedResult": "Consolidated Result",
     "positiveFlow": "Positive Flow",
     "negativeFlow": "Negative Flow",
-    "listed": "transactions listed"
+    "listed": "transactions listed",
+    "accumulatedBalance": "Accumulated Balance"
   },
   "analytics": {
     "title": "Reports",

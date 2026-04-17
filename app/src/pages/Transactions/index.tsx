@@ -120,6 +120,23 @@ export default function Transactions() {
     .reduce((s, tx) => s + tx.amount, 0)
   const consolidated = income - expenses
 
+  // Accumulated balance: net position across ALL non-CREDIT accounts, ignoring period filters.
+  // Seeded with each account's initial balance, then INCOME+, EXPENSE−, TRANSFER−.
+  // Internal transfers net to zero (debit TRANSFER + credit INCOME cancel each other out).
+  const accumulatedBalance = useMemo(() => {
+    if (!data) return 0
+    const total = data.accounts
+      .filter((a) => !creditAccountIds.has(a.id))
+      .reduce((s, a) => s + a.balance, 0)
+    return data.transactions.reduce((s, tx) => {
+      if (creditAccountIds.has(tx.accountId) || tx.type === 'CREDIT_PAYMENT') return s
+      if (tx.type === 'INCOME') return s + tx.amount
+      if (tx.type === 'EXPENSE') return s - tx.amount
+      if (tx.type === 'TRANSFER') return s - tx.amount
+      return s
+    }, total)
+  }, [data, creditAccountIds])
+
   // M-32: category breakdown for the spending summary panel
   const categoryTotals = useMemo(() => {
     if (!data) return []
@@ -321,11 +338,34 @@ export default function Transactions() {
                 className="col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto"
                 style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.08)' }}
               >
-                <p className="text-xs text-on-surface/40">
+                {/* Count */}
+                <p className="text-xs text-on-surface/40 shrink-0">
                   <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
                   {t('transactions.listed')}
                 </p>
+
+                <div className="h-4 w-px bg-surface-container-high mx-4 shrink-0" />
+
+                {/* Accumulated balance — all-time net across non-CREDIT accounts */}
                 <div className="flex items-center gap-2">
+                  <span className="label text-xs font-bold text-on-surface/40">
+                    {t('transactions.accumulatedBalance')}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-sm font-bold',
+                      accumulatedBalance >= 0 ? 'text-on-surface' : 'text-tertiary'
+                    )}
+                  >
+                    {accumulatedBalance >= 0 ? '+' : ''}
+                    {formatCurrency(accumulatedBalance)}
+                  </span>
+                </div>
+
+                <div className="h-4 w-px bg-surface-container-high mx-4 shrink-0" />
+
+                {/* Period flow */}
+                <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={cn(
                       'label text-xs font-bold',
