@@ -67,7 +67,7 @@ function getIssuerColor(issuerIcon?: string): string {
 const DONUT_COLORS = ['#006E2F', '#22C55E', '#FF8A83', '#B91A24', '#6B7280', '#F59E0B', '#3B82F6']
 
 export default function Dashboard() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const data = useDataStore((s) => s.data)
 
@@ -138,6 +138,14 @@ export default function Dashboard() {
     return map
   }, [data])
 
+  // ── Total invoice balance across all CREDIT accounts ─────────────────────
+  const totalInvoiceBalance = useMemo(() => {
+    if (!data) return 0
+    return data.accounts
+      .filter((a) => a.type === 'CREDIT' && a.creditMetadata != null)
+      .reduce((sum, acc) => sum + getCurrentInvoiceBalance(data.transactions, acc), 0)
+  }, [data])
+
   // ── Expenses by category (donut) ──────────────────────────────────────────
   const donutData = useMemo(() => {
     if (!data) return []
@@ -167,6 +175,11 @@ export default function Dashboard() {
   const visibleAccounts = data.accounts.filter((a) => a.type !== 'CREDIT' && a.includeInBalance)
   // All CREDIT accounts: displayed in "Meus Cartões"
   const creditAccounts = data.accounts.filter((a) => a.type === 'CREDIT')
+
+  const currentMonthName = (() => {
+    const name = now.toLocaleString(i18n.language, { month: 'long' })
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  })()
 
   const totalExpenses = donutData.reduce((s, d) => s + d.value, 0)
 
@@ -228,12 +241,22 @@ export default function Dashboard() {
         >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.myCards')}</h3>
-            <button
-              onClick={() => void navigate('/settings')}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              {t('dashboard.manage')}
-            </button>
+            {creditAccounts.length > 0 && (
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-widest text-on-surface/40 font-medium leading-none mb-0.5">
+                  {t('dashboard.totalInvoices', { month: currentMonthName })}
+                </p>
+                <p
+                  className={cn(
+                    'text-sm font-bold',
+                    totalInvoiceBalance > 0 ? 'text-tertiary' : 'text-on-surface/40'
+                  )}
+                >
+                  {totalInvoiceBalance > 0 ? '-\u00a0' : ''}
+                  {formatCurrency(totalInvoiceBalance)}
+                </p>
+              </div>
+            )}
           </div>
 
           {creditAccounts.length === 0 ? (

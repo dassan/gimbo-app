@@ -8,7 +8,7 @@ import type { Account, Transaction } from '@/types'
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'pt-BR' } }),
 }))
 
 vi.mock('react-router-dom', () => ({
@@ -177,7 +177,7 @@ describe('Dashboard — CC-14: Meus Cartões section', () => {
     expect(screen.getByText('dashboard.myCards')).toBeInTheDocument()
   })
 
-  it('does not render Meus Cartões section when no CREDIT accounts exist', () => {
+  it('renders Meus Cartões section even when no CREDIT accounts exist (empty state)', () => {
     const retailAccount = makeRetailAccount()
 
     useDataStore.setState({
@@ -187,7 +187,8 @@ describe('Dashboard — CC-14: Meus Cartões section', () => {
 
     render(<Dashboard />)
 
-    expect(screen.queryByText('dashboard.myCards')).not.toBeInTheDocument()
+    expect(screen.getByText('dashboard.myCards')).toBeInTheDocument()
+    expect(screen.getByText('dashboard.noCards')).toBeInTheDocument()
   })
 
   it('shows accounts.availableLimit i18n label for credit accounts', () => {
@@ -253,7 +254,7 @@ describe('Dashboard — CC-14: Meus Cartões section', () => {
     expect(screen.getByText(/15\.001,00/)).toBeInTheDocument()
   })
 
-  it('renders manage button in Meus Cartões section', () => {
+  it('renders total invoice summary in Meus Cartões section when cards exist', () => {
     const creditAccount = makeCreditAccount()
 
     useDataStore.setState({
@@ -263,7 +264,9 @@ describe('Dashboard — CC-14: Meus Cartões section', () => {
 
     render(<Dashboard />)
 
-    expect(screen.getByText('dashboard.manage')).toBeInTheDocument()
+    // The manage button is gone; the total invoices label is shown instead
+    expect(screen.queryByText('dashboard.manage')).not.toBeInTheDocument()
+    expect(screen.getByText(/dashboard\.totalInvoices/)).toBeInTheDocument()
   })
 })
 
