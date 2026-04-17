@@ -333,9 +333,9 @@ export default function Transactions() {
       {filtered.length > 0 && (
         <div className="fixed bottom-6 left-0 right-0 z-30 pointer-events-none">
           <div className="mx-auto max-w-5xl px-6">
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 md:gap-6">
               <div
-                className="col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto"
+                className="md:col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto"
                 style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.08)' }}
               >
                 {/* Count */}
@@ -343,24 +343,6 @@ export default function Transactions() {
                   <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
                   {t('transactions.listed')}
                 </p>
-
-                <div className="h-4 w-px bg-surface-container-high mx-4 shrink-0" />
-
-                {/* Accumulated balance — all-time net across non-CREDIT accounts */}
-                <div className="flex items-center gap-2">
-                  <span className="label text-xs font-bold text-on-surface/40">
-                    {t('transactions.accumulatedBalance')}
-                  </span>
-                  <span
-                    className={cn(
-                      'text-sm font-bold',
-                      accumulatedBalance >= 0 ? 'text-on-surface' : 'text-tertiary'
-                    )}
-                  >
-                    {accumulatedBalance >= 0 ? '+' : ''}
-                    {formatCurrency(accumulatedBalance)}
-                  </span>
-                </div>
 
                 <div className="h-4 w-px bg-surface-container-high mx-4 shrink-0" />
 
@@ -384,6 +366,24 @@ export default function Transactions() {
                   >
                     {consolidated >= 0 ? '+' : ''}
                     {formatCurrency(consolidated)}
+                  </span>
+                </div>
+
+                <div className="h-4 w-px bg-surface-container-high mx-4 shrink-0" />
+
+                {/* Accumulated balance — all-time net across non-CREDIT accounts */}
+                <div className="flex items-center gap-2">
+                  <span className="label text-xs font-bold text-on-surface/40">
+                    {t('transactions.accumulatedBalance')}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-sm font-bold',
+                      accumulatedBalance >= 0 ? 'text-on-surface' : 'text-tertiary'
+                    )}
+                  >
+                    {accumulatedBalance >= 0 ? '+' : ''}
+                    {formatCurrency(accumulatedBalance)}
                   </span>
                 </div>
               </div>
