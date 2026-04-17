@@ -197,6 +197,7 @@
     "stocks": "Stocks",
     "other": "Other",
     "balance": "Balance",
+    "initialBalance": "Initial Balance",
     "creditLimit": "Total Credit Limit",
     "closingDay": "Closing Day",
     "dueDay": "Due Day",

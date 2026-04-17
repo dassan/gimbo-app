@@ -260,17 +260,26 @@ export default function Settings() {
     name: string,
     type: AccountType,
     includeInBalance: boolean,
+    initialBalance: number,
     creditMetadata?: CreditMetadata,
     issuerIcon?: string
   ) {
     if (modal.open && modal.account) {
-      updateAccount({ ...modal.account, name, type, includeInBalance, creditMetadata, issuerIcon })
+      updateAccount({
+        ...modal.account,
+        name,
+        type,
+        balance: initialBalance,
+        includeInBalance,
+        creditMetadata,
+        issuerIcon,
+      })
     } else {
       addAccount({
         id: uuid(),
         name,
         type,
-        balance: 0,
+        balance: initialBalance,
         includeInBalance,
         creditMetadata,
         issuerIcon,
@@ -325,7 +334,14 @@ export default function Settings() {
     if (!data) return {}
     const map: Record<string, number> = {}
 
-    // Standard flow for non-CREDIT accounts
+    // Standard flow for non-CREDIT accounts: seed with initialBalance (account.balance),
+    // then apply transactions. This lets users set a starting balance at account creation.
+    data.accounts
+      .filter((a) => a.type !== 'CREDIT')
+      .forEach((a) => {
+        map[a.id] = a.balance
+      })
+
     data.transactions.forEach((tx) => {
       const account = data.accounts.find((a) => a.id === tx.accountId)
       if (!account || account.type === 'CREDIT') return
@@ -888,6 +904,7 @@ function AddAccountModal({
     name: string,
     type: AccountType,
     includeInBalance: boolean,
+    initialBalance: number,
     creditMetadata?: CreditMetadata,
     issuerIcon?: string
   ) => void
@@ -906,6 +923,10 @@ function AddAccountModal({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // M-23: issuer icon for CREDIT accounts — defaults to 'generic' (no visual branding)
   const [issuerIcon, setIssuerIcon] = useState<string>(account?.issuerIcon ?? 'generic')
+  // M-33: initial balance — only for non-CREDIT accounts; pre-filled from account.balance in edit mode
+  const [initialBalance, setInitialBalance] = useState<string>(
+    account && account.type !== 'CREDIT' && account.balance !== 0 ? String(account.balance) : ''
+  )
 
   // ── Credit metadata state ──────────────────────────────────────────────────
   const [creditLimit, setCreditLimit] = useState<string>(
@@ -937,6 +958,9 @@ function AddAccountModal({
     const trimmed = name.trim()
     if (!trimmed) return
 
+    // M-33: parse initial balance; CREDIT accounts always use 0 (limit is tracked separately)
+    const resolvedInitialBalance = type !== 'CREDIT' ? parseFloat(initialBalance) || 0 : 0
+
     let creditMetadata: CreditMetadata | undefined
     let resolvedIssuerIcon: string | undefined
     if (type === 'CREDIT') {
@@ -956,7 +980,7 @@ function AddAccountModal({
       resolvedIssuerIcon = issuerIcon
     }
 
-    onSave(trimmed, type, includeInBalance, creditMetadata, resolvedIssuerIcon)
+    onSave(trimmed, type, includeInBalance, resolvedInitialBalance, creditMetadata, resolvedIssuerIcon)
   }
 
   function handleDelete() {
@@ -1031,6 +1055,24 @@ function AddAccountModal({
               </button>
             ))}
           </div>
+
+          {/* M-33: Initial balance — shown only for non-CREDIT accounts */}
+          {type !== 'CREDIT' && (
+            <div className="mt-4">
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                {t('accounts.initialBalance')}
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={initialBalance}
+                onChange={(e) => setInitialBalance(e.target.value)}
+                placeholder="0,00"
+                className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          )}
 
           {/* Credit metadata fields — shown only when type === CREDIT */}
           {type === 'CREDIT' && (

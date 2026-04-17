@@ -197,6 +197,7 @@
     "stocks": "Ações",
     "other": "Outros",
     "balance": "Saldo",
+    "initialBalance": "Saldo Inicial",
     "creditLimit": "Limite de Crédito Total",
     "closingDay": "Dia de Fechamento",
     "dueDay": "Dia de Vencimento",
