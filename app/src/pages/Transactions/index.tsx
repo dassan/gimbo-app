@@ -312,34 +312,42 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* ── Fixed footer: mirrors FAB position, stays visible on scroll ──── */}
+      {/* ── Fixed footer: mirrors grid layout so width matches the transaction list column ── */}
       {filtered.length > 0 && (
-        <div
-          className="fixed bottom-6 left-6 right-6 z-30 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pr-48"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.08)' }}
-        >
-          <p className="text-xs text-on-surface/40">
-            <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
-            {t('transactions.listed')}
-          </p>
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                'label text-xs font-bold',
-                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-              )}
-            >
-              {consolidated >= 0 ? t('transactions.positiveFlow') : t('transactions.negativeFlow')}
-            </span>
-            <span
-              className={cn(
-                'text-sm font-bold',
-                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-              )}
-            >
-              {consolidated >= 0 ? '+' : ''}
-              {formatCurrency(consolidated)}
-            </span>
+        <div className="fixed bottom-6 left-0 right-0 z-30 pointer-events-none">
+          <div className="mx-auto max-w-5xl px-6">
+            <div className="grid grid-cols-3 gap-6">
+              <div
+                className="col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto"
+                style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.08)' }}
+              >
+                <p className="text-xs text-on-surface/40">
+                  <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
+                  {t('transactions.listed')}
+                </p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'label text-xs font-bold',
+                      consolidated >= 0 ? 'text-primary' : 'text-tertiary'
+                    )}
+                  >
+                    {consolidated >= 0
+                      ? t('transactions.positiveFlow')
+                      : t('transactions.negativeFlow')}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-sm font-bold',
+                      consolidated >= 0 ? 'text-primary' : 'text-tertiary'
+                    )}
+                  >
+                    {consolidated >= 0 ? '+' : ''}
+                    {formatCurrency(consolidated)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
