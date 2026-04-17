@@ -193,11 +193,11 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ── Minhas Contas + Meus Cartões row ─────────────────────────────── */}
-      <div className={cn('grid gap-4', creditAccounts.length > 0 ? 'grid-cols-2' : 'grid-cols-3')}>
+      {/* ── Minhas Contas + Meus Cartões row — always grid-cols-2 ──────────── */}
+      <div className="grid grid-cols-2 gap-4">
         {/* My Accounts — standard accounts with includeInBalance */}
         <div
-          className={cn('rounded-2xl bg-white p-6', creditAccounts.length === 0 && 'col-span-2')}
+          className="rounded-2xl bg-white p-6"
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
         >
           <h3 className="text-sm font-semibold text-on-surface mb-4">
@@ -221,24 +221,24 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* My Cards — CREDIT accounts with invoice + available limit */}
-        {creditAccounts.length > 0 && (
-          <div
-            className="rounded-2xl bg-white p-6"
-            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.myCards')}</h3>
-              <button
-                onClick={() => {
-                  void navigate('/settings')
-                }}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                {t('dashboard.manage')}
-              </button>
-            </div>
+        {/* My Cards — always rendered; empty state when no CREDIT accounts */}
+        <div
+          className="rounded-2xl bg-white p-6"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.myCards')}</h3>
+            <button
+              onClick={() => void navigate('/settings')}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {t('dashboard.manage')}
+            </button>
+          </div>
 
+          {creditAccounts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-on-surface/40">{t('dashboard.noCards')}</p>
+          ) : (
             <div className="space-y-4">
               {creditAccounts.map((acc) => (
                 <CreditCardRow
@@ -254,56 +254,32 @@ export default function Dashboard() {
                 />
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Expenses by category donut — only shown when no credit accounts */}
-        {creditAccounts.length === 0 && (
-          <div
-            className="rounded-2xl bg-white p-6"
-            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-          >
-            <h3 className="text-sm font-semibold text-on-surface mb-4">
-              {t('dashboard.byCategory')}
-            </h3>
-            <DonutSection donutData={donutData} totalExpenses={totalExpenses} t={t} />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* ── Bottom row: Recent transactions + Donut (when credit accounts exist) */}
-      {creditAccounts.length > 0 ? (
-        <div className="grid grid-cols-3 gap-4">
-          {/* Recent transactions — 2/3 */}
-          <div
-            className="col-span-2 rounded-2xl bg-white p-6"
-            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-          >
-            <RecentTransactionsHeader t={t} onViewAll={() => void navigate('/transactions')} />
-            <RecentTransactionsList recentTxs={recentTxs} data={data} t={t} />
-          </div>
-
-          {/* Expenses by category donut — 1/3 */}
-          <div
-            className="rounded-2xl bg-white p-6"
-            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-          >
-            <h3 className="text-sm font-semibold text-on-surface mb-4">
-              {t('dashboard.byCategory')}
-            </h3>
-            <DonutSection donutData={donutData} totalExpenses={totalExpenses} t={t} />
-          </div>
-        </div>
-      ) : (
-        /* Recent transactions full width when no credit accounts */
+      {/* ── Bottom row: Recent transactions + Donut — always grid-cols-3 ──── */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Recent transactions — 2/3 */}
         <div
-          className="rounded-2xl bg-white p-6"
+          className="col-span-2 rounded-2xl bg-white p-6"
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
         >
           <RecentTransactionsHeader t={t} onViewAll={() => void navigate('/transactions')} />
           <RecentTransactionsList recentTxs={recentTxs} data={data} t={t} />
         </div>
-      )}
+
+        {/* Expenses by category donut — 1/3 */}
+        <div
+          className="rounded-2xl bg-white p-6"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
+          <h3 className="text-sm font-semibold text-on-surface mb-4">
+            {t('dashboard.byCategory')}
+          </h3>
+          <DonutSection donutData={donutData} totalExpenses={totalExpenses} t={t} />
+        </div>
+      </div>
     </div>
   )
 }
