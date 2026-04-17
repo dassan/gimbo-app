@@ -21,5 +21,6 @@
   "transactions": [
     { "id": "tx-e2e-1", "accountId": "acc-e2e-1", "categoryId": "cat-e2e-1", "amount": 5000, "type": "INCOME", "date": "2024-01-15", "description": "Salário Janeiro", "isPaid": true, "tags": [] }
   ],
-  "auditLog": []
+  "auditLog": [],
+  "deletedIds": []
 }

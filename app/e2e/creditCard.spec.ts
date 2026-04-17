@@ -124,13 +124,10 @@ test('analytics: EXPENSE on CREDIT account appears in due-date month, not purcha
   // Switch to Personalizado to see all transactions
   await page.getByRole('button', { name: 'Personalizado' }).click()
 
-  // Both transactions appear in the ledger (by purchase date)
+  // INCOME on RETAIL appears in the ledger (M-26: CREDIT account transactions live in /credit-card/:id)
   await expect(page.locator('[role="button"]').filter({ hasText: 'Receita Teste' })).toBeVisible({
     timeout: 5000,
   })
-  await expect(
-    page.locator('[role="button"]').filter({ hasText: 'Compra no Cartão' })
-  ).toBeVisible()
 
   // Navigate to Analytics — page must load without error
   await page.goto('/analytics')
@@ -162,7 +159,7 @@ test('installments: creating 3x installment generates 3 ledger rows with correct
     transactions: [
       {
         id: 'cc30-c-1',
-        accountId: 'acc-e2e-credit',
+        accountId: 'acc-e2e-1',
         categoryId: 'cat-e2e-2',
         amount: 100,
         type: 'EXPENSE',
@@ -174,7 +171,7 @@ test('installments: creating 3x installment generates 3 ledger rows with correct
       },
       {
         id: 'cc30-c-2',
-        accountId: 'acc-e2e-credit',
+        accountId: 'acc-e2e-1',
         categoryId: 'cat-e2e-2',
         amount: 100,
         type: 'EXPENSE',
@@ -186,7 +183,7 @@ test('installments: creating 3x installment generates 3 ledger rows with correct
       },
       {
         id: 'cc30-c-3',
-        accountId: 'acc-e2e-credit',
+        accountId: 'acc-e2e-1',
         categoryId: 'cat-e2e-2',
         amount: 100,
         type: 'EXPENSE',
@@ -223,8 +220,19 @@ test('installments: creating 3x installment generates 3 ledger rows with correct
 test('installments: "Excluir todas" removes all installment rows from the ledger', async ({
   page,
 }) => {
-  // Pre-seed with 3 installment transactions sharing the same parentId
+  // Pre-seed with 3 installment transactions sharing the same parentId.
+  // All 3 use a date within the current invoice period (closingDay=20) so they
+  // all appear in the credit card page at periodOffset=0 (current period).
   const parentId = 'parent-cc30-d'
+  const today = new Date()
+  const y = today.getFullYear(),
+    m = today.getMonth() + 1,
+    d = today.getDate()
+  // If today is past the closing day (20), transactions dated in current month would
+  // belong to the NEXT period — use day 10 of next month instead.
+  const [fy, fm] = d > 20 ? (m === 12 ? [y + 1, 1] : [y, m + 1]) : [y, m]
+  const periodDate = `${fy}-${String(fm).padStart(2, '0')}-10`
+
   const installmentFixture = {
     ...baseFixture,
     transactions: [
@@ -234,7 +242,7 @@ test('installments: "Excluir todas" removes all installment rows from the ledger
         categoryId: 'cat-e2e-2',
         amount: 100,
         type: 'EXPENSE',
-        date: '2024-01-15',
+        date: periodDate,
         description: 'Parcelamento Teste (1/3)',
         isPaid: false,
         tags: [],
@@ -246,7 +254,7 @@ test('installments: "Excluir todas" removes all installment rows from the ledger
         categoryId: 'cat-e2e-2',
         amount: 100,
         type: 'EXPENSE',
-        date: '2024-02-15',
+        date: periodDate,
         description: 'Parcelamento Teste (2/3)',
         isPaid: false,
         tags: [],
@@ -258,7 +266,7 @@ test('installments: "Excluir todas" removes all installment rows from the ledger
         categoryId: 'cat-e2e-2',
         amount: 100,
         type: 'EXPENSE',
-        date: '2024-03-15',
+        date: periodDate,
         description: 'Parcelamento Teste (3/3)',
         isPaid: false,
         tags: [],
@@ -268,15 +276,20 @@ test('installments: "Excluir todas" removes all installment rows from the ledger
   }
 
   await seedIdb(page, installmentFixture)
-  await page.goto('/transactions')
-  await expect(page).toHaveURL(/\/transactions/)
+  // M-26: CREDIT account transactions live in /credit-card/:id, not /transactions
+  await page.goto('/credit-card/acc-e2e-credit')
+  await expect(page).toHaveURL(/\/credit-card\/acc-e2e-credit/)
 
-  await page.getByRole('button', { name: 'Personalizado' }).click()
-
-  // Verify all 3 are present
+  // Verify all 3 are present in the current invoice period
   await expect(
     page.locator('[role="button"]').filter({ hasText: 'Parcelamento Teste (1/3)' })
   ).toBeVisible({ timeout: 5000 })
+  await expect(
+    page.locator('[role="button"]').filter({ hasText: 'Parcelamento Teste (2/3)' })
+  ).toBeVisible()
+  await expect(
+    page.locator('[role="button"]').filter({ hasText: 'Parcelamento Teste (3/3)' })
+  ).toBeVisible()
 
   // Click the first installment to open the drawer
   await page.locator('[role="button"]').filter({ hasText: 'Parcelamento Teste (1/3)' }).click()
@@ -297,7 +310,7 @@ test('installments: "Excluir todas" removes all installment rows from the ledger
   const backdrop = page.locator('.fixed.inset-0.z-50').first()
   await expect(backdrop).toHaveClass(/pointer-events-none/, { timeout: 3000 })
 
-  // All 3 rows should be gone
+  // All 3 rows should be gone from the current invoice period
   await expect(
     page.locator('[role="button"]').filter({ hasText: 'Parcelamento Teste (1/3)' })
   ).toHaveCount(0)
@@ -357,8 +370,8 @@ test('credit payment: CREDIT_PAYMENT does not appear as income or expense in Das
   await expect(page).toHaveURL(/\/dashboard/)
 
   // The CREDIT_PAYMENT transaction appears in Recent Transactions with its
-  // distinct "Pag. Fatura" label (not as INCOME or EXPENSE)
-  await expect(page.getByText('Pag. Fatura')).toBeVisible({ timeout: 5000 })
+  // description (Dashboard renders tx.description, not a type label)
+  await expect(page.getByText('Pagamento Cartão')).toBeVisible({ timeout: 5000 })
 
   // The Despesas stat card must show R$ 0,00 — CREDIT_PAYMENT is NOT an EXPENSE.
   // Stat cards are rendered in order: Receitas (nth 0), Despesas (nth 1), Saldo (nth 2).
