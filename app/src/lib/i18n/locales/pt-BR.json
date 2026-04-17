@@ -99,7 +99,8 @@
     "consolidatedResult": "Resultado Consolidado",
     "positiveFlow": "Fluxo Positivo",
     "negativeFlow": "Fluxo Negativo",
-    "listed": "transações listadas"
+    "listed": "transações listadas",
+    "accumulatedBalance": "Saldo Acumulado"
   },
   "analytics": {
     "title": "Relatórios",
