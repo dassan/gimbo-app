@@ -162,11 +162,9 @@ export default function Dashboard() {
       byCategory[name] = (byCategory[name] ?? 0) + tx.amount
     })
     const total = Object.values(byCategory).reduce((s, v) => s + v, 0) || 1
-    return Object.entries(byCategory).map(([name, value]) => ({
-      name,
-      value,
-      pct: Math.round((value / total) * 100),
-    }))
+    return Object.entries(byCategory)
+      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
+      .sort((a, b) => b.value - a.value)
   }, [data, now])
 
   if (!data) return null
@@ -180,8 +178,6 @@ export default function Dashboard() {
     const name = now.toLocaleString(i18n.language, { month: 'long' })
     return name.charAt(0).toUpperCase() + name.slice(1)
   })()
-
-  const totalExpenses = donutData.reduce((s, d) => s + d.value, 0)
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 space-y-6">
@@ -281,18 +277,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Bottom row: Recent transactions + Donut — always grid-cols-3 ──── */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Recent transactions — 2/3 */}
+      {/* ── Bottom row: Recent transactions + Donut — always grid-cols-2 ──── */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Recent transactions — 1/2 */}
         <div
-          className="col-span-2 rounded-2xl bg-white p-6"
+          className="rounded-2xl bg-white p-6"
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
         >
           <RecentTransactionsHeader t={t} onViewAll={() => void navigate('/transactions')} />
           <RecentTransactionsList recentTxs={recentTxs} data={data} t={t} />
         </div>
 
-        {/* Expenses by category donut — 1/3 */}
+        {/* Expenses by category donut — 1/2 */}
         <div
           className="rounded-2xl bg-white p-6"
           style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
@@ -300,7 +296,7 @@ export default function Dashboard() {
           <h3 className="text-sm font-semibold text-on-surface mb-4">
             {t('dashboard.byCategory')}
           </h3>
-          <DonutSection donutData={donutData} totalExpenses={totalExpenses} t={t} />
+          <DonutSection donutData={donutData} t={t} />
         </div>
       </div>
     </div>
@@ -514,11 +510,9 @@ function RecentTransactionsList({
 
 function DonutSection({
   donutData,
-  totalExpenses,
   t,
 }: {
   donutData: { name: string; value: number; pct: number }[]
-  totalExpenses: number
   t: (key: string) => string
 }) {
   if (donutData.length === 0) {
@@ -529,17 +523,20 @@ function DonutSection({
     )
   }
 
+  const top5 = donutData.slice(0, 5)
+
   return (
-    <>
-      <div className="relative h-36">
+    <div className="flex items-center gap-4">
+      {/* Donut chart — no center label */}
+      <div className="relative h-72 w-72 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={donutData}
               cx="50%"
               cy="50%"
-              innerRadius={44}
-              outerRadius={64}
+              innerRadius={76}
+              outerRadius={120}
               paddingAngle={2}
               dataKey="value"
               strokeWidth={0}
@@ -550,30 +547,24 @@ function DonutSection({
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        {/* Center label */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <p className="text-[10px] uppercase tracking-widest text-on-surface/40">
-            {t('dashboard.total')}
-          </p>
-          <p className="text-sm font-bold text-on-surface">{formatCurrency(totalExpenses)}</p>
-        </div>
       </div>
 
-      <div className="mt-3 space-y-2">
-        {donutData.slice(0, 4).map((d, i) => (
-          <div key={d.name} className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
-              />
-              <span className="text-xs text-on-surface/70">{d.name}</span>
-            </div>
-            <span className="text-xs font-medium text-on-surface">{d.pct}%</span>
+      {/* Top 5 categories */}
+      <div className="flex-1 space-y-2.5">
+        {top5.map((d, i) => (
+          <div key={d.name} className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
+            />
+            <span className="flex-1 text-xs text-on-surface/70 truncate">{d.name}</span>
+            <span className="text-xs font-semibold text-on-surface shrink-0">
+              {formatCurrency(d.value)}
+            </span>
           </div>
         ))}
       </div>
-    </>
+    </div>
   )
 }
 
