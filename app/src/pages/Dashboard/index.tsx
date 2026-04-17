@@ -107,7 +107,14 @@ export default function Dashboard() {
     if (!data) return {}
     const map: Record<string, number> = {}
 
-    // Standard flow for non-CREDIT accounts
+    // Standard flow for non-CREDIT accounts: seed with initialBalance (account.balance),
+    // then apply transactions. This lets users set a starting balance at account creation.
+    data.accounts
+      .filter((a) => a.type !== 'CREDIT')
+      .forEach((a) => {
+        map[a.id] = a.balance
+      })
+
     data.transactions.forEach((tx) => {
       const account = data.accounts.find((a) => a.id === tx.accountId)
       if (!account || account.type === 'CREDIT') return
