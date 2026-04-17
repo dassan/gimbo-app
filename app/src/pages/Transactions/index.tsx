@@ -137,209 +137,213 @@ export default function Transactions() {
   if (!data) return null
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
-      {/* ── M-27: Period navigation (replaces period chips) ──────────────── */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* Month arrows + label */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMonthOffset((o) => o - 1)}
-            aria-label="previous-period"
-            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
-          >
-            <ChevronLeft size={18} strokeWidth={1.5} className="text-on-surface/60" />
-          </button>
-          <span className="text-xl font-bold text-on-surface min-w-44 text-center">
-            {periodLabel}
-          </span>
-          <button
-            onClick={() => setMonthOffset((o) => o + 1)}
-            aria-label="next-period"
-            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
-          >
-            <ChevronRight size={18} strokeWidth={1.5} className="text-on-surface/60" />
-          </button>
+    <>
+      <div className="mx-auto max-w-5xl px-6 pt-8 pb-24">
+        {/* ── M-27: Period navigation (replaces period chips) ──────────────── */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          {/* Month arrows + label */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMonthOffset((o) => o - 1)}
+              aria-label="previous-period"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+            >
+              <ChevronLeft size={18} strokeWidth={1.5} className="text-on-surface/60" />
+            </button>
+            <span className="text-xl font-bold text-on-surface min-w-44 text-center">
+              {periodLabel}
+            </span>
+            <button
+              onClick={() => setMonthOffset((o) => o + 1)}
+              aria-label="next-period"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+            >
+              <ChevronRight size={18} strokeWidth={1.5} className="text-on-surface/60" />
+            </button>
+          </div>
+
+          {/* Granularity tabs */}
+          <div className="flex gap-1">
+            {(['month', 'semester', 'custom'] as ViewPeriod[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => setViewPeriod(p)}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-xs font-medium transition-all',
+                  viewPeriod === p
+                    ? 'bg-primary text-white'
+                    : 'bg-surface-container-low text-on-surface/50 hover:text-on-surface/70'
+                )}
+              >
+                {t(
+                  `analytics.${p === 'month' ? 'month' : p === 'semester' ? 'semester' : 'custom'}`
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Granularity tabs */}
-        <div className="flex gap-1">
-          {(['month', 'semester', 'custom'] as ViewPeriod[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setViewPeriod(p)}
+        {/* ── Filter bar ──────────────────────────────────────────────────── */}
+        <div className="flex items-center gap-3 mb-5">
+          <FilterDropdown
+            label={t('transactions.filterAccounts')}
+            value={filterAccountId}
+            onChange={setFilterAccountId}
+            options={[
+              { value: 'all', label: t('transactions.filterAccounts') },
+              // M-26: CREDIT accounts are excluded — their transactions live in /credit-card/:id
+              ...data.accounts
+                .filter((a) => a.type !== 'CREDIT')
+                .map((a) => ({ value: a.id, label: a.name })),
+            ]}
+          />
+          <FilterDropdown
+            label={t('transactions.filterStatus')}
+            value={filterStatus}
+            onChange={(v) => setFilterStatus(v as typeof filterStatus)}
+            options={[
+              { value: 'all', label: t('transactions.filterStatus') },
+              { value: 'paid', label: t('transactions.paid') },
+              { value: 'pending', label: t('transactions.pending') },
+            ]}
+          />
+          <FilterDropdown
+            label={t('transactions.filterTags')}
+            value="all"
+            onChange={() => {}}
+            options={[
+              { value: 'all', label: t('transactions.filterTags') },
+              ...data.tags.map((tag) => ({ value: tag.id, label: `#${tag.name}` })),
+            ]}
+          />
+          <FilterDropdown
+            label={t('transactions.filterType')}
+            value={filterType}
+            onChange={(v) => setFilterType(v as typeof filterType)}
+            options={[
+              { value: 'all', label: t('transactions.filterType') },
+              { value: 'income', label: t('transactions.income') },
+              { value: 'expense', label: t('transactions.expense') },
+              { value: 'transfer', label: t('transactions.transfer') },
+            ]}
+          />
+
+          {/* Search */}
+          <div className="relative ml-auto">
+            <Search
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar..."
+              className="rounded-xl bg-surface-container-low py-2 pl-8 pr-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 w-48"
+            />
+          </div>
+        </div>
+
+        {/* ── M-32: Two-column layout: transaction list | spending summary ──── */}
+        <div className="grid grid-cols-3 gap-6 items-start">
+          {/* Left column: transaction list */}
+          <div className="col-span-2 space-y-6">
+            {/* Transaction list */}
+            {grouped.length === 0 ? (
+              <div
+                className="rounded-2xl bg-white p-12 text-center"
+                style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+              >
+                <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
+              </div>
+            ) : (
+              grouped.map(([dateKey, txs]) => (
+                <DateGroup
+                  key={dateKey}
+                  dateKey={dateKey}
+                  txs={txs}
+                  data={data}
+                  onEditTx={openTransactionDrawer}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Right column: spending summary (sticky) */}
+          <div className="col-span-1 sticky top-8">
+            {categoryTotals.length > 0 && (
+              <div
+                className="rounded-2xl bg-white p-6"
+                style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+              >
+                <h3 className="text-sm font-semibold text-on-surface mb-4">
+                  {t('creditCard.spendingSummary')}
+                </h3>
+                <div className="space-y-3">
+                  {categoryTotals.map(({ name, total }) => {
+                    const pct = expenses > 0 ? (total / expenses) * 100 : 0
+                    return (
+                      <div key={name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-on-surface/70">{name}</span>
+                          <span className="text-xs font-semibold text-on-surface">
+                            {formatCurrency(total)}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-surface-container-low overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-tertiary transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="mt-4 pt-4 border-t border-surface-container-low flex items-center justify-between">
+                  <span className="text-xs font-semibold text-on-surface">{t('common.total')}</span>
+                  <span className="text-sm font-bold text-tertiary">
+                    {formatCurrency(expenses)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Fixed footer: mirrors FAB position, stays visible on scroll ──── */}
+      {filtered.length > 0 && (
+        <div
+          className="fixed bottom-6 left-6 right-6 z-30 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pr-48"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.08)' }}
+        >
+          <p className="text-xs text-on-surface/40">
+            <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
+            {t('transactions.listed')}
+          </p>
+          <div className="flex items-center gap-2">
+            <span
               className={cn(
-                'rounded-full px-3 py-1.5 text-xs font-medium transition-all',
-                viewPeriod === p
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-container-low text-on-surface/50 hover:text-on-surface/70'
+                'label text-xs font-bold',
+                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
               )}
             >
-              {t(`analytics.${p === 'month' ? 'month' : p === 'semester' ? 'semester' : 'custom'}`)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Filter bar ──────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 mb-5">
-        <FilterDropdown
-          label={t('transactions.filterAccounts')}
-          value={filterAccountId}
-          onChange={setFilterAccountId}
-          options={[
-            { value: 'all', label: t('transactions.filterAccounts') },
-            // M-26: CREDIT accounts are excluded — their transactions live in /credit-card/:id
-            ...data.accounts
-              .filter((a) => a.type !== 'CREDIT')
-              .map((a) => ({ value: a.id, label: a.name })),
-          ]}
-        />
-        <FilterDropdown
-          label={t('transactions.filterStatus')}
-          value={filterStatus}
-          onChange={(v) => setFilterStatus(v as typeof filterStatus)}
-          options={[
-            { value: 'all', label: t('transactions.filterStatus') },
-            { value: 'paid', label: t('transactions.paid') },
-            { value: 'pending', label: t('transactions.pending') },
-          ]}
-        />
-        <FilterDropdown
-          label={t('transactions.filterTags')}
-          value="all"
-          onChange={() => {}}
-          options={[
-            { value: 'all', label: t('transactions.filterTags') },
-            ...data.tags.map((tag) => ({ value: tag.id, label: `#${tag.name}` })),
-          ]}
-        />
-        <FilterDropdown
-          label={t('transactions.filterType')}
-          value={filterType}
-          onChange={(v) => setFilterType(v as typeof filterType)}
-          options={[
-            { value: 'all', label: t('transactions.filterType') },
-            { value: 'income', label: t('transactions.income') },
-            { value: 'expense', label: t('transactions.expense') },
-            { value: 'transfer', label: t('transactions.transfer') },
-          ]}
-        />
-
-        {/* Search */}
-        <div className="relative ml-auto">
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40"
-          />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar..."
-            className="rounded-xl bg-surface-container-low py-2 pl-8 pr-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 w-48"
-          />
-        </div>
-      </div>
-
-      {/* ── M-32: Two-column layout: transaction list | spending summary ──── */}
-      <div className="grid grid-cols-3 gap-6 items-start">
-        {/* Left column: transaction list + footer */}
-        <div className="col-span-2 space-y-6">
-          {/* Transaction list */}
-          {grouped.length === 0 ? (
-            <div
-              className="rounded-2xl bg-white p-12 text-center"
-              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+              {consolidated >= 0 ? t('transactions.positiveFlow') : t('transactions.negativeFlow')}
+            </span>
+            <span
+              className={cn(
+                'text-sm font-bold',
+                consolidated >= 0 ? 'text-primary' : 'text-tertiary'
+              )}
             >
-              <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
-            </div>
-          ) : (
-            grouped.map(([dateKey, txs]) => (
-              <DateGroup
-                key={dateKey}
-                dateKey={dateKey}
-                txs={txs}
-                data={data}
-                onEditTx={openTransactionDrawer}
-              />
-            ))
-          )}
-
-          {/* Footer summary */}
-          {filtered.length > 0 && (
-            <div
-              className="flex items-center justify-between rounded-2xl bg-white px-6 py-4"
-              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-            >
-              <p className="text-xs text-on-surface/40">
-                <span className="font-semibold text-on-surface">{filtered.length}</span>{' '}
-                {t('transactions.listed')}
-              </p>
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    'label text-xs font-bold',
-                    consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-                  )}
-                >
-                  {consolidated >= 0
-                    ? t('transactions.positiveFlow')
-                    : t('transactions.negativeFlow')}
-                </span>
-                <span
-                  className={cn(
-                    'text-sm font-bold',
-                    consolidated >= 0 ? 'text-primary' : 'text-tertiary'
-                  )}
-                >
-                  {consolidated >= 0 ? '+' : ''}
-                  {formatCurrency(consolidated)}
-                </span>
-              </div>
-            </div>
-          )}
+              {consolidated >= 0 ? '+' : ''}
+              {formatCurrency(consolidated)}
+            </span>
+          </div>
         </div>
-
-        {/* Right column: spending summary (sticky) */}
-        <div className="col-span-1 sticky top-8">
-          {categoryTotals.length > 0 && (
-            <div
-              className="rounded-2xl bg-white p-6"
-              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-            >
-              <h3 className="text-sm font-semibold text-on-surface mb-4">
-                {t('creditCard.spendingSummary')}
-              </h3>
-              <div className="space-y-3">
-                {categoryTotals.map(({ name, total }) => {
-                  const pct = expenses > 0 ? (total / expenses) * 100 : 0
-                  return (
-                    <div key={name}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-on-surface/70">{name}</span>
-                        <span className="text-xs font-semibold text-on-surface">
-                          {formatCurrency(total)}
-                        </span>
-                      </div>
-                      <div className="h-1.5 w-full rounded-full bg-surface-container-low overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-tertiary transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="mt-4 pt-4 border-t border-surface-container-low flex items-center justify-between">
-                <span className="text-xs font-semibold text-on-surface">{t('common.total')}</span>
-                <span className="text-sm font-bold text-tertiary">{formatCurrency(expenses)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      )}
+    </>
   )
 }
 
