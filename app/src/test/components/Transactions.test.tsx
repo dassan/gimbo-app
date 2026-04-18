@@ -25,6 +25,7 @@ const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart
 const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
 const prevMonthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}-01`
 
+
 function makeRetailAccount(overrides: Partial<Account> = {}): Account {
   return {
     id: 'acc-retail',
@@ -69,10 +70,10 @@ beforeEach(() => {
   useDataStore.setState({ data: null, unsyncedCount: 0 })
 })
 
-// ─── M-27: Period navigation ──────────────────────────────────────────────────
+// ─── Period selector — dropdown ───────────────────────────────────────────────
 
-describe('Transactions — M-27: period navigation', () => {
-  it('renders the three granularity tabs (month, semester, custom)', () => {
+describe('Transactions — period selector dropdown', () => {
+  it('renders clickable period-selector button', () => {
     const retailAccount = makeRetailAccount()
     useDataStore.setState({
       data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
@@ -81,12 +82,168 @@ describe('Transactions — M-27: period navigation', () => {
 
     render(<Transactions />)
 
-    expect(screen.getByText('analytics.month')).toBeInTheDocument()
-    expect(screen.getByText('analytics.semester')).toBeInTheDocument()
-    expect(screen.getByText('analytics.custom')).toBeInTheDocument()
+    expect(screen.getByLabelText('period-selector')).toBeInTheDocument()
   })
 
-  it('renders navigation arrows (previous / next period)', () => {
+  it('dropdown is hidden by default', () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // Dropdown menu should not exist before clicking
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('clicking period-selector opens dropdown with four options', async () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    await userEvent.click(screen.getByLabelText('period-selector'))
+
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByText('transactions.today')).toBeInTheDocument()
+    expect(screen.getByText('transactions.thisWeek')).toBeInTheDocument()
+    expect(screen.getByText('transactions.thisMonth')).toBeInTheDocument()
+    expect(screen.getByText('transactions.choosePeriod')).toBeInTheDocument()
+  })
+
+  it('selecting "Este mês" from dropdown closes the menu', async () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    await userEvent.click(screen.getByLabelText('period-selector'))
+    await userEvent.click(screen.getByText('transactions.thisMonth'))
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('selecting "Hoje" from dropdown closes menu and filters to today', async () => {
+    const retailAccount = makeRetailAccount()
+    const todayTx = makeTransaction({ id: 'tx-today', description: 'Hoje aqui', date: todayStr })
+    const prevTx = makeTransaction({
+      id: 'tx-prev',
+      description: 'Mês anterior',
+      date: prevMonthStr,
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [todayTx, prevTx] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    await userEvent.click(screen.getByLabelText('period-selector'))
+    await userEvent.click(screen.getByText('transactions.today'))
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.getByText('Hoje aqui')).toBeInTheDocument()
+    // prevMonthStr is not today — hidden after selecting "Hoje"
+    expect(screen.queryByText('Mês anterior')).not.toBeInTheDocument()
+  })
+
+  it('selecting "Escolher período" opens the custom date picker panel', async () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    await userEvent.click(screen.getByLabelText('period-selector'))
+    await userEvent.click(screen.getByText('transactions.choosePeriod'))
+
+    expect(screen.getByLabelText('custom-start-date')).toBeInTheDocument()
+    expect(screen.getByLabelText('custom-end-date')).toBeInTheDocument()
+    expect(screen.getByText('transactions.applyPeriod')).toBeInTheDocument()
+    expect(screen.getByText('transactions.back')).toBeInTheDocument()
+  })
+
+  it('"voltar" button closes the custom picker without applying', async () => {
+    const retailAccount = makeRetailAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    await userEvent.click(screen.getByLabelText('period-selector'))
+    await userEvent.click(screen.getByText('transactions.choosePeriod'))
+
+    expect(screen.getByLabelText('custom-start-date')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText('transactions.back'))
+
+    expect(screen.queryByLabelText('custom-start-date')).not.toBeInTheDocument()
+  })
+
+  it('applying custom period filters transactions to that date range', async () => {
+    const retailAccount = makeRetailAccount()
+    const currentMonthTx = makeTransaction({
+      id: 'tx-curr',
+      description: 'Compra atual',
+      date: todayStr,
+    })
+    const prevMonthTx = makeTransaction({
+      id: 'tx-prev',
+      description: 'Compra passada',
+      date: prevMonthStr,
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount],
+        transactions: [currentMonthTx, prevMonthTx],
+      }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // Open custom picker
+    await userEvent.click(screen.getByLabelText('period-selector'))
+    await userEvent.click(screen.getByText('transactions.choosePeriod'))
+
+    // Set date range to previous month only
+    const startInput = screen.getByLabelText('custom-start-date')
+    const endInput = screen.getByLabelText('custom-end-date')
+
+    await userEvent.clear(startInput)
+    await userEvent.type(startInput, prevMonthStr)
+    await userEvent.clear(endInput)
+    await userEvent.type(endInput, prevMonthStr)
+
+    await userEvent.click(screen.getByText('transactions.applyPeriod'))
+
+    // Picker should close
+    expect(screen.queryByLabelText('custom-start-date')).not.toBeInTheDocument()
+
+    // Only the prev month transaction should be visible
+    expect(screen.getByText('Compra passada')).toBeInTheDocument()
+    expect(screen.queryByText('Compra atual')).not.toBeInTheDocument()
+  })
+})
+
+// ─── Month navigation ─────────────────────────────────────────────────────────
+
+describe('Transactions — month navigation', () => {
+  it('renders navigation arrows in default month mode', () => {
     const retailAccount = makeRetailAccount()
     useDataStore.setState({
       data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
@@ -99,7 +256,7 @@ describe('Transactions — M-27: period navigation', () => {
     expect(screen.getByLabelText('next-period')).toBeInTheDocument()
   })
 
-  it('does not show old period chips (today, thisWeek, thisMonth)', () => {
+  it('hides navigation arrows when a non-month mode is selected', async () => {
     const retailAccount = makeRetailAccount()
     useDataStore.setState({
       data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
@@ -108,9 +265,11 @@ describe('Transactions — M-27: period navigation', () => {
 
     render(<Transactions />)
 
-    expect(screen.queryByText('transactions.today')).not.toBeInTheDocument()
-    expect(screen.queryByText('transactions.thisWeek')).not.toBeInTheDocument()
-    expect(screen.queryByText('transactions.thisMonth')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByLabelText('period-selector'))
+    await userEvent.click(screen.getByText('transactions.today'))
+
+    expect(screen.queryByLabelText('previous-period')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('next-period')).not.toBeInTheDocument()
   })
 
   it('hides transactions from previous months by default (month view)', () => {
@@ -138,39 +297,6 @@ describe('Transactions — M-27: period navigation', () => {
 
     expect(screen.getByText('Mês Atual')).toBeInTheDocument()
     expect(screen.queryByText('Mês Anterior')).not.toBeInTheDocument()
-  })
-
-  it('shows all transactions when custom granularity is selected', async () => {
-    const retailAccount = makeRetailAccount()
-    const currentMonthTx = makeTransaction({
-      id: 'tx-curr',
-      description: 'Mês Atual',
-      date: todayStr,
-    })
-    const prevMonthTx = makeTransaction({
-      id: 'tx-prev',
-      description: 'Mês Anterior',
-      date: prevMonthStr,
-    })
-
-    useDataStore.setState({
-      data: makeDataFile({
-        accounts: [retailAccount],
-        transactions: [currentMonthTx, prevMonthTx],
-      }),
-      unsyncedCount: 0,
-    })
-
-    render(<Transactions />)
-
-    // Previous month hidden by default
-    expect(screen.queryByText('Mês Anterior')).not.toBeInTheDocument()
-
-    // Switch to custom view — no date filter applied
-    await userEvent.click(screen.getByText('analytics.custom'))
-
-    expect(screen.getByText('Mês Atual')).toBeInTheDocument()
-    expect(screen.getByText('Mês Anterior')).toBeInTheDocument()
   })
 
   it('shows previous month transactions after navigating back with the ‹ arrow', async () => {
@@ -218,6 +344,42 @@ describe('Transactions — M-27: period navigation', () => {
 
     await userEvent.click(screen.getByLabelText('next-period'))
     expect(screen.queryByText('Só no Mês Anterior')).not.toBeInTheDocument()
+  })
+
+  it('selecting "Este mês" from dropdown resets to current month', async () => {
+    const retailAccount = makeRetailAccount()
+    const currentMonthTx = makeTransaction({
+      id: 'tx-curr',
+      description: 'Mês Atual',
+      date: todayStr,
+    })
+    const prevMonthTx = makeTransaction({
+      id: 'tx-prev',
+      description: 'Mês Anterior',
+      date: prevMonthStr,
+    })
+
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [retailAccount],
+        transactions: [currentMonthTx, prevMonthTx],
+      }),
+      unsyncedCount: 0,
+    })
+
+    render(<Transactions />)
+
+    // Navigate to previous month
+    await userEvent.click(screen.getByLabelText('previous-period'))
+    expect(screen.getByText('Mês Anterior')).toBeInTheDocument()
+    expect(screen.queryByText('Mês Atual')).not.toBeInTheDocument()
+
+    // Select "Este mês" from dropdown — resets to current month
+    await userEvent.click(screen.getByLabelText('period-selector'))
+    await userEvent.click(screen.getByText('transactions.thisMonth'))
+
+    expect(screen.getByText('Mês Atual')).toBeInTheDocument()
+    expect(screen.queryByText('Mês Anterior')).not.toBeInTheDocument()
   })
 })
 
