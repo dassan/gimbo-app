@@ -170,6 +170,7 @@ export function createDefaultWorkspace(): WorkspaceFile {
     theme: 'system',
     locale: 'pt-BR',
     defaultView: 'dashboard',
+    useAmbientShadows: false,
   }
 }
 

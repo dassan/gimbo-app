@@ -113,4 +113,5 @@ export interface WorkspaceFile {
   theme: Theme
   locale: Locale
   defaultView: string
+  useAmbientShadows: boolean
 }

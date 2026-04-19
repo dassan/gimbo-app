@@ -10,6 +10,7 @@ interface WorkspaceStore {
   setTheme: (theme: Theme) => void
   setLocale: (locale: Locale) => void
   setDefaultView: (view: string) => void
+  setAmbientShadows: (v: boolean) => void
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
@@ -17,7 +18,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   init: () => {
     const saved = loadWorkspace()
-    if (saved) set({ workspace: saved })
+    if (saved) set({ workspace: { ...createDefaultWorkspace(), ...saved } })
   },
 
   setTheme: (theme) => {
@@ -34,6 +35,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   setDefaultView: (defaultView) => {
     const workspace = { ...get().workspace, defaultView }
+    set({ workspace })
+    saveWorkspace(workspace)
+  },
+
+  setAmbientShadows: (useAmbientShadows) => {
+    const workspace = { ...get().workspace, useAmbientShadows }
     set({ workspace })
     saveWorkspace(workspace)
   },
