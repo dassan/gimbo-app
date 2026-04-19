@@ -25,7 +25,6 @@ const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart
 const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
 const prevMonthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}-01`
 
-
 function makeRetailAccount(overrides: Partial<Account> = {}): Account {
   return {
     id: 'acc-retail',

@@ -980,7 +980,14 @@ function AddAccountModal({
       resolvedIssuerIcon = issuerIcon
     }
 
-    onSave(trimmed, type, includeInBalance, resolvedInitialBalance, creditMetadata, resolvedIssuerIcon)
+    onSave(
+      trimmed,
+      type,
+      includeInBalance,
+      resolvedInitialBalance,
+      creditMetadata,
+      resolvedIssuerIcon
+    )
   }
 
   function handleDelete() {
