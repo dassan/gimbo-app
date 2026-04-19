@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { Download } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -16,8 +16,12 @@ import {
 } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
 import { formatCurrency, cn, parseDateLocal, getEffectiveCashFlowDate } from '@/lib/utils'
+import PeriodSelector from '@/components/PeriodSelector'
+import type { PeriodValue } from '@/components/PeriodSelector'
 
-type ViewPeriod = 'month' | 'semester' | 'custom'
+type ActiveTab = 'categorias' | 'cashflow' | 'contas' | 'tags'
+
+const TABS: ActiveTab[] = ['categorias', 'cashflow', 'contas', 'tags']
 
 const COLORS = ['#006E2F', '#22C55E', '#86EFAC', '#4ADE80', '#6B7280', '#F59E0B']
 const EXP_COLORS = ['#B91A24', '#FF8A83', '#FCA5A5', '#F87171', '#6B7280', '#F59E0B']
@@ -26,27 +30,33 @@ export default function Analytics() {
   const { t } = useTranslation()
   const data = useDataStore((s) => s.data)
 
-  const [viewPeriod, setViewPeriod] = useState<ViewPeriod>('semester')
+  // ── Global period state (shared across all tabs) ────────────────────────
+  const [period, setPeriod] = useState<PeriodValue>({ mode: 'month', monthOffset: 0 })
   const [includeUnpaid, setIncludeUnpaid] = useState(true)
-  const [offset, setOffset] = useState(0) // months back/forward
+  const [activeTab, setActiveTab] = useState<ActiveTab>('categorias')
 
   const now = useMemo(() => new Date(), [])
 
-  // ── Date range label ────────────────────────────────────────────────────────
+  // ── Compute date range from PeriodSelector state ────────────────────────
   const { startDate, endDate } = useMemo(() => {
-    const ref = new Date(now.getFullYear(), now.getMonth() + offset, 1)
-    if (viewPeriod === 'month') {
-      return { startDate: ref, endDate: new Date(ref.getFullYear(), ref.getMonth() + 1, 0) }
+    if (period.mode === 'month') {
+      const ref = new Date(now.getFullYear(), now.getMonth() + period.monthOffset, 1)
+      const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0)
+      return { startDate: ref, endDate: end }
     }
-    // semester: 3 months back to 3 months forward
-    const start = new Date(ref.getFullYear(), ref.getMonth() - 3, 1)
-    const end = new Date(ref.getFullYear(), ref.getMonth() + 3, 0)
-    return { startDate: start, endDate: end }
-  }, [viewPeriod, offset, now])
+    // custom
+    if (period.customStart && period.customEnd) {
+      return {
+        startDate: parseDateLocal(period.customStart),
+        endDate: parseDateLocal(period.customEnd),
+      }
+    }
+    // fallback: current month
+    const ref = new Date(now.getFullYear(), now.getMonth(), 1)
+    return { startDate: ref, endDate: new Date(ref.getFullYear(), ref.getMonth() + 1, 0) }
+  }, [period, now])
 
-  const dateRangeLabel = `${startDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })} – ${endDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}`
-
-  // ── Cash flow line chart data ────────────────────────────────────────────────
+  // ── Cash flow line chart data ────────────────────────────────────────────
   const cashFlowData = useMemo(() => {
     if (!data) return []
     const months: { label: string; m: number; y: number }[] = []
@@ -79,7 +89,7 @@ export default function Analytics() {
     })
   }, [data, startDate, endDate, includeUnpaid])
 
-  // ── Category breakdown ──────────────────────────────────────────────────────
+  // ── Category breakdown ──────────────────────────────────────────────────
   const { incomeByCategory, expenseByCategory } = useMemo(() => {
     if (!data) return { incomeByCategory: [], expenseByCategory: [] }
     const txs = data.transactions.filter((tx) => {
@@ -121,42 +131,8 @@ export default function Analytics() {
     <div className="mx-auto max-w-7xl px-6 py-8 space-y-6">
       {/* ── Header controls ──────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Date navigation */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setOffset((o) => o - 1)}
-            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
-          >
-            <ChevronLeft size={18} strokeWidth={1.5} className="text-on-surface/60" />
-          </button>
-          <h2 className="text-xl font-bold text-on-surface min-w-44 text-center">
-            {dateRangeLabel}
-          </h2>
-          <button
-            onClick={() => setOffset((o) => o + 1)}
-            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
-          >
-            <ChevronRight size={18} strokeWidth={1.5} className="text-on-surface/60" />
-          </button>
-        </div>
-
-        {/* Period tabs */}
-        <div className="flex gap-1">
-          {(['month', 'semester', 'custom'] as ViewPeriod[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setViewPeriod(p)}
-              className={cn(
-                'rounded-full px-3 py-1.5 text-xs font-medium transition-all',
-                viewPeriod === p
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-container-low text-on-surface/50 hover:text-on-surface/70'
-              )}
-            >
-              {t(`analytics.${p === 'month' ? 'month' : p === 'semester' ? 'semester' : 'custom'}`)}
-            </button>
-          ))}
-        </div>
+        {/* Period selector */}
+        <PeriodSelector value={period} onChange={setPeriod} />
 
         {/* Include unpaid toggle */}
         <button
@@ -180,96 +156,135 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* ── Cash flow projection chart ────────────────────────────────────── */}
-      <div
-        className="rounded-2xl bg-white p-6"
-        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-      >
-        <h3 className="text-sm font-semibold text-on-surface">{t('analytics.cashFlowTitle')}</h3>
-        <p className="text-xs text-on-surface/40 mt-0.5 mb-6">{t('analytics.cashFlowSub')}</p>
+      {/* ── Sub-navigation tabs ──────────────────────────────────────────── */}
+      <div className="flex gap-1">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              'rounded-full px-4 py-1.5 text-xs font-medium transition-all',
+              activeTab === tab
+                ? 'bg-primary text-white'
+                : 'bg-surface-container-low text-on-surface/50 hover:text-on-surface/70'
+            )}
+          >
+            {t(`analytics.tabs.${tab}`)}
+          </button>
+        ))}
+      </div>
 
-        <div className="h-56">
-          {cashFlowData.some((d) => d.generalFlow !== 0) ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cashFlowData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="rgba(25,28,29,0.04)"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                    fontSize: 12,
-                  }}
-                  formatter={(value) => formatCurrency(Number(value))}
-                />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: 12, paddingTop: 16 }}
-                  formatter={(value) =>
-                    value === 'generalFlow'
-                      ? t('analytics.generalFlow')
-                      : t('analytics.consolidatedBalance')
-                  }
-                />
-                <Line
-                  type="monotone"
-                  dataKey="generalFlow"
-                  stroke="#006E2F"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="consolidatedBalance"
-                  stroke="#22C55E"
-                  strokeWidth={2}
-                  strokeDasharray="4 2"
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <p className="text-sm text-on-surface/30">{t('common.noData')}</p>
-            </div>
-          )}
+      {/* ── Active view ──────────────────────────────────────────────────── */}
+      {activeTab === 'categorias' && (
+        <div className="grid grid-cols-2 gap-4">
+          <CategoryDonut
+            title={t('analytics.categorias.incomeTitle')}
+            data={incomeByCategory}
+            total={totalIncome}
+            colors={COLORS}
+          />
+          <CategoryDonut
+            title={t('analytics.categorias.expensesTitle')}
+            data={expenseByCategory}
+            total={totalExpenses}
+            colors={EXP_COLORS}
+          />
         </div>
-      </div>
+      )}
 
-      {/* ── Category breakdown ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4">
-        <CategoryDonut
-          title={t('analytics.incomeByCategory')}
-          data={incomeByCategory}
-          total={totalIncome}
-          colors={COLORS}
-        />
-        <CategoryDonut
-          title={t('analytics.expenseByCategory')}
-          data={expenseByCategory}
-          total={totalExpenses}
-          colors={EXP_COLORS}
-        />
-      </div>
+      {activeTab === 'cashflow' && (
+        <div
+          className="rounded-2xl bg-white p-6"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
+          <h3 className="text-sm font-semibold text-on-surface">{t('analytics.cashFlowTitle')}</h3>
+          <p className="text-xs text-on-surface/40 mt-0.5 mb-6">{t('analytics.cashFlowSub')}</p>
+
+          <div className="h-56">
+            {cashFlowData.some((d) => d.generalFlow !== 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={cashFlowData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="rgba(25,28,29,0.04)"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: 'none',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                      fontSize: 12,
+                    }}
+                    formatter={(value) => formatCurrency(Number(value))}
+                  />
+                  <Legend
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ fontSize: 12, paddingTop: 16 }}
+                    formatter={(value) =>
+                      value === 'generalFlow'
+                        ? t('analytics.generalFlow')
+                        : t('analytics.consolidatedBalance')
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="generalFlow"
+                    stroke="#006E2F"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="consolidatedBalance"
+                    stroke="#22C55E"
+                    strokeWidth={2}
+                    strokeDasharray="4 2"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-sm text-on-surface/30">{t('common.noData')}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'contas' && (
+        <div
+          className="rounded-2xl bg-white p-12 text-center"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
+          <p className="text-sm text-on-surface/30">{t('analytics.contas.selectPrompt')}</p>
+        </div>
+      )}
+
+      {activeTab === 'tags' && (
+        <div
+          className="rounded-2xl bg-white p-12 text-center"
+          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+        >
+          <p className="text-sm text-on-surface/30">{t('analytics.tags.noData')}</p>
+        </div>
+      )}
     </div>
   )
 }
