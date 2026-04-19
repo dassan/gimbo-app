@@ -700,9 +700,7 @@ export default function Settings() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-on-surface">
-                          {t('settings.ambientShadows')}
-                        </p>
+                        <p className="text-sm text-on-surface">{t('settings.ambientShadows')}</p>
                         <p className="text-xs text-on-surface/40 mt-0.5">
                           {t('settings.ambientShadowsDesc')}
                         </p>
@@ -711,17 +709,13 @@ export default function Settings() {
                         onClick={() => setAmbientShadows(!workspace.useAmbientShadows)}
                         className={cn(
                           'relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200',
-                          workspace.useAmbientShadows
-                            ? 'bg-primary'
-                            : 'bg-surface-container-high'
+                          workspace.useAmbientShadows ? 'bg-primary' : 'bg-surface-container-high'
                         )}
                       >
                         <span
                           className={cn(
                             'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 mt-0.5',
-                            workspace.useAmbientShadows
-                              ? 'translate-x-5'
-                              : 'translate-x-0.5'
+                            workspace.useAmbientShadows ? 'translate-x-5' : 'translate-x-0.5'
                           )}
                         />
                       </button>
