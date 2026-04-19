@@ -294,7 +294,10 @@ export default function Transactions() {
           <div className="mx-auto max-w-5xl px-6">
             <div className="grid grid-cols-1 md:grid-cols-3 md:gap-6">
               <div
-                className={cn('md:col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto', shadowClass)}
+                className={cn(
+                  'md:col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto',
+                  shadowClass
+                )}
               >
                 {/* Count */}
                 <p className="text-xs text-on-surface/40 shrink-0">

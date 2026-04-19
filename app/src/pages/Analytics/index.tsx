@@ -302,9 +302,7 @@ function CategoryDonut({
   shadowClass: string
 }) {
   return (
-    <div
-      className={cn('rounded-2xl bg-white p-6', shadowClass)}
-    >
+    <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
       <h3 className="text-sm font-semibold text-on-surface mb-4">{title}</h3>
 
       {data.length === 0 ? (

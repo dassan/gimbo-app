@@ -433,7 +433,11 @@ function StatCard({
   const isBalance = variant === 'balance'
   return (
     <div
-      className={cn('rounded-2xl p-5', isBalance ? 'bg-primary text-white' : 'bg-white', !isBalance && shadowClass)}
+      className={cn(
+        'rounded-2xl p-5',
+        isBalance ? 'bg-primary text-white' : 'bg-white',
+        !isBalance && shadowClass
+      )}
     >
       <div className="flex items-center justify-between mb-3">
         <span className={cn('label', isBalance ? 'text-white/60' : 'text-on-surface/40')}>
