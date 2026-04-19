@@ -190,7 +190,7 @@ export default function Settings() {
     setRetentionLimit,
   } = useDataStore()
   const loadData = useDataStore((s) => s.loadData)
-  const { workspace, setTheme, setLocale } = useWorkspaceStore()
+  const { workspace, setTheme, setLocale, setAmbientShadows } = useWorkspaceStore()
 
   const [activeSection, setActiveSection] = useState<Section>('accounts')
   const [profileName, setProfileName] = useState(data?.user.name ?? '')
@@ -692,6 +692,41 @@ export default function Settings() {
                       <option value="dark">{t('settings.themeDark')}</option>
                     </select>
                   </SettingRow>
+
+                  {/* Ambient shadows toggle (R-06) */}
+                  <div
+                    className="rounded-2xl bg-white px-5 py-4"
+                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-on-surface">
+                          {t('settings.ambientShadows')}
+                        </p>
+                        <p className="text-xs text-on-surface/40 mt-0.5">
+                          {t('settings.ambientShadowsDesc')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setAmbientShadows(!workspace.useAmbientShadows)}
+                        className={cn(
+                          'relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200',
+                          workspace.useAmbientShadows
+                            ? 'bg-primary'
+                            : 'bg-surface-container-high'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 mt-0.5',
+                            workspace.useAmbientShadows
+                              ? 'translate-x-5'
+                              : 'translate-x-0.5'
+                          )}
+                        />
+                      </button>
+                    </div>
+                  </div>
 
                   {/* Audit log retention toggle */}
                   <div
