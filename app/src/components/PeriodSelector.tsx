@@ -1,0 +1,211 @@
+import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ChevronLeft, ChevronRight, ChevronDown, Calendar } from 'lucide-react'
+import { cn, parseDateLocal } from '@/lib/utils'
+
+// ── Public types ──────────────────────────────────────────────────────────────
+
+export interface PeriodValue {
+  mode: 'month' | 'custom'
+  monthOffset: number
+  customStart?: string
+  customEnd?: string
+}
+
+interface PeriodSelectorProps {
+  value: PeriodValue
+  onChange: (v: PeriodValue) => void
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function PeriodSelector({ value, onChange }: PeriodSelectorProps) {
+  const { t } = useTranslation()
+
+  const [showMenu, setShowMenu] = useState(false)
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
+
+  // Pending values inside the custom picker (applied only on Ok)
+  const [pendingStart, setPendingStart] = useState(() => {
+    const n = new Date()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01`
+  })
+  const [pendingEnd, setPendingEnd] = useState(() => {
+    const n = new Date()
+    const lastDay = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  })
+
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // ── Click-outside ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!showMenu && !showCustomPicker) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowMenu(false)
+        setShowCustomPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMenu, showCustomPicker])
+
+  // ── Period label ──────────────────────────────────────────────────────────
+  const now = new Date()
+  const periodLabel = (() => {
+    if (value.mode === 'month') {
+      const ref = new Date(now.getFullYear(), now.getMonth() + value.monthOffset, 1)
+      const raw = ref.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      return raw.charAt(0).toUpperCase() + raw.slice(1)
+    }
+    // custom
+    if (value.customStart && value.customEnd) {
+      const fmt = (s: string) =>
+        parseDateLocal(s).toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })
+      return `${fmt(value.customStart)} – ${fmt(value.customEnd)}`
+    }
+    return t('transactions.custom')
+  })()
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  function handleSelectMonth() {
+    onChange({ mode: 'month', monthOffset: 0 })
+    setShowMenu(false)
+  }
+
+  function handleOpenCustomPicker() {
+    setShowMenu(false)
+    setShowCustomPicker(true)
+  }
+
+  function handleApplyCustom() {
+    if (!pendingStart || !pendingEnd) return
+    onChange({
+      mode: 'custom',
+      monthOffset: value.monthOffset,
+      customStart: pendingStart,
+      customEnd: pendingEnd,
+    })
+    setShowCustomPicker(false)
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Label row: arrows (month mode only) + clickable period label */}
+      <div className="flex items-center gap-1">
+        {value.mode === 'month' && (
+          <button
+            onClick={() => onChange({ ...value, monthOffset: value.monthOffset - 1 })}
+            aria-label="previous-period"
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+          >
+            <ChevronLeft size={18} strokeWidth={1.5} className="text-on-surface/60" />
+          </button>
+        )}
+
+        <button
+          aria-label="period-selector"
+          onClick={() => {
+            setShowCustomPicker(false)
+            setShowMenu((v) => !v)
+          }}
+          className="flex items-center gap-1.5 rounded-xl px-2 py-1 hover:bg-surface-container-low transition-colors"
+        >
+          <span className="text-xl font-bold text-on-surface min-w-44 text-center">
+            {periodLabel}
+          </span>
+          <ChevronDown size={15} strokeWidth={2} className="text-on-surface/40 mt-0.5" />
+        </button>
+
+        {value.mode === 'month' && (
+          <button
+            onClick={() => onChange({ ...value, monthOffset: value.monthOffset + 1 })}
+            aria-label="next-period"
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
+          >
+            <ChevronRight size={18} strokeWidth={1.5} className="text-on-surface/60" />
+          </button>
+        )}
+      </div>
+
+      {/* ── Period dropdown ──────────────────────────────────────────────── */}
+      {showMenu && (
+        <div
+          className="absolute left-0 top-full mt-2 z-30 min-w-44 overflow-hidden rounded-2xl bg-white py-1"
+          style={{ boxShadow: '0px 8px 24px rgba(25,28,29,0.12)' }}
+          role="menu"
+        >
+          <button
+            role="menuitem"
+            onClick={handleSelectMonth}
+            className={cn(
+              'w-full px-5 py-3 text-left text-sm font-medium transition-colors hover:bg-surface-container-low',
+              value.mode === 'month' ? 'text-primary' : 'text-on-surface'
+            )}
+          >
+            {t('transactions.thisMonth')}
+          </button>
+          <button
+            role="menuitem"
+            onClick={handleOpenCustomPicker}
+            className={cn(
+              'w-full px-5 py-3 text-left text-sm font-medium transition-colors hover:bg-surface-container-low',
+              value.mode === 'custom' ? 'text-primary' : 'text-on-surface'
+            )}
+          >
+            {t('transactions.choosePeriod')}
+          </button>
+        </div>
+      )}
+
+      {/* ── Custom date range picker ─────────────────────────────────────── */}
+      {showCustomPicker && (
+        <div
+          className="absolute left-0 top-full mt-2 z-30 w-72 rounded-2xl bg-white p-5"
+          style={{ boxShadow: '0px 8px 24px rgba(25,28,29,0.12)' }}
+        >
+          <div className="space-y-3 mb-4">
+            <div className="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">
+              <input
+                aria-label="custom-start-date"
+                type="date"
+                value={pendingStart}
+                onChange={(e) => setPendingStart(e.target.value)}
+                className="flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
+              />
+              <Calendar size={16} className="text-on-surface/40 shrink-0" />
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">
+              <input
+                aria-label="custom-end-date"
+                type="date"
+                value={pendingEnd}
+                onChange={(e) => setPendingEnd(e.target.value)}
+                className="flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
+              />
+              <Calendar size={16} className="text-on-surface/40 shrink-0" />
+            </div>
+          </div>
+          <button
+            onClick={handleApplyCustom}
+            disabled={!pendingStart || !pendingEnd}
+            className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition-opacity disabled:opacity-40"
+          >
+            {t('transactions.applyPeriod')}
+          </button>
+          <button
+            onClick={() => setShowCustomPicker(false)}
+            className="mt-3 w-full text-center text-sm text-on-surface/50 hover:text-on-surface/70 transition-colors"
+          >
+            {t('transactions.back')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}

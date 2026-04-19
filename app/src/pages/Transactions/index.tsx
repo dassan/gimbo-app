@@ -1,46 +1,21 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
-import {
-  Search,
-  CheckCircle2,
-  Clock,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Calendar,
-} from 'lucide-react'
+import { Search, CheckCircle2, Clock, ChevronDown } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
+import PeriodSelector from '@/components/PeriodSelector'
+import type { PeriodValue } from '@/components/PeriodSelector'
 import type { AppLayoutContext } from '@/components/AppLayout'
 import type { Transaction } from '@/types'
-
-// Período de visualização: mês navegável, hoje, semana ou período personalizado
-type ViewMode = 'month' | 'today' | 'week' | 'custom'
 
 export default function Transactions() {
   const { t } = useTranslation()
   const data = useDataStore((s) => s.data)
   const { openTransactionDrawer } = useOutletContext<AppLayoutContext>()
 
-  // ── Period state ──────────────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>('month')
-  const [monthOffset, setMonthOffset] = useState(0)
-  const [showPeriodMenu, setShowPeriodMenu] = useState(false)
-  const [showCustomPicker, setShowCustomPicker] = useState(false)
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-
-  // Pending values inside the custom picker (applied only on Ok)
-  const [pendingStart, setPendingStart] = useState(() => {
-    const n = new Date()
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01`
-  })
-  const [pendingEnd, setPendingEnd] = useState(() => {
-    const n = new Date()
-    const lastDay = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate()
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-  })
+  // ── Period state (delegated to PeriodSelector) ───────────────────────────
+  const [period, setPeriod] = useState<PeriodValue>({ mode: 'month', monthOffset: 0 })
 
   // ── Other filters ─────────────────────────────────────────────────────────
   const [search, setSearch] = useState('')
@@ -50,94 +25,28 @@ export default function Transactions() {
 
   const now = useMemo(() => new Date(), [])
 
-  // ── Click-outside: close period menu and custom picker ───────────────────
-  const periodMenuRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!showPeriodMenu && !showCustomPicker) return
-    const handler = (e: MouseEvent) => {
-      if (periodMenuRef.current && !periodMenuRef.current.contains(e.target as Node)) {
-        setShowPeriodMenu(false)
-        setShowCustomPicker(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showPeriodMenu, showCustomPicker])
-
   // M-26: Set of CREDIT account IDs — their transactions live in /credit-card/:id, not here
   const creditAccountIds = useMemo(() => {
     if (!data) return new Set<string>()
     return new Set(data.accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id))
   }, [data])
 
-  // ── Compute date range and period label ───────────────────────────────────
-  const { startDate, endDate, periodLabel } = useMemo(() => {
-    if (viewMode === 'today') {
-      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      return { startDate: todayDate, endDate: todayDate, periodLabel: t('transactions.today') }
-    }
-
-    if (viewMode === 'week') {
-      const dow = now.getDay() // 0 = Sunday
-      const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow)
-      const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - dow))
-      return {
-        startDate: startOfWeek,
-        endDate: endOfWeek,
-        periodLabel: t('transactions.thisWeek'),
-      }
-    }
-
-    if (viewMode === 'month') {
-      const ref = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+  // ── Compute date range from PeriodSelector state ────────────────────────
+  const { startDate, endDate } = useMemo(() => {
+    if (period.mode === 'month') {
+      const ref = new Date(now.getFullYear(), now.getMonth() + period.monthOffset, 1)
       const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0)
-      const raw = ref.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-      return {
-        startDate: ref,
-        endDate: end,
-        periodLabel: raw.charAt(0).toUpperCase() + raw.slice(1),
-      }
+      return { startDate: ref, endDate: end }
     }
-
     // custom
-    if (customStart && customEnd) {
-      const start = parseDateLocal(customStart)
-      const end = parseDateLocal(customEnd)
-      const fmt = (s: string) =>
-        parseDateLocal(s).toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })
+    if (period.customStart && period.customEnd) {
       return {
-        startDate: start,
-        endDate: end,
-        periodLabel: `${fmt(customStart)} – ${fmt(customEnd)}`,
+        startDate: parseDateLocal(period.customStart),
+        endDate: parseDateLocal(period.customEnd),
       }
     }
-
-    return { startDate: null, endDate: null, periodLabel: t('transactions.custom') }
-  }, [viewMode, monthOffset, now, t, customStart, customEnd])
-
-  // ── Period picker handlers ────────────────────────────────────────────────
-  function handleSelectMode(mode: Exclude<ViewMode, 'custom'>) {
-    if (mode === 'month') setMonthOffset(0)
-    setViewMode(mode)
-    setShowPeriodMenu(false)
-  }
-
-  function handleOpenCustomPicker() {
-    setShowPeriodMenu(false)
-    setShowCustomPicker(true)
-  }
-
-  function handleApplyCustom() {
-    if (!pendingStart || !pendingEnd) return
-    setCustomStart(pendingStart)
-    setCustomEnd(pendingEnd)
-    setViewMode('custom')
-    setShowCustomPicker(false)
-  }
+    return { startDate: null, endDate: null }
+  }, [period, now])
 
   // ── Transaction filtering ─────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -240,124 +149,7 @@ export default function Transactions() {
         {/* ── Period selector + Search ─────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-6 mb-6 items-center">
           <div className="col-span-2">
-            <div className="relative" ref={periodMenuRef}>
-              {/* Label row: arrows (month mode only) + clickable period label */}
-              <div className="flex items-center gap-1">
-                {viewMode === 'month' && (
-                  <button
-                    onClick={() => setMonthOffset((o) => o - 1)}
-                    aria-label="previous-period"
-                    className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
-                  >
-                    <ChevronLeft size={18} strokeWidth={1.5} className="text-on-surface/60" />
-                  </button>
-                )}
-
-                <button
-                  aria-label="period-selector"
-                  onClick={() => {
-                    setShowCustomPicker(false)
-                    setShowPeriodMenu((v) => !v)
-                  }}
-                  className="flex items-center gap-1.5 rounded-xl px-2 py-1 hover:bg-surface-container-low transition-colors"
-                >
-                  <span className="text-xl font-bold text-on-surface min-w-44 text-center">
-                    {periodLabel}
-                  </span>
-                  <ChevronDown size={15} strokeWidth={2} className="text-on-surface/40 mt-0.5" />
-                </button>
-
-                {viewMode === 'month' && (
-                  <button
-                    onClick={() => setMonthOffset((o) => o + 1)}
-                    aria-label="next-period"
-                    className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-container-low transition-colors"
-                  >
-                    <ChevronRight size={18} strokeWidth={1.5} className="text-on-surface/60" />
-                  </button>
-                )}
-              </div>
-
-              {/* ── Period dropdown ──────────────────────────────────────────── */}
-              {showPeriodMenu && (
-                <div
-                  className="absolute left-0 top-full mt-2 z-30 min-w-44 overflow-hidden rounded-2xl bg-white py-1"
-                  style={{ boxShadow: '0px 8px 24px rgba(25,28,29,0.12)' }}
-                  role="menu"
-                >
-                  {(
-                    [
-                      { key: 'today', label: t('transactions.today') },
-                      { key: 'week', label: t('transactions.thisWeek') },
-                      { key: 'month', label: t('transactions.thisMonth') },
-                      { key: 'custom', label: t('transactions.choosePeriod') },
-                    ] as const
-                  ).map(({ key, label }) => (
-                    <button
-                      key={key}
-                      role="menuitem"
-                      onClick={() => {
-                        if (key === 'custom') {
-                          handleOpenCustomPicker()
-                        } else {
-                          handleSelectMode(key)
-                        }
-                      }}
-                      className={cn(
-                        'w-full px-5 py-3 text-left text-sm font-medium transition-colors hover:bg-surface-container-low',
-                        viewMode === key ? 'text-primary' : 'text-on-surface'
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* ── Custom date range picker ─────────────────────────────────── */}
-              {showCustomPicker && (
-                <div
-                  className="absolute left-0 top-full mt-2 z-30 w-72 rounded-2xl bg-white p-5"
-                  style={{ boxShadow: '0px 8px 24px rgba(25,28,29,0.12)' }}
-                >
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">
-                      <input
-                        aria-label="custom-start-date"
-                        type="date"
-                        value={pendingStart}
-                        onChange={(e) => setPendingStart(e.target.value)}
-                        className="flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
-                      />
-                      <Calendar size={16} className="text-on-surface/40 shrink-0" />
-                    </div>
-                    <div className="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">
-                      <input
-                        aria-label="custom-end-date"
-                        type="date"
-                        value={pendingEnd}
-                        onChange={(e) => setPendingEnd(e.target.value)}
-                        className="flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
-                      />
-                      <Calendar size={16} className="text-on-surface/40 shrink-0" />
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleApplyCustom}
-                    disabled={!pendingStart || !pendingEnd}
-                    className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition-opacity disabled:opacity-40"
-                  >
-                    {t('transactions.applyPeriod')}
-                  </button>
-                  <button
-                    onClick={() => setShowCustomPicker(false)}
-                    className="mt-3 w-full text-center text-sm text-on-surface/50 hover:text-on-surface/70 transition-colors"
-                  >
-                    {t('transactions.back')}
-                  </button>
-                </div>
-              )}
-            </div>
+            <PeriodSelector value={period} onChange={setPeriod} />
           </div>
 
           {/* Search — aligned with the Resumo de Gastos column */}
