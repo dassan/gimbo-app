@@ -119,7 +119,37 @@
     "custom": "Personalizado",
     "includeUnpaid": "Incluir Não-Pagos",
     "exportPdf": "Exportar PDF",
-    "newInsight": "+ Nova Insight"
+    "newInsight": "+ Nova Insight",
+    "tabs": {
+      "categorias": "Categorias",
+      "cashflow": "Entradas x Saídas",
+      "contas": "Contas",
+      "tags": "Tags"
+    },
+    "cashflowView": {
+      "income": "Entradas",
+      "expenses": "Saídas",
+      "result": "Resultado",
+      "balance": "Saldo",
+      "tableTitle": "Detalhamento por Período"
+    },
+    "categorias": {
+      "incomeTitle": "Receitas por Categoria",
+      "expensesTitle": "Despesas por Categoria",
+      "drilldownTitle": "Transações da Categoria"
+    },
+    "contas": {
+      "selectPrompt": "Selecione uma conta para ver o detalhamento",
+      "back": "Voltar",
+      "result": "Resultado"
+    },
+    "tags": {
+      "expensesTitle": "Despesas por Tag",
+      "incomeTitle": "Receitas por Tag",
+      "noData": "Nenhuma transação com tags neste período",
+      "orMode": "OU",
+      "andMode": "E"
+    }
   },
   "settings": {
     "title": "Configurações",
@@ -180,7 +210,9 @@
     "noneTopLevel": "Nenhuma (Nível Superior)",
     "deleteCategory": "Excluir Categoria",
     "categoryTypeIncome": "Receita",
-    "categoryTypeExpense": "Despesa"
+    "categoryTypeExpense": "Despesa",
+    "ambientShadows": "Efeito de profundidade",
+    "ambientShadowsDesc": "Aplica sombras suaves nos cards e containers para um visual flutuante"
   },
   "creditCard": {
     "invoicePeriod": "Período da Fatura",
