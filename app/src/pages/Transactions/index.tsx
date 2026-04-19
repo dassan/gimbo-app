@@ -237,9 +237,10 @@ export default function Transactions() {
   return (
     <>
       <div className="mx-auto max-w-5xl px-6 pt-8 pb-24">
-        {/* ── Period selector ──────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          <div className="relative" ref={periodMenuRef}>
+        {/* ── Period selector + Search ─────────────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-6 mb-6 items-center">
+          <div className="col-span-2">
+            <div className="relative" ref={periodMenuRef}>
             {/* Label row: arrows (month mode only) + clickable period label */}
             <div className="flex items-center gap-1">
               {viewMode === 'month' && (
@@ -356,6 +357,24 @@ export default function Transactions() {
                 </button>
               </div>
             )}
+            </div>
+          </div>
+
+          {/* Search — aligned with the Resumo de Gastos column */}
+          <div className="col-span-1">
+            <div className="relative">
+              <Search
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40"
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar..."
+                className="w-full rounded-xl bg-surface-container-low py-2 pl-8 pr-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
           </div>
         </div>
 
@@ -403,21 +422,6 @@ export default function Transactions() {
               { value: 'transfer', label: t('transactions.transfer') },
             ]}
           />
-
-          {/* Search */}
-          <div className="relative ml-auto">
-            <Search
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40"
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar..."
-              className="rounded-xl bg-surface-container-low py-2 pl-8 pr-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 w-48"
-            />
-          </div>
         </div>
 
         {/* ── M-32: Two-column layout: transaction list | spending summary ──── */}
