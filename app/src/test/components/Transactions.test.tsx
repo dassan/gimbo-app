@@ -71,7 +71,7 @@ beforeEach(() => {
 
 // ─── Period selector — dropdown ───────────────────────────────────────────────
 
-describe('Transactions — period selector dropdown', () => {
+describe('Transactions — period selector (PeriodSelector component)', () => {
   it('renders clickable period-selector button', () => {
     const retailAccount = makeRetailAccount()
     useDataStore.setState({
@@ -97,7 +97,7 @@ describe('Transactions — period selector dropdown', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('clicking period-selector opens dropdown with four options', async () => {
+  it('clicking period-selector opens dropdown with two options', async () => {
     const retailAccount = makeRetailAccount()
     useDataStore.setState({
       data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
@@ -109,8 +109,6 @@ describe('Transactions — period selector dropdown', () => {
     await userEvent.click(screen.getByLabelText('period-selector'))
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.getByText('transactions.today')).toBeInTheDocument()
-    expect(screen.getByText('transactions.thisWeek')).toBeInTheDocument()
     expect(screen.getByText('transactions.thisMonth')).toBeInTheDocument()
     expect(screen.getByText('transactions.choosePeriod')).toBeInTheDocument()
   })
@@ -128,31 +126,6 @@ describe('Transactions — period selector dropdown', () => {
     await userEvent.click(screen.getByText('transactions.thisMonth'))
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
-  })
-
-  it('selecting "Hoje" from dropdown closes menu and filters to today', async () => {
-    const retailAccount = makeRetailAccount()
-    const todayTx = makeTransaction({ id: 'tx-today', description: 'Hoje aqui', date: todayStr })
-    const prevTx = makeTransaction({
-      id: 'tx-prev',
-      description: 'Mês anterior',
-      date: prevMonthStr,
-    })
-
-    useDataStore.setState({
-      data: makeDataFile({ accounts: [retailAccount], transactions: [todayTx, prevTx] }),
-      unsyncedCount: 0,
-    })
-
-    render(<Transactions />)
-
-    await userEvent.click(screen.getByLabelText('period-selector'))
-    await userEvent.click(screen.getByText('transactions.today'))
-
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
-    expect(screen.getByText('Hoje aqui')).toBeInTheDocument()
-    // prevMonthStr is not today — hidden after selecting "Hoje"
-    expect(screen.queryByText('Mês anterior')).not.toBeInTheDocument()
   })
 
   it('selecting "Escolher período" opens the custom date picker panel', async () => {
@@ -255,7 +228,7 @@ describe('Transactions — month navigation', () => {
     expect(screen.getByLabelText('next-period')).toBeInTheDocument()
   })
 
-  it('hides navigation arrows when a non-month mode is selected', async () => {
+  it('hides navigation arrows when custom mode is applied', async () => {
     const retailAccount = makeRetailAccount()
     useDataStore.setState({
       data: makeDataFile({ accounts: [retailAccount], transactions: [] }),
@@ -264,8 +237,10 @@ describe('Transactions — month navigation', () => {
 
     render(<Transactions />)
 
+    // Open custom picker and apply a custom range
     await userEvent.click(screen.getByLabelText('period-selector'))
-    await userEvent.click(screen.getByText('transactions.today'))
+    await userEvent.click(screen.getByText('transactions.choosePeriod'))
+    await userEvent.click(screen.getByText('transactions.applyPeriod'))
 
     expect(screen.queryByLabelText('previous-period')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('next-period')).not.toBeInTheDocument()
