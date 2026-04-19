@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
+import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import {
   formatCurrency,
   cn,
@@ -70,6 +71,9 @@ export default function Dashboard() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const data = useDataStore((s) => s.data)
+  const shadowClass = useWorkspaceStore((s) =>
+    s.workspace.useAmbientShadows ? 'shadow-card-ambient' : 'shadow-card'
+  )
 
   const now = useMemo(() => new Date(), [])
 
@@ -188,27 +192,27 @@ export default function Dashboard() {
           value={formatCurrency(income)}
           icon={<TrendingUp size={16} strokeWidth={1.5} />}
           variant="income"
+          shadowClass={shadowClass}
         />
         <StatCard
           label={t('dashboard.expenses')}
           value={formatCurrency(expenses)}
           icon={<TrendingDown size={16} strokeWidth={1.5} />}
           variant="expense"
+          shadowClass={shadowClass}
         />
         <StatCard
           label={t('dashboard.balance')}
           value={formatCurrency(balance)}
           variant="balance"
+          shadowClass={shadowClass}
         />
       </div>
 
       {/* ── Minhas Contas + Meus Cartões row — always grid-cols-2 ──────────── */}
       <div className="grid grid-cols-2 gap-4">
         {/* My Accounts — standard accounts with includeInBalance */}
-        <div
-          className="rounded-2xl bg-white p-6"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
+        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
           <h3 className="text-sm font-semibold text-on-surface mb-4">
             {t('dashboard.myAccounts')}
           </h3>
@@ -231,10 +235,7 @@ export default function Dashboard() {
         </div>
 
         {/* My Cards — always rendered; empty state when no CREDIT accounts */}
-        <div
-          className="rounded-2xl bg-white p-6"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
+        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.myCards')}</h3>
             {creditAccounts.length > 0 && (
@@ -280,19 +281,13 @@ export default function Dashboard() {
       {/* ── Bottom row: Recent transactions + Donut — always grid-cols-2 ──── */}
       <div className="grid grid-cols-2 gap-4">
         {/* Recent transactions — 1/2 */}
-        <div
-          className="rounded-2xl bg-white p-6"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
+        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
           <RecentTransactionsHeader t={t} onViewAll={() => void navigate('/transactions')} />
           <RecentTransactionsList recentTxs={recentTxs} data={data} t={t} />
         </div>
 
         {/* Expenses by category donut — 1/2 */}
-        <div
-          className="rounded-2xl bg-white p-6"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
+        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
           <h3 className="text-sm font-semibold text-on-surface mb-4">
             {t('dashboard.byCategory')}
           </h3>
@@ -427,17 +422,18 @@ function StatCard({
   value,
   icon,
   variant,
+  shadowClass,
 }: {
   label: string
   value: string
   icon?: React.ReactNode
   variant: 'income' | 'expense' | 'balance'
+  shadowClass: string
 }) {
   const isBalance = variant === 'balance'
   return (
     <div
-      className={cn('rounded-2xl p-5', isBalance ? 'bg-primary text-white' : 'bg-white')}
-      style={!isBalance ? { boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' } : {}}
+      className={cn('rounded-2xl p-5', isBalance ? 'bg-primary text-white' : 'bg-white', !isBalance && shadowClass)}
     >
       <div className="flex items-center justify-between mb-3">
         <span className={cn('label', isBalance ? 'text-white/60' : 'text-on-surface/40')}>

@@ -15,6 +15,7 @@ import {
   Cell,
 } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
+import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { formatCurrency, cn, parseDateLocal, getEffectiveCashFlowDate } from '@/lib/utils'
 import PeriodSelector from '@/components/PeriodSelector'
 import type { PeriodValue } from '@/components/PeriodSelector'
@@ -29,6 +30,9 @@ const EXP_COLORS = ['#B91A24', '#FF8A83', '#FCA5A5', '#F87171', '#6B7280', '#F59
 export default function Analytics() {
   const { t } = useTranslation()
   const data = useDataStore((s) => s.data)
+  const shadowClass = useWorkspaceStore((s) =>
+    s.workspace.useAmbientShadows ? 'shadow-card-ambient' : 'shadow-card'
+  )
 
   // ── Global period state (shared across all tabs) ────────────────────────
   const [period, setPeriod] = useState<PeriodValue>({ mode: 'month', monthOffset: 0 })
@@ -182,21 +186,20 @@ export default function Analytics() {
             data={incomeByCategory}
             total={totalIncome}
             colors={COLORS}
+            shadowClass={shadowClass}
           />
           <CategoryDonut
             title={t('analytics.categorias.expensesTitle')}
             data={expenseByCategory}
             total={totalExpenses}
             colors={EXP_COLORS}
+            shadowClass={shadowClass}
           />
         </div>
       )}
 
       {activeTab === 'cashflow' && (
-        <div
-          className="rounded-2xl bg-white p-6"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
+        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
           <h3 className="text-sm font-semibold text-on-surface">{t('analytics.cashFlowTitle')}</h3>
           <p className="text-xs text-on-surface/40 mt-0.5 mb-6">{t('analytics.cashFlowSub')}</p>
 
@@ -269,19 +272,13 @@ export default function Analytics() {
       )}
 
       {activeTab === 'contas' && (
-        <div
-          className="rounded-2xl bg-white p-12 text-center"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
+        <div className={cn('rounded-2xl bg-white p-12 text-center', shadowClass)}>
           <p className="text-sm text-on-surface/30">{t('analytics.contas.selectPrompt')}</p>
         </div>
       )}
 
       {activeTab === 'tags' && (
-        <div
-          className="rounded-2xl bg-white p-12 text-center"
-          style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-        >
+        <div className={cn('rounded-2xl bg-white p-12 text-center', shadowClass)}>
           <p className="text-sm text-on-surface/30">{t('analytics.tags.noData')}</p>
         </div>
       )}
@@ -296,16 +293,17 @@ function CategoryDonut({
   data,
   total,
   colors,
+  shadowClass,
 }: {
   title: string
   data: { name: string; value: number }[]
   total: number
   colors: string[]
+  shadowClass: string
 }) {
   return (
     <div
-      className="rounded-2xl bg-white p-6"
-      style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
+      className={cn('rounded-2xl bg-white p-6', shadowClass)}
     >
       <h3 className="text-sm font-semibold text-on-surface mb-4">{title}</h3>
 
