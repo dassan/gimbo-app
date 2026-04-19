@@ -453,8 +453,9 @@ export default function Transactions() {
           </div>
 
           {/* Right column: spending summary (sticky) */}
-          {/* top-14 = top-8 (page offset) + ~24px (date label row height) to align with the first transaction card */}
-          <div className="col-span-1 sticky top-14">
+          {/* sticky top-14: keeps card below the fixed navbar on scroll */}
+          {/* pt-6: offsets card by the date label row height (text-xs 16px + mb-2 8px = 24px) */}
+          <div className="col-span-1 sticky top-14 pt-6">
             {categoryTotals.length > 0 && (
               <div
                 className="rounded-2xl bg-white p-6"
