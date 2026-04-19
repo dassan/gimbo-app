@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, ChevronDown, CreditCard, X } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
+import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { useOutletContext } from 'react-router-dom'
 import {
   formatCurrency,
@@ -52,6 +53,9 @@ export default function CreditCardPage() {
   const { accountId } = useParams<{ accountId: string }>()
   const data = useDataStore((s) => s.data)
   const addTransaction = useDataStore((s) => s.addTransaction)
+  const shadowClass = useWorkspaceStore((s) =>
+    s.workspace.useAmbientShadows ? 'shadow-card-ambient' : 'shadow-card'
+  )
   const { openTransactionDrawer } = useOutletContext<AppLayoutContext>()
 
   // Invoice period navigation offset (0 = current, -1 = previous, etc.)
@@ -207,10 +211,7 @@ export default function CreditCardPage() {
       </div>
 
       {/* ── Invoice period + summary card (full width) ────────────────────── */}
-      <div
-        className="rounded-2xl bg-white p-6"
-        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-      >
+      <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
         <div className="flex items-start justify-between gap-4">
           {/* Left: period info */}
           <div className="flex-1">
@@ -335,10 +336,7 @@ export default function CreditCardPage() {
           )}
 
           {/* Transaction list */}
-          <div
-            className="rounded-2xl bg-white overflow-hidden"
-            style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-          >
+          <div className={cn('rounded-2xl bg-white overflow-hidden', shadowClass)}>
             {filteredTransactions.length === 0 ? (
               <div className="p-12 text-center">
                 <p className="text-sm text-on-surface/40">{t('creditCard.noTransactions')}</p>
@@ -360,10 +358,7 @@ export default function CreditCardPage() {
         {/* Right column: spending summary (sticky) */}
         <div className="col-span-1 sticky top-8">
           {categoryTotals.length > 0 && (
-            <div
-              className="rounded-2xl bg-white p-6"
-              style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-            >
+            <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
               <h3 className="text-sm font-semibold text-on-surface mb-4">
                 {t('creditCard.spendingSummary')}
               </h3>

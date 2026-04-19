@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
 import { Search, CheckCircle2, Clock, ChevronDown } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
+import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
 import PeriodSelector from '@/components/PeriodSelector'
 import type { PeriodValue } from '@/components/PeriodSelector'
@@ -12,6 +13,9 @@ import type { Transaction } from '@/types'
 export default function Transactions() {
   const { t } = useTranslation()
   const data = useDataStore((s) => s.data)
+  const shadowClass = useWorkspaceStore((s) =>
+    s.workspace.useAmbientShadows ? 'shadow-card-ambient' : 'shadow-card'
+  )
   const { openTransactionDrawer } = useOutletContext<AppLayoutContext>()
 
   // ── Period state (delegated to PeriodSelector) ───────────────────────────
@@ -225,10 +229,7 @@ export default function Transactions() {
           {/* Left column: transaction list */}
           <div className="col-span-2 space-y-6">
             {grouped.length === 0 ? (
-              <div
-                className="rounded-2xl bg-white p-12 text-center"
-                style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-              >
+              <div className={cn('rounded-2xl bg-white p-12 text-center', shadowClass)}>
                 <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
               </div>
             ) : (
@@ -239,6 +240,7 @@ export default function Transactions() {
                   txs={txs}
                   data={data}
                   onEditTx={openTransactionDrawer}
+                  shadowClass={shadowClass}
                 />
               ))
             )}
@@ -249,10 +251,7 @@ export default function Transactions() {
           {/* pt-6: offsets card by the date label row height (text-xs 16px + mb-2 8px = 24px) */}
           <div className="col-span-1 sticky top-14 pt-6">
             {categoryTotals.length > 0 && (
-              <div
-                className="rounded-2xl bg-white p-6"
-                style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-              >
+              <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
                 <h3 className="text-sm font-semibold text-on-surface mb-4">
                   {t('creditCard.spendingSummary')}
                 </h3>
@@ -295,8 +294,7 @@ export default function Transactions() {
           <div className="mx-auto max-w-5xl px-6">
             <div className="grid grid-cols-1 md:grid-cols-3 md:gap-6">
               <div
-                className="md:col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto"
-                style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.08)' }}
+                className={cn('md:col-span-2 flex items-center justify-between rounded-2xl bg-white px-6 py-4 pointer-events-auto', shadowClass)}
               >
                 {/* Count */}
                 <p className="text-xs text-on-surface/40 shrink-0">
@@ -362,11 +360,13 @@ function DateGroup({
   txs,
   data,
   onEditTx,
+  shadowClass,
 }: {
   dateKey: string
   txs: Transaction[]
   data: NonNullable<ReturnType<typeof useDataStore.getState>['data']>
   onEditTx: (tx: Transaction) => void
+  shadowClass: string
 }) {
   const date = new Date(dateKey + 'T12:00:00')
   const today = new Date()
@@ -386,10 +386,7 @@ function DateGroup({
         <span className="label text-xs font-semibold text-on-surface/50 uppercase">{label}</span>
         <span className="text-xs text-on-surface/30">{dateFormatted}</span>
       </div>
-      <div
-        className="rounded-2xl bg-white overflow-hidden"
-        style={{ boxShadow: '0px 4px 20px rgba(25,28,29,0.04)' }}
-      >
+      <div className={cn('rounded-2xl bg-white overflow-hidden', shadowClass)}>
         {txs.map((tx, i) => (
           <TxRow key={tx.id} tx={tx} data={data} isLast={i === txs.length - 1} onEdit={onEditTx} />
         ))}
