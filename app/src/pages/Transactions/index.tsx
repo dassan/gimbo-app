@@ -381,6 +381,7 @@ export default function Transactions() {
         {/* ── Filter bar ──────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 mb-5">
           <FilterDropdown
+            className="flex-1"
             label={t('transactions.filterAccounts')}
             value={filterAccountId}
             onChange={setFilterAccountId}
@@ -393,6 +394,7 @@ export default function Transactions() {
             ]}
           />
           <FilterDropdown
+            className="flex-1"
             label={t('transactions.filterStatus')}
             value={filterStatus}
             onChange={(v) => setFilterStatus(v as typeof filterStatus)}
@@ -403,6 +405,7 @@ export default function Transactions() {
             ]}
           />
           <FilterDropdown
+            className="flex-1"
             label={t('transactions.filterTags')}
             value="all"
             onChange={() => {}}
@@ -412,6 +415,7 @@ export default function Transactions() {
             ]}
           />
           <FilterDropdown
+            className="flex-1"
             label={t('transactions.filterType')}
             value={filterType}
             onChange={(v) => setFilterType(v as typeof filterType)}
@@ -449,7 +453,8 @@ export default function Transactions() {
           </div>
 
           {/* Right column: spending summary (sticky) */}
-          <div className="col-span-1 sticky top-8">
+          {/* top-14 = top-8 (page offset) + ~24px (date label row height) to align with the first transaction card */}
+          <div className="col-span-1 sticky top-14">
             {categoryTotals.length > 0 && (
               <div
                 className="rounded-2xl bg-white p-6"
@@ -700,18 +705,20 @@ function FilterDropdown({
   value,
   onChange,
   options,
+  className,
 }: {
   label?: string
   value: string
   onChange: (v: string) => void
   options: { value: string; label: string }[]
+  className?: string
 }) {
   return (
-    <div className="relative">
+    <div className={cn('relative', className)}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none rounded-xl bg-surface-container-low py-2 pl-3 pr-7 text-sm font-medium text-on-surface/70 outline-none hover:bg-surface-container-high transition-colors cursor-pointer"
+        className="w-full appearance-none rounded-xl bg-surface-container-low py-2 pl-3 pr-7 text-sm font-medium text-on-surface/70 outline-none hover:bg-surface-container-high transition-colors cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
