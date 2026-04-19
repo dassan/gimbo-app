@@ -119,7 +119,37 @@
     "custom": "Custom",
     "includeUnpaid": "Include Unpaid",
     "exportPdf": "Export PDF",
-    "newInsight": "+ New Insight"
+    "newInsight": "+ New Insight",
+    "tabs": {
+      "categorias": "Categories",
+      "cashflow": "Income vs Expenses",
+      "contas": "Accounts",
+      "tags": "Tags"
+    },
+    "cashflowView": {
+      "income": "Income",
+      "expenses": "Expenses",
+      "result": "Result",
+      "balance": "Balance",
+      "tableTitle": "Period Breakdown"
+    },
+    "categorias": {
+      "incomeTitle": "Income by Category",
+      "expensesTitle": "Expenses by Category",
+      "drilldownTitle": "Category Transactions"
+    },
+    "contas": {
+      "selectPrompt": "Select an account to see the breakdown",
+      "back": "Back",
+      "result": "Result"
+    },
+    "tags": {
+      "expensesTitle": "Expenses by Tag",
+      "incomeTitle": "Income by Tag",
+      "noData": "No transactions with tags in this period",
+      "orMode": "OR",
+      "andMode": "AND"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -180,7 +210,9 @@
     "noneTopLevel": "None (Top Level)",
     "deleteCategory": "Delete Category",
     "categoryTypeIncome": "Income",
-    "categoryTypeExpense": "Expense"
+    "categoryTypeExpense": "Expense",
+    "ambientShadows": "Depth effect",
+    "ambientShadowsDesc": "Apply soft shadows to cards and containers for a floating look"
   },
   "creditCard": {
     "invoicePeriod": "Invoice Period",
