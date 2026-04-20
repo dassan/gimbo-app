@@ -137,7 +137,9 @@
     "categorias": {
       "incomeTitle": "Receitas por Categoria",
       "expensesTitle": "Despesas por Categoria",
-      "drilldownTitle": "Transações da Categoria"
+      "drilldownTitle": "Transações da Categoria",
+      "noData": "Sem dados",
+      "noTransactions": "Nenhuma transação neste período"
     },
     "contas": {
       "selectPrompt": "Selecione uma conta para ver o detalhamento",
