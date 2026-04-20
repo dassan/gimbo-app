@@ -73,4 +73,17 @@ Como parte da expansão corporativa e analítica do **Nexus Finance**, o antigo 
 
 ---
 
+### 7. Testes ✅ (R-15, R-16 — resolvido)
+
+**Cobertura implementada:**
+- `CashFlowView.test.tsx` — 13 testes: agregação mensal, saldo acumulado, CREDIT_PAYMENT, includeUnpaid, filtro por accountId, getEffectiveCashFlowDate
+- `CategoriasView.test.tsx` — 14 testes: agrupamento, percentual, CREDIT_PAYMENT/período, CC-18, drill-down (abrir/fechar por botão e backdrop, conteúdo correto)
+- `ContasView.test.tsx` — 13 testes: grid, seção CREDIT, cálculos, empty state, drill-down e Voltar
+- `TagsView.test.tsx` — 19 testes: seções, chips, percentual, empty state, OR/AND toggle, limpar filtro
+- `PeriodSelector.test.tsx` — 15 testes: arrows, dropdown, menus, onChange, custom range picker
+
+**Total: 473 testes** (era 399, +74)
+
+---
+
 > _Plano consolidado como design master blueprint do Módulo._
