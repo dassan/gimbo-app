@@ -8,6 +8,8 @@ import PeriodSelector from '@/components/PeriodSelector'
 import type { PeriodValue } from '@/components/PeriodSelector'
 import CashFlowView from './CashFlowView'
 import CategoriasView from './CategoriasView'
+import ContasView from './ContasView'
+import TagsView from './TagsView'
 
 type ActiveTab = 'categorias' | 'cashflow' | 'contas' | 'tags'
 
@@ -120,15 +122,25 @@ export default function Analytics() {
       )}
 
       {activeTab === 'contas' && (
-        <div className={cn('rounded-2xl bg-white p-12 text-center', shadowClass)}>
-          <p className="text-sm text-on-surface/30">{t('analytics.contas.selectPrompt')}</p>
-        </div>
+        <ContasView
+          transactions={data.transactions}
+          accounts={data.accounts}
+          startDate={startDate}
+          endDate={endDate}
+          includeUnpaid={includeUnpaid}
+          shadowClass={shadowClass}
+        />
       )}
 
       {activeTab === 'tags' && (
-        <div className={cn('rounded-2xl bg-white p-12 text-center', shadowClass)}>
-          <p className="text-sm text-on-surface/30">{t('analytics.tags.noData')}</p>
-        </div>
+        <TagsView
+          transactions={data.transactions}
+          tags={data.tags}
+          startDate={startDate}
+          endDate={endDate}
+          includeUnpaid={includeUnpaid}
+          shadowClass={shadowClass}
+        />
       )}
     </div>
   )
