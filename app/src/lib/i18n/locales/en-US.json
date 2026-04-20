@@ -137,7 +137,9 @@
     "categorias": {
       "incomeTitle": "Income by Category",
       "expensesTitle": "Expenses by Category",
-      "drilldownTitle": "Category Transactions"
+      "drilldownTitle": "Category Transactions",
+      "noData": "No data",
+      "noTransactions": "No transactions in this period"
     },
     "contas": {
       "selectPrompt": "Select an account to see the breakdown",
