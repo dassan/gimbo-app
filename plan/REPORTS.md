@@ -52,7 +52,7 @@ Como parte da expansão corporativa e analítica do **Nexus Finance**, o antigo 
 
 ---
 
-### 5. Visão: Relatório de Contas Isoladas
+### 5. Visão: Relatório de Contas Isoladas ✅ (R-11, R-12 — resolvido)
 
 **User Story:** Como gestor de patrimônios diversos, eu desejo enxergar as finanças sob a ótica independente de uma carteira específica, varrendo suas rendas e desgastes no macro, descartando o comportamento isolado das minhas outras contas.
 
@@ -63,7 +63,7 @@ Como parte da expansão corporativa e analítica do **Nexus Finance**, o antigo 
 
 ---
 
-### 6. Visão: Análise de Labels e Tags Cruzadas
+### 6. Visão: Análise de Labels e Tags Cruzadas ✅ (R-13, R-14 — resolvido)
 
 **User Story:** Como usuário trabalhando com grandes orçamentos flutuantes em projetos reais (Ex: Obras e Reformas), desejo verificar o avanço material de despesas em diferentes *Tags* que lancei nas transações esparsas, para visualizar como o custo de grandes projetos se ramifica fora dos domínios das categorias fixas da vida cotidiana.
 

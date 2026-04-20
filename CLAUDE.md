@@ -153,5 +153,5 @@ cd app && npx playwright test      # opcional local, obrigatório no CI
 **399 testes unitários + 19 E2E** | Cobertura: ~97% statements | Schema v2
 
 Todas as features do PRD (F-1 a F-23) implementadas. Módulo de Cartão de Crédito completo (CC-01 a CC-30).
-Melhorias M-01 a M-33 resolvidas. Relatórios avançados: Fases 1–4 (R-01 a R-10) resolvidas;
-Fases 5 a 7 (R-11 a R-16) em aberto. Único bug/melhoria em aberto fora de relatórios: M-22 (estornos, baixa prioridade).
+Melhorias M-01 a M-33 resolvidas. Relatórios avançados: Fases 1–6 (R-01 a R-14) resolvidas;
+Fase 7 — Testes (R-15 a R-16) em aberto. Único bug/melhoria em aberto fora de relatórios: M-22 (estornos, baixa prioridade).
