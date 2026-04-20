@@ -127,6 +127,7 @@
       "tags": "Tags"
     },
     "cashflowView": {
+      "period": "Period",
       "income": "Income",
       "expenses": "Expenses",
       "result": "Result",

@@ -5,10 +5,10 @@ import { useDataStore } from '@/store/useDataStore'
 import { makeDataFile } from '@/test/fixtures/dataFile'
 import type { Account, Category, Transaction } from '@/types'
 
-// ─── Recharts mock — captures LineChart data for assertions ──────────────────
+// ─── Recharts mock — captures ComposedChart data for assertions ───────────────
 
-const capturedLineChartProps = vi.hoisted(() => ({
-  data: [] as Array<{ label: string; generalFlow: number; consolidatedBalance: number }>,
+const capturedChartProps = vi.hoisted(() => ({
+  data: [] as Array<{ label: string; income: number; expenses: number; result: number; balance: number }>,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -21,16 +21,17 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  LineChart: ({
+  ComposedChart: ({
     children,
     data,
   }: {
     children: React.ReactNode
-    data: Array<{ label: string; generalFlow: number; consolidatedBalance: number }>
+    data: Array<{ label: string; income: number; expenses: number; result: number; balance: number }>
   }) => {
-    capturedLineChartProps.data = data ?? []
-    return <div data-testid="line-chart">{children}</div>
+    capturedChartProps.data = data ?? []
+    return <div data-testid="cashflow-chart">{children}</div>
   },
+  Bar: () => null,
   Line: () => null,
   XAxis: () => null,
   YAxis: () => null,
@@ -94,7 +95,7 @@ function makeCategory(overrides: Partial<Category> = {}): Category {
   }
 }
 
-/** Click the "cashflow" tab so the LineChart is rendered */
+/** Click the "cashflow" tab so the ComposedChart is rendered */
 function switchToCashFlowTab() {
   fireEvent.click(screen.getByText('analytics.tabs.cashflow'))
 }
@@ -106,7 +107,7 @@ const FIXED_NOW = new Date('2026-04-15')
 
 beforeEach(() => {
   useDataStore.setState({ data: null, unsyncedCount: 0 })
-  capturedLineChartProps.data = []
+  capturedChartProps.data = []
   vi.useFakeTimers()
   vi.setSystemTime(FIXED_NOW)
 })
@@ -132,7 +133,7 @@ describe('Analytics — CC-16: getEffectiveCashFlowDate in cash flow chart', () 
     })
     render(<Analytics />)
     switchToCashFlowTab()
-    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+    expect(screen.getByTestId('cashflow-chart')).toBeInTheDocument()
   })
 
   it('places retail EXPENSE in the tx.date month (unchanged behavior)', () => {
@@ -151,8 +152,9 @@ describe('Analytics — CC-16: getEffectiveCashFlowDate in cash flow chart', () 
     })
     render(<Analytics />)
     switchToCashFlowTab()
-    // April bucket (index 0 — month mode shows only April): generalFlow = −200
-    expect(capturedLineChartProps.data[0]?.generalFlow).toBe(-200)
+    // April bucket (index 0 — month mode shows only April): expenses = 200, result = −200
+    expect(capturedChartProps.data[0]?.expenses).toBe(200)
+    expect(capturedChartProps.data[0]?.result).toBe(-200)
   })
 
   it('projects credit card EXPENSE to the invoice due-date month, not the purchase month', () => {
@@ -192,8 +194,9 @@ describe('Analytics — CC-16: getEffectiveCashFlowDate in cash flow chart', () 
     render(<Analytics />)
     switchToCashFlowTab()
 
-    // April (index 0): retail income 500, credit expense displaced → generalFlow = 500
-    expect(capturedLineChartProps.data[0]?.generalFlow).toBe(500)
+    // April (index 0): retail income 500, credit expense displaced → income=500, expenses=0
+    expect(capturedChartProps.data[0]?.income).toBe(500)
+    expect(capturedChartProps.data[0]?.expenses).toBe(0)
   })
 
   it('shows "no data" when the only transaction is a credit expense displaced outside range', () => {
@@ -215,9 +218,9 @@ describe('Analytics — CC-16: getEffectiveCashFlowDate in cash flow chart', () 
     })
     render(<Analytics />)
     switchToCashFlowTab()
-    // All generalFlow values are 0 → "no data" message shown instead of chart
+    // All income and expenses values are 0 → "no data" message shown instead of chart
     expect(screen.getByText('common.noData')).toBeInTheDocument()
-    expect(screen.queryByTestId('line-chart')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('cashflow-chart')).not.toBeInTheDocument()
   })
 })
 
@@ -241,11 +244,11 @@ describe('Analytics — CC-17: CREDIT_PAYMENT excluded from charts and categorie
     render(<Analytics />)
     switchToCashFlowTab()
     expect(screen.getByText('common.noData')).toBeInTheDocument()
-    expect(screen.queryByTestId('line-chart')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('cashflow-chart')).not.toBeInTheDocument()
   })
 
-  it('does not include CREDIT_PAYMENT in generalFlow when mixed with INCOME', () => {
-    // INCOME 500 + CREDIT_PAYMENT 300 → April generalFlow must be 500, not 800
+  it('does not include CREDIT_PAYMENT in income when mixed with INCOME', () => {
+    // INCOME 500 + CREDIT_PAYMENT 300 → April income must be 500, not 800
     const retailAccount = makeRetailAccount()
     const income = makeTransaction({
       id: 'tx-income',
@@ -266,7 +269,8 @@ describe('Analytics — CC-17: CREDIT_PAYMENT excluded from charts and categorie
     render(<Analytics />)
     switchToCashFlowTab()
     // April (index 0): only income 500 contributes
-    expect(capturedLineChartProps.data[0]?.generalFlow).toBe(500)
+    expect(capturedChartProps.data[0]?.income).toBe(500)
+    expect(capturedChartProps.data[0]?.expenses).toBe(0)
   })
 
   it('does not count CREDIT_PAYMENT in income category breakdown', () => {
