@@ -151,7 +151,8 @@
       "incomeTitle": "Income by Tag",
       "noData": "No transactions with tags in this period",
       "orMode": "OR",
-      "andMode": "AND"
+      "andMode": "AND",
+      "clearFilter": "Clear filter"
     }
   },
   "settings": {

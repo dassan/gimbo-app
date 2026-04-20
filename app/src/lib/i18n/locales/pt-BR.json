@@ -151,7 +151,8 @@
       "incomeTitle": "Receitas por Tag",
       "noData": "Nenhuma transação com tags neste período",
       "orMode": "OU",
-      "andMode": "E"
+      "andMode": "E",
+      "clearFilter": "Limpar filtro"
     }
   },
   "settings": {
