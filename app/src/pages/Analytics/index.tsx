@@ -1,24 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
+import { PieChart, Pie, Cell } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
-import { formatCurrency, cn, parseDateLocal, getEffectiveCashFlowDate } from '@/lib/utils'
+import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
 import PeriodSelector from '@/components/PeriodSelector'
 import type { PeriodValue } from '@/components/PeriodSelector'
+import CashFlowView from './CashFlowView'
 
 type ActiveTab = 'categorias' | 'cashflow' | 'contas' | 'tags'
 
@@ -59,39 +48,6 @@ export default function Analytics() {
     const ref = new Date(now.getFullYear(), now.getMonth(), 1)
     return { startDate: ref, endDate: new Date(ref.getFullYear(), ref.getMonth() + 1, 0) }
   }, [period, now])
-
-  // ── Cash flow line chart data ────────────────────────────────────────────
-  const cashFlowData = useMemo(() => {
-    if (!data) return []
-    const months: { label: string; m: number; y: number }[] = []
-    const cur = new Date(startDate)
-    while (cur <= endDate) {
-      months.push({
-        label: cur.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
-        m: cur.getMonth(),
-        y: cur.getFullYear(),
-      })
-      cur.setMonth(cur.getMonth() + 1)
-    }
-
-    let cumulative = 0
-    return months.map(({ label, m, y }) => {
-      const txs = data.transactions.filter((tx) => {
-        // CC-17: CREDIT_PAYMENT is liability liquidation, not income/expense
-        if (tx.type === 'CREDIT_PAYMENT') return false
-        // CC-16: credit card expenses project to their invoice due date so the
-        // cash impact lands in the correct future month, not the purchase month
-        const d = parseDateLocal(getEffectiveCashFlowDate(tx, data.accounts))
-        const inPeriod = d.getMonth() === m && d.getFullYear() === y
-        const isPaidOk = includeUnpaid || tx.isPaid
-        return inPeriod && isPaidOk
-      })
-      const inc = txs.filter((t) => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0)
-      const exp = txs.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
-      cumulative += inc - exp
-      return { label, generalFlow: inc - exp, consolidatedBalance: cumulative }
-    })
-  }, [data, startDate, endDate, includeUnpaid])
 
   // ── Category breakdown ──────────────────────────────────────────────────
   const { incomeByCategory, expenseByCategory } = useMemo(() => {
@@ -199,76 +155,14 @@ export default function Analytics() {
       )}
 
       {activeTab === 'cashflow' && (
-        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
-          <h3 className="text-sm font-semibold text-on-surface">{t('analytics.cashFlowTitle')}</h3>
-          <p className="text-xs text-on-surface/40 mt-0.5 mb-6">{t('analytics.cashFlowSub')}</p>
-
-          <div className="h-56">
-            {cashFlowData.some((d) => d.generalFlow !== 0) ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={cashFlowData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="rgba(25,28,29,0.04)"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#9CA3AF' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: 'none',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                      fontSize: 12,
-                    }}
-                    formatter={(value) => formatCurrency(Number(value))}
-                  />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    wrapperStyle={{ fontSize: 12, paddingTop: 16 }}
-                    formatter={(value) =>
-                      value === 'generalFlow'
-                        ? t('analytics.generalFlow')
-                        : t('analytics.consolidatedBalance')
-                    }
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="generalFlow"
-                    stroke="#006E2F"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="consolidatedBalance"
-                    stroke="#22C55E"
-                    strokeWidth={2}
-                    strokeDasharray="4 2"
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <p className="text-sm text-on-surface/30">{t('common.noData')}</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <CashFlowView
+          transactions={data.transactions}
+          accounts={data.accounts}
+          startDate={startDate}
+          endDate={endDate}
+          includeUnpaid={includeUnpaid}
+          shadowClass={shadowClass}
+        />
       )}
 
       {activeTab === 'contas' && (
