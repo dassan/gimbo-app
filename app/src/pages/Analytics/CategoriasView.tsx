@@ -78,7 +78,8 @@ function accountIcon(type: string): React.ReactNode {
 // ─── Period label for drill-down modal title ──────────────────────────────────
 
 function formatPeriodLabel(start: Date, end: Date): string {
-  const fmt = (d: Date) => d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
+  const fmt = (d: Date) =>
+    d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
   const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
   return sameMonth ? fmt(start) : `${fmt(start)} – ${fmt(end)}`
 }
@@ -222,7 +223,9 @@ function CategoryDonut({ title, entries, shadowClass, onEntryClick }: CategoryDo
       <h3 className="text-sm font-semibold text-on-surface mb-4">{title}</h3>
 
       {entries.length === 0 ? (
-        <p className="py-8 text-center text-sm text-on-surface/30">{t('analytics.categorias.noData')}</p>
+        <p className="py-8 text-center text-sm text-on-surface/30">
+          {t('analytics.categorias.noData')}
+        </p>
       ) : (
         <div className="flex gap-6">
           {/* Donut chart */}
@@ -352,10 +355,7 @@ function DrilldownModal({
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-on-surface/20 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-50 bg-on-surface/20 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

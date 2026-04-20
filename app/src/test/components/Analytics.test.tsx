@@ -8,7 +8,13 @@ import type { Account, Category, Transaction } from '@/types'
 // ─── Recharts mock — captures ComposedChart data for assertions ───────────────
 
 const capturedChartProps = vi.hoisted(() => ({
-  data: [] as Array<{ label: string; income: number; expenses: number; result: number; balance: number }>,
+  data: [] as Array<{
+    label: string
+    income: number
+    expenses: number
+    result: number
+    balance: number
+  }>,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -26,7 +32,13 @@ vi.mock('recharts', () => ({
     data,
   }: {
     children: React.ReactNode
-    data: Array<{ label: string; income: number; expenses: number; result: number; balance: number }>
+    data: Array<{
+      label: string
+      income: number
+      expenses: number
+      result: number
+      balance: number
+    }>
   }) => {
     capturedChartProps.data = data ?? []
     return <div data-testid="cashflow-chart">{children}</div>
