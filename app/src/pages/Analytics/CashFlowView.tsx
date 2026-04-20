@@ -90,11 +90,7 @@ export default function CashFlowView({
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={rows} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="rgba(25,28,29,0.04)"
-                vertical={false}
-              />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(25,28,29,0.04)" vertical={false} />
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 11, fill: '#9CA3AF' }}
@@ -123,7 +119,7 @@ export default function CashFlowView({
                 iconType="circle"
                 iconSize={8}
                 wrapperStyle={{ fontSize: 12, paddingTop: 16 }}
-                formatter={(value) => tooltipLabels[value] ?? value}
+                formatter={(value) => tooltipLabels[String(value)] ?? String(value)}
               />
               <Bar dataKey="income" fill="#22C55E" radius={[4, 4, 0, 0]} maxBarSize={32} />
               <Bar dataKey="expenses" fill="#FF8A83" radius={[4, 4, 0, 0]} maxBarSize={32} />
