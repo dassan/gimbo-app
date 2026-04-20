@@ -25,151 +25,125 @@ O Nexus é um aplicativo web (PWA Client-side) de gestão de finanças pessoais 
 
 ## 5. Escopo e Funcionalidades
 
-### Dentro do Escopo (Must-have - Construiremos agora)
-* **F-1:** Criação simples de perfil de usuário (Apenas metadados de Nome, E-mail, com rastreio de datas de edição).
-* **F-2:** Sistema completo de Gestão de Contas com 8 tipos (Banco/Corrente, Poupança, Cartão de Crédito, Criptomoedas, Câmbio/Forex, Ativos/Fundo, Ações, Outros) e flag `includeInBalance` por conta.
+### Dentro do Escopo (Must-have)
+* **F-1:** Criação simples de perfil de usuário (Nome, E-mail, datas de edição).
+* **F-2:** Sistema completo de Gestão de Contas com 8 tipos e flag `includeInBalance`. Saldo inicial editável no modal de criação/edição. Campo `issuerIcon` para contas CREDIT.
 * **F-3:** Gestão de Categorias com suporte a hierarquia de Sub-categorias via "ParentId".
 * **F-4:** Sistema de Tags personalizáveis e associáveis a múltiplas transações.
 * **F-5:** CRUD rápido de Transações (Receitas, Despesas, Transferências).
-* **F-6:** Visão Geral Simples (Dashboard do mês atual indicando total de receitas, despesas e Saldo Consolidado).
-* **F-7:** Painel Analítico 1: Gráfico de linha/barra (Fluxo de Caixa ±3 Meses da data corrente), agregável por semanas ou mês, com as contas não-pagas.
-* **F-8:** Painel Analítico 2: Gráfico de pizza indicando as Despesas por Categoria.
+* **F-6:** Dashboard do mês atual: receitas, despesas, saldo consolidado, card "Minhas Contas", seção "Meus Cartões" com barra de utilização, donut de despesas por categoria, últimos lançamentos (1ª parcela apenas para parcelados).
+* **F-7:** Painel Analítico: Gráfico de linha/barra (Fluxo de Caixa ±3 Meses), com transações não-pagas.
+* **F-8:** Painel Analítico: Gráfico de pizza de Despesas por Categoria.
 * **F-9:** Motor de Arquivo Client-Side PWA (Exportar/Importar `data.json` local).
-* **F-10:** A capacidade de escolher/alterar o idioma da aplicação através de um seletor visual na interface.
-* **F-11:** Modal de Onboarding/Setup Inicial: Ponto de entrada do PWA onde o usuário decide entre "Criar Novo Arquivo" (informando Nome, Email e Idioma) ou "Importar data.json Existente" (ocultando os formulários e carregando os dados logados).
-* **F-12:** Auto-save via IndexedDB: toda mutação de dados é persistida automaticamente no IndexedDB do browser (debounced ~300ms), eliminando risco de perda de dados por fechamento acidental da aba. O IndexedDB é o banco de dados primário em tempo de execução; o `data.json` é o formato de exportação/portabilidade.
-* **F-13:** Audit Log: registro imutável de todas as alterações feitas pelo usuário (criação, edição e exclusão de qualquer entidade). Armazenado dentro do `data.json` para que o histórico viaje com o arquivo. Retenção padrão: **200 entradas ou 90 dias** (o que ocorrer primeiro). Opt-in de retenção ilimitada disponível em Configurações, acompanhado de aviso sobre impacto potencial no desempenho no longo prazo.
-* **F-14:** Indicador de Alterações Não Sincronizadas: ícone de sincronização (setas em círculo) na Navbar, ao lado do sino, exibindo em badge vermelho a contagem de mutações realizadas desde o último Export/Sync. Ao clicar, dispara a sincronização do estado atual do IndexedDB para o `data.json` (via File System Access API ou download fallback).
-* **F-15:** Tela "Modificações Recentes" dentro da seção Aplicativo em Configurações: lista cronológica reversa das entradas do Audit Log, com ação, entidade, resumo legível e timestamp.
-* **F-16:** Cold Start Sync — ao criar um novo perfil, o usuário escolhe o nome e o local do arquivo via file picker nativo (`showSaveFilePicker`); ao importar um arquivo existente via picker, o handle é persistido no IndexedDB. Em ambos os casos, o `FileSystemFileHandle` é armazenado no IDB (store `handles`) e restaurado automaticamente no próximo startup, permitindo que o sync subsequente reuse o handle sem abrir um novo picker. Fluxos com drag-and-drop funcionam sem handle (modo sem sincronização automática até o usuário fazer o primeiro sync manual). Feedback visual (inline error) para cancelamento do picker e arquivos inválidos.
-* **F-17:** Hydration Sync — validação Zod completa do `DataFile` ao importar um arquivo existente (onboarding e Settings). Schemas Zod cobrem todas as entidades (`User`, `Settings`, `Account`, `Category`, `Tag`, `Transaction`, `AuditEntry`) e seus campos internos, incluindo enums de tipo. Arquivos com estrutura inválida, campos ausentes ou valores fora do enum são rejeitados com feedback visual ao usuário. A função `validateDataFile` é a única porta de entrada para dados externos. Gap corrigido: `handleImport` em Settings agora valida antes de gravar no IDB, protegendo o banco de dados local contra sobrescrita com dados corrompidos.
-* **F-18:** Conflict Sync — ao clicar em sync, o app lê o `File.lastModified` do arquivo em disco e compara com o timestamp registrado após o último write da sessão (`_lastWrittenModified`). Se o arquivo foi modificado externamente (por outro dispositivo, cloud sync ou edição manual), exibe um modal de conflito com duas opções: "Sobrescrever arquivo" (mantém dados locais, descarta disco) ou "Carregar do arquivo" (descarta local, carrega disco). Nenhum dado é perdido sem escolha explícita do usuário. Não há conflito na primeira sync da sessão (sem baseline ainda) nem quando o arquivo não foi tocado desde o último write.
-* **F-19:** Lost File Sync — quando a File System Access API lança `NotFoundError` (arquivo deletado, movido ou volume desmontado), o app detecta o erro no próximo sync, sinaliza o ícone de sync em vermelho com badge `!` e exibe tooltip explicativo. Um segundo clique no ícone de sync abre o file picker para o usuário re-associar um arquivo existente ou criar um novo, restaurando o fluxo normal de sincronização. O app continua funcional entre os dois cliques (dados locais preservados no IndexedDB).
-* **F-20:** Re-permissão do FileHandle — ao restaurar o `FileSystemFileHandle` do IndexedDB no startup, o app chama `handle.queryPermission({ mode: 'readwrite' })` antes de injetar o handle no estado ativo. Se a permissão está `'granted'`, o sync opera normalmente. Se está `'prompt'`, o handle é mantido em estado pendente e o ícone de sync é exibido em verde com tooltip explicativo; o primeiro clique do usuário no ícone chama `handle.requestPermission()` (dentro do contexto do gesto do usuário, como exigido pela API) e, se concedida, prossegue com o sync imediatamente. Se a permissão está `'denied'`, o app trata como arquivo perdido (F-19): ícone vermelho com badge `!` e re-pick disponível.
-* **F-21:** Gestão de Lifecycle de Cartões de Crédito — tratamento desacoplado de fluxo de caixa para contas tipo `CREDIT`. Diferencia data da compra de impacto de caixa via data da fatura, usando dias configuráveis de fechamento e vencimento. Mostra limites consumidos.
-* **F-22:** Desmembramento de Parcelas (Installments) — registro de compras a termo dividindo o valor total em N sub-transações mensais. Compromete o limite instantaneamente, mas atrela saídas de caixa às faturas subsequentes.
-* **F-23:** Pagamento de Fatura Ativo — fluxo tipo "Transferência (Zero-Sum)", permitindo liquidar o saldo devedor abatendo valor da conta de débito, impedindo a duplicação categórica de despesas e conciliando o passivo circulante.
+* **F-10:** Seletor de idioma (pt-BR / en-US).
+* **F-11:** Onboarding: "Criar Novo Arquivo" ou "Importar data.json Existente".
+* **F-12:** Auto-save via IndexedDB (debounce ~300ms).
+* **F-13:** Audit Log com retenção configurável (200 entradas ou 90 dias, opt-in ilimitado).
+* **F-14:** Badge de sync na Navbar com contagem de mutações pendentes.
+* **F-15:** Tela "Modificações Recentes" em Configurações.
+* **F-16:** Cold Start Sync — FileHandle persistido no IDB, restaurado no startup.
+* **F-17:** Hydration Sync — validação Zod completa ao importar.
+* **F-18:** Conflict Sync — detecção de modificação externa via `lastModified`, modal de conflito.
+* **F-19:** Lost File Sync — detecção de `NotFoundError`, ícone vermelho, re-pick.
+* **F-20:** Re-permissão do FileHandle — `queryPermission` no startup, fluxo de prompt/denied.
+* **F-21:** Gestão de Lifecycle de Cartões de Crédito — `creditMetadata`, motor de fatura virtual, saldo disponível, página `/credit-card/:accountId`, painel de pagamento dedicado.
+* **F-22:** Parcelas — N transações com sufixo `" (X/N)"`, modal de exclusão "só esta / todas".
+* **F-23:** Pagamento de Fatura — tipo `CREDIT_PAYMENT`, exclusão dos totais de receita/despesa.
 
-### Fora do Escopo (Out of Scope - Futuro)
-* **X-1:** Criptografia do arquivo JSON de dados.
-* **X-2:** Sincronização automatizada via Open-Banking de extratos.
-* **X-3:** Plataforma mobile nativa submetida as Lojas de Apps.
-* **X-4:** Login de servidor online via senhas e banco em nuvem / Modo partilhado e Rateio de despesas em grupo.
-* **X-5:** Backup do Audit Log em arquivo separado (`audit.json`): mover as entradas do `auditLog` para fora do `data.json`, mantendo o ledger financeiro enxuto e delegando o histórico de modificações a um arquivo dedicado, importável e exportável de forma independente.
+### Fora do Escopo (Futuro)
+* **X-1:** Criptografia do arquivo JSON.
+* **X-2:** Sincronização via Open-Banking.
+* **X-3:** App mobile nativo.
+* **X-4:** Login de servidor / modo partilhado.
+* **X-5:** Audit Log em arquivo separado.
 
 ## 6. Modelo de Dados e Arquitetura
 
-Para preservar a arquitetura, utilizaremos **dois arquivos distintos:**
-1. **App Configs (`workspace.json`):** Usado para armazenar o estado visual do aplicativo para o usuário no seu navegador ativo: Tema Escuro/Claro, preferência de idioma e visualizações padrão salvas, garantindo que o arquivo principal de dados fique limpo (Nota: *Não* utilizaremos o LocalStorage do navegador para isso, mas o arquivo fixo gerido pela State API local do PWA).
-2. **Ledger Financeiro (`data.json`):** O arquivo portátil que será salvo localmente e que possui o verdadeiro banco de dados relacional. Abaixo seu esquema lógico de entidades:
+Documentação detalhada em `ARCHITECTURE.md`. Resumo:
+
+1. **Config UI (`localStorage nexus_workspace`):** Tema, idioma, visualização padrão, ambient shadows.
+2. **Ledger Financeiro (`data.json`):** Schema v2. Entidades: `user`, `settings`, `accounts` (com `creditMetadata?`, `issuerIcon?`), `categories`, `tags`, `transactions` (com `installment?`, `transferAccountId?`), `auditLog`, `deletedIds`.
 
 ```json
 {
-  "user": {
-    "name": "String",
-    "email": "String",
-    "createdAt": "ISO_Date",
-    "updatedAt": "ISO_Date"
-  },
-  "settings": {
-    "fileCreatedAt": "ISO_Date",
-    "fileUpdatedAt": "ISO_Date",
-    "auditLogRetentionLimit": "Integer | null (null = ilimitado, opt-in)"
-  },
-  "accounts": [
-    {
-      "id": "UUID",
-      "name": "String",
-      "type": "Enum(RETAIL, SAVINGS, CREDIT, CRYPTO, FOREX, ASSET, STOCKS, OTHER)",
-      "balance": "Float",
-      "includeInBalance": "Boolean (default: true)",
-      "creditMetadata": {
-        "limit": "Float (apenas contas CREDIT — schema v2)",
-        "closingDay": "Integer 1–28 (dia de fechamento da fatura)",
-        "dueDay": "Integer 1–28 (dia de vencimento da fatura)"
-      }
-    }
-  ],
-  "categories": [
-    {
-      "id": "UUID",
-      "parentId": "UUID | null",
-      "name": "String",
-      "icon": "String",
-      "color": "String",
-      "type": "Enum(INCOME, EXPENSE)"
-    }
-  ],
-  "tags": [
-    {
-      "id": "UUID",
-      "name": "String",
-      "color": "String"
-    }
-  ],
-  "transactions": [
-    {
-      "id": "UUID",
-      "accountId": "UUID",
-      "categoryId": "UUID",
-      "amount": "Float",
-      "type": "Enum(INCOME, EXPENSE, TRANSFER, CREDIT_PAYMENT)",
-      "date": "ISO_Date",
-      "description": "String",
-      "isPaid": "Boolean",
-      "tags": ["[UUID]"],
-      "installment": {
-        "parentId": "UUID (UUID da 1ª parcela do grupo — schema v2)",
-        "currentIndex": "Integer >= 1",
-        "total": "Integer >= 2"
-      }
-    }
-  ],
-  "auditLog": [
-    {
-      "id": "UUID",
-      "timestamp": "ISO_Date",
-      "action": "Enum(CREATE, UPDATE, DELETE)",
-      "entity": "Enum(account, category, tag, transaction, user)",
-      "entityId": "UUID",
-      "summary": "String (descrição legível gerada no momento da mutação)"
-    }
-  ]
+  "schemaVersion": 2,
+  "user": { "name": "", "email": "", "createdAt": "", "updatedAt": "" },
+  "settings": { "fileCreatedAt": "", "fileUpdatedAt": "", "auditLogRetentionLimit": 200 },
+  "accounts": [{ "id": "", "name": "", "type": "RETAIL|SAVINGS|CREDIT|...", "balance": 0, "includeInBalance": true, "creditMetadata?": {}, "issuerIcon?": "" }],
+  "categories": [{ "id": "", "parentId": null, "name": "", "icon": "", "color": "", "type": "INCOME|EXPENSE" }],
+  "tags": [{ "id": "", "name": "", "color": "" }],
+  "transactions": [{ "id": "", "accountId": "", "categoryId": "", "amount": 0, "type": "INCOME|EXPENSE|TRANSFER|CREDIT_PAYMENT", "date": "", "description": "", "isPaid": false, "tags": [], "installment?": {}, "transferAccountId?": "" }],
+  "auditLog": [{ "id": "", "timestamp": "", "action": "", "entity": "", "entityId": "", "summary": "" }],
+  "deletedIds": []
 }
 ```
 
 ## 7. Requisitos Não Funcionais (NFRs)
-* **Arquitetura PWA/Static:** Sistema operando em Javascript puro sem processamento Next.js API Routes no Cloud.
-* **Internacionalização (i18n):** A aplicação deve suportar setup multi-idiomas desde o dia 1 de construção.
-* **Performance Visual:** Renderizações sem spinners ou delays nas buscas das querys internas para os gráficos (Usar In-Memory State tipado).
-* **UI/UX Moderno:** Design voltado fortemente à navegação responsiva mobile-first, paleta premium. O usuário espera a qualidade de experiência de benchmarks do mercado.
+* **Arquitetura PWA/Static:** Sistema operando em Javascript puro sem servidor.
+* **Internacionalização (i18n):** Multi-idiomas desde o dia 1 (pt-BR, en-US).
+* **Performance Visual:** Renderizações sem spinners — In-Memory State tipado.
+* **UI/UX Moderno:** Design responsivo mobile-first, paleta premium, toggle de ambient shadows.
 
 ## 8. Critérios de Aceitação (Gherkin Style)
 * **Cenário:** Projeção correta do painel e fluxo de caixa de longo prazo.
   * *Dado que* o usuário acessa o Painel Avançado de ±3 meses.
   * *Quando* ele possuir títulos grandes de despesas não-pagas para os próximos 60 dias.
-  * *Então* o gráfico de barras exibirá esses impactos negativos de passivos nas colunas de projeção dos meses/semanas futuras corretamente e abaterá do saldo.
+  * *Então* o gráfico de barras exibirá esses impactos negativos nas colunas de projeção corretamente.
 * **Cenário:** Fechamento de fatura de crédito e salto inter-temporal de fluxo de caixa.
   * *Dado que* o cartão do usuário fecha no dia 10 e vence no dia 20.
   * *Quando* efetuar uma compra no dia 11.
-  * *Então* a saída monetária de caixa não deve ocorrer no mês atual/fatura presente, devendo deslocar a projeção de pagamento para o mês seguinte.
+  * *Então* a saída de caixa deve deslocar para o mês seguinte.
 
 ## 9. Riscos e Premissas
-* **Risco (UX de Sync manual):** O uso intercalado exigirá que o usuário hospede seu "banco" num local como iCloud Folders ou GDrive e dê permissão para a aplicação mapear.
-* **Risco (File API Access limits):** Se os browsers móveis restringirem a API (File System Access), o fallback (Ação de exportar/importar) pode ser a única saída.
+* **Risco (UX de Sync manual):** Uso intercalado exige que o usuário hospede seu `data.json` em cloud storage.
+* **Risco (File API Access limits):** Se browsers móveis restringirem a FSA, o fallback import/export é a saída.
 
 ## 10. Perguntas em Aberto
 *(Nenhuma pergunta pendente no momento)*
 
-## 11. Status de Implementação (2026-04-15)
+## 11. Status de Implementação (2026-04-19)
 
-Todas as funcionalidades Must-have estão implementadas e cobertas por testes:
+### Features Must-have — todas implementadas
 
-| Feature | Descrição | Status |
-|---------|-----------|--------|
-| F-1 a F-20 | Perfil, contas, categorias, tags, transações, dashboard, analytics, sync, i18n, onboarding, IndexedDB, audit log, badge, modificações recentes, cold start, hydration, conflict, lost file, re-permissão | ✅ |
-| F-21 | Gestão de lifecycle de cartões de crédito — `creditMetadata`, motor de fatura virtual, saldo disponível, página `/credit-card/:accountId` | ✅ |
-| F-22 | Desmembramento de parcelas — N transações com sufixo `" (X/N)"`, modal de exclusão com "só esta / todas" | ✅ |
-| F-23 | Pagamento de fatura ativo — tipo `CREDIT_PAYMENT`, dois seletores no drawer, exclusão dos totais de receita/despesa | ✅ |
+| Feature | Status |
+|---------|--------|
+| F-1 a F-20 | Perfil, contas, categorias, tags, transações, dashboard, analytics, sync, i18n, onboarding, IndexedDB, audit log, badge, cold start, hydration, conflict, lost file, re-permissão | ✅ |
+| F-21 | Cartões de crédito — creditMetadata, motor de fatura virtual, saldo disponível, página dedicada, ícone de emissora, painel de pagamento | ✅ |
+| F-22 | Parcelas — N transações com sufixo, modal de exclusão | ✅ |
+| F-23 | Pagamento de fatura — CREDIT_PAYMENT, exclusão dos totais | ✅ |
 
-**Cobertura de testes:** 333 testes unitários + 19 testes E2E (4 specs, incluindo `creditCard.spec.ts`).
+### Melhorias implementadas (M-01 a M-33)
+
+Todas as 33 melhorias planejadas foram implementadas, incluindo:
+- M-23: Ícone da instituição emissora para contas CREDIT
+- M-24: Separação visual "Contas e Cartões" no Settings
+- M-25: Dashboard exibe apenas 1ª parcela de parcelados
+- M-26: Tela de Lançamentos exclui transações de cartão
+- M-27: Seletor de período com date-picker de mês
+- M-28: Remoção da aba "Pag. Fatura" do TransactionDrawer
+- M-29: Correção de sobreposição no centro do donut
+- M-30: Painel dedicado "Pagar Fatura" na página do cartão
+- M-31: Resumo de Gastos em coluna direita na página do cartão
+- M-32: Resumo de Gastos em coluna direita na tela de Lançamentos
+- M-33: Saldo inicial editável para contas
+
+### Relatórios Avançados (em andamento)
+
+Épico detalhado em `plan/REPORTS.md`. Progresso:
+- ✅ Fase 1 — Navegação e Seletor de Período (R-01 a R-03)
+- ✅ Fase 2 — Feature Toggle: Ambient Shadows (R-04 a R-06)
+- Fase 3 — Cash Flow View (R-07 a R-08) — em aberto
+- Fase 4 — Categorias com Drill-Down (R-09 a R-10) — em aberto
+- Fase 5 — Contas com Drill-Down (R-11 a R-12) — em aberto
+- Fase 6 — Tags com Multi-filtro (R-13 a R-14) — em aberto
+- Fase 7 — Testes (R-15 a R-16) — em aberto
+
+### Cobertura de testes
+
+**399 testes unitários** (23 arquivos) + **19 testes E2E** (4 specs). Cobertura: ~97% statements.
+
+### Melhoria em aberto
+
+| ID | Descrição | Prioridade |
+|----|-----------|-----------|
+| M-22 | Estornos e chargebacks em contas CREDIT | baixa |
