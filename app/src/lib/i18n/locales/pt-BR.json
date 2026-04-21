@@ -71,6 +71,8 @@
     "category": "Categoria",
     "account": "Conta",
     "tags": "Tags",
+    "tagsPlaceholder": "Selecionar tags...",
+    "tagsAllSelected": "Todas as tags selecionadas",
     "isPaid": "Pago",
     "shortcutHint": "Pressione Enter para salvar rapidamente",
     "creditPayment": "Pag. Fatura",

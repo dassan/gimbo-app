@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, ChevronDown, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { cn, parseDateLocal } from '@/lib/utils'
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -119,7 +119,6 @@ export default function PeriodSelector({ value, onChange }: PeriodSelectorProps)
           <span className="text-xl font-bold text-on-surface min-w-44 text-center">
             {periodLabel}
           </span>
-          <ChevronDown size={15} strokeWidth={2} className="text-on-surface/40 mt-0.5" />
         </button>
 
         {value.mode === 'month' && (

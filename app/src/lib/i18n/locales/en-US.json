@@ -71,6 +71,8 @@
     "category": "Category",
     "account": "Account",
     "tags": "Tags",
+    "tagsPlaceholder": "Select tags...",
+    "tagsAllSelected": "All tags selected",
     "isPaid": "Paid",
     "shortcutHint": "Press Enter to save quickly",
     "creditPayment": "Bill Payment",
