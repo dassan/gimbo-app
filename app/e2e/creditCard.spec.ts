@@ -136,7 +136,9 @@ test('analytics: EXPENSE on CREDIT account appears in due-date month, not purcha
   // Navigate to Analytics — page must load without error
   await page.goto('/analytics')
   await expect(page).toHaveURL(/\/analytics/)
-  await expect(page.getByText('Fluxo de Caixa')).toBeVisible({ timeout: 5000 })
+  // Click the CashFlow tab (labeled "Entradas x Saídas") and verify content renders
+  await page.getByRole('button', { name: 'Entradas x Saídas' }).click()
+  await expect(page.getByText('Projeção de Fluxo de Caixa')).toBeVisible({ timeout: 5000 })
 })
 
 // ─── (c) Installments: 3 rows appear with (1/3), (2/3), (3/3) suffixes ────────
