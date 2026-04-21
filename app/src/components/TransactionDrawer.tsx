@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, ChevronDown, Calendar, Tag, Plus, Trash2, CreditCard } from 'lucide-react'
+import { X, ChevronDown, Calendar, Tag, Trash2, CreditCard } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { cn, uuid, formatCurrency, getCurrentInvoiceBalance } from '@/lib/utils'
 import type { Transaction, TransactionType } from '@/types'
@@ -53,6 +53,8 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
 
   // M-20: ref for auto-focusing the amount field on open
   const amountInputRef = useRef<HTMLInputElement>(null)
+  const tagMenuRef = useRef<HTMLDivElement>(null)
+  const [showTagMenu, setShowTagMenu] = useState(false)
 
   const [type, setType] = useState<TxType>('EXPENSE')
   const [amount, setAmount] = useState(0)
@@ -128,6 +130,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       setInstallmentsEnabled(false)
       setInstallmentCount(2)
       setShowInstallmentDeleteModal(false)
+      setShowTagMenu(false)
     }
   }, [open, transaction, data, nonCreditAccounts])
 
@@ -138,6 +141,17 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       return () => clearTimeout(id)
     }
   }, [open])
+
+  // Close tag menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target as Node)) {
+        setShowTagMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // When switching to CREDIT_PAYMENT, auto-select the first credit and non-credit accounts
   function handleTypeChange(newType: TxType) {
@@ -517,26 +531,81 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                 <Tag size={12} />
                 {t('transactions.tags')}
               </label>
-              <div className="flex flex-wrap gap-2">
-                {(data?.tags ?? []).map((tag) => (
-                  <button
-                    key={tag.id}
-                    onClick={() => toggleTag(tag.id)}
+
+              {/* Dropdown trigger + panel */}
+              <div className="relative" ref={tagMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowTagMenu((v) => !v)}
+                  className="w-full flex items-center justify-between rounded-xl bg-surface-container-low py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <span className="text-on-surface/40">{t('transactions.tagsPlaceholder')}</span>
+                  <ChevronDown
+                    size={16}
                     className={cn(
-                      'rounded-full px-3 py-1 text-xs font-medium transition-all',
-                      selectedTags.includes(tag.id)
-                        ? 'text-white shadow-sm'
-                        : 'bg-surface-container-low text-on-surface/60'
+                      'text-on-surface/40 transition-transform',
+                      showTagMenu && 'rotate-180'
                     )}
-                    style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
-                  >
-                    #{tag.name}
-                  </button>
-                ))}
-                <button className="flex items-center gap-1 rounded-full bg-surface-container-low px-3 py-1 text-xs text-on-surface/40">
-                  <Plus size={10} /> {t('common.add')}
+                  />
                 </button>
+
+                {showTagMenu && (
+                  <div className="absolute z-20 mt-1 w-full rounded-xl bg-white border border-surface-container-high shadow-ambient overflow-hidden">
+                    {(data?.tags ?? []).filter((tag) => !selectedTags.includes(tag.id)).length ===
+                    0 ? (
+                      <p className="px-4 py-3 text-sm text-center text-on-surface/40">
+                        {t('transactions.tagsAllSelected')}
+                      </p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto">
+                        {(data?.tags ?? [])
+                          .filter((tag) => !selectedTags.includes(tag.id))
+                          .map((tag) => (
+                            <button
+                              key={tag.id}
+                              type="button"
+                              onClick={() => toggleTag(tag.id)}
+                              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition-colors"
+                            >
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: tag.color }}
+                              />
+                              #{tag.name}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {/* Selected tags chips */}
+              {selectedTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedTags.map((tagId) => {
+                    const tag = (data?.tags ?? []).find((tg) => tg.id === tagId)
+                    if (!tag) return null
+                    return (
+                      <span
+                        key={tag.id}
+                        className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white"
+                        style={{ backgroundColor: tag.color }}
+                      >
+                        #{tag.name}
+                        <button
+                          type="button"
+                          onClick={() => toggleTag(tag.id)}
+                          aria-label={`Remover ${tag.name}`}
+                          className="flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
