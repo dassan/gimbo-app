@@ -229,7 +229,12 @@ export default function Transactions() {
           {/* Left column: transaction list */}
           <div className="col-span-2 space-y-6">
             {grouped.length === 0 ? (
-              <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-12 text-center', shadowClass)}>
+              <div
+                className={cn(
+                  'rounded-2xl bg-surface-container border border-outline-variant p-12 text-center',
+                  shadowClass
+                )}
+              >
                 <p className="text-sm text-on-surface/40">{t('common.noData')}</p>
               </div>
             ) : (
@@ -251,7 +256,12 @@ export default function Transactions() {
           {/* pt-6: offsets card by the date label row height (text-xs 16px + mb-2 8px = 24px) */}
           <div className="col-span-1 sticky top-14 pt-6">
             {categoryTotals.length > 0 && (
-              <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
+              <div
+                className={cn(
+                  'rounded-2xl bg-surface-container border border-outline-variant p-6',
+                  shadowClass
+                )}
+              >
                 <h3 className="text-sm font-semibold text-on-surface mb-4">
                   {t('creditCard.spendingSummary')}
                 </h3>
@@ -389,7 +399,12 @@ function DateGroup({
         <span className="label text-xs font-semibold text-on-surface/50 uppercase">{label}</span>
         <span className="text-xs text-on-surface/30">{dateFormatted}</span>
       </div>
-      <div className={cn('rounded-2xl bg-surface-container border border-outline-variant overflow-hidden', shadowClass)}>
+      <div
+        className={cn(
+          'rounded-2xl bg-surface-container border border-outline-variant overflow-hidden',
+          shadowClass
+        )}
+      >
         {txs.map((tx, i) => (
           <TxRow key={tx.id} tx={tx} data={data} isLast={i === txs.length - 1} onEdit={onEditTx} />
         ))}

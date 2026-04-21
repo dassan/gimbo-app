@@ -46,9 +46,7 @@ export default function Navbar({
   const showBadge = fileHandleLost || writeError || (unsyncedCount > 0 && !syncing)
 
   return (
-    <header
-      className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between bg-surface-container-low/80 px-6 backdrop-blur-[24px] border-b border-outline-variant/50"
-    >
+    <header className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between bg-surface-container-low/80 px-6 backdrop-blur-[24px] border-b border-outline-variant/50">
       {/* Logo + nav */}
       <div className="flex items-center gap-8">
         <span className="text-sm font-semibold tracking-tight text-on-surface">
