@@ -121,8 +121,12 @@ test('analytics: EXPENSE on CREDIT account appears in due-date month, not purcha
   await page.goto('/transactions')
   await expect(page).toHaveURL(/\/transactions/)
 
-  // Switch to Personalizado to see all transactions
-  await page.getByRole('button', { name: 'Personalizado' }).click()
+  // Switch to a custom range to see all transactions
+  await page.getByRole('button', { name: 'period-selector' }).click()
+  await page.getByRole('menuitem', { name: 'Escolher período' }).click()
+  await page.getByLabel('custom-start-date').fill('2024-01-01')
+  await page.getByLabel('custom-end-date').fill('2024-12-31')
+  await page.getByRole('button', { name: 'Ok' }).click()
 
   // INCOME on RETAIL appears in the ledger (M-26: CREDIT account transactions live in /credit-card/:id)
   await expect(page.locator('[role="button"]').filter({ hasText: 'Receita Teste' })).toBeVisible({
@@ -200,8 +204,12 @@ test('installments: creating 3x installment generates 3 ledger rows with correct
   await page.goto('/transactions')
   await expect(page).toHaveURL(/\/transactions/)
 
-  // Switch to Personalizado to see all periods
-  await page.getByRole('button', { name: 'Personalizado' }).click()
+  // Switch to a wide custom range to see all installment periods
+  await page.getByRole('button', { name: 'period-selector' }).click()
+  await page.getByRole('menuitem', { name: 'Escolher período' }).click()
+  await page.getByLabel('custom-start-date').fill('2020-01-01')
+  await page.getByLabel('custom-end-date').fill('2030-12-31')
+  await page.getByRole('button', { name: 'Ok' }).click()
 
   // All 3 installment rows must appear with correct suffixes
   await expect(
