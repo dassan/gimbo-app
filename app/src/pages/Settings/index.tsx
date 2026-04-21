@@ -691,9 +691,7 @@ export default function Settings() {
                   </SettingRow>
 
                   {/* Ambient shadows toggle (R-06) */}
-                  <div
-                    className="rounded-2xl bg-surface-container border border-outline-variant px-5 py-4"
-                  >
+                  <div className="rounded-2xl bg-surface-container border border-outline-variant px-5 py-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-on-surface">{t('settings.ambientShadows')}</p>
@@ -719,9 +717,7 @@ export default function Settings() {
                   </div>
 
                   {/* Audit log retention toggle */}
-                  <div
-                    className="rounded-2xl bg-surface-container border border-outline-variant px-5 py-4 space-y-3"
-                  >
+                  <div className="rounded-2xl bg-surface-container border border-outline-variant px-5 py-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-on-surface">{t('audit.retentionLabel')}</p>
@@ -823,9 +819,7 @@ export default function Settings() {
             {activeSection === 'history' && (
               <Section title={t('audit.title')} subtitle={t('audit.subtitle')}>
                 {auditLog.length === 0 ? (
-                  <div
-                    className="rounded-2xl bg-surface-container border border-outline-variant py-12 text-center"
-                  >
+                  <div className="rounded-2xl bg-surface-container border border-outline-variant py-12 text-center">
                     <History
                       size={32}
                       className="mx-auto text-on-surface/20 mb-3"
@@ -840,9 +834,7 @@ export default function Settings() {
                         <p className="label text-xs font-semibold text-on-surface/40 uppercase mb-2">
                           {dateGroupLabel(dateKey)}
                         </p>
-                        <div
-                          className="rounded-2xl bg-surface-container border border-outline-variant overflow-hidden"
-                        >
+                        <div className="rounded-2xl bg-surface-container border border-outline-variant overflow-hidden">
                           {entries.map((entry, i) => (
                             <div
                               key={entry.id}
@@ -1640,9 +1632,7 @@ function Section({
 
 function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
-      className="flex items-center justify-between rounded-2xl bg-surface-container border border-outline-variant px-5 py-4"
-    >
+    <div className="flex items-center justify-between rounded-2xl bg-surface-container border border-outline-variant px-5 py-4">
       <span className="text-sm text-on-surface">{label}</span>
       {children}
     </div>

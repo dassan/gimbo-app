@@ -89,7 +89,12 @@ export default function CashFlowView({
   }
 
   return (
-    <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6 space-y-6', shadowClass)}>
+    <div
+      className={cn(
+        'rounded-2xl bg-surface-container border border-outline-variant p-6 space-y-6',
+        shadowClass
+      )}
+    >
       {/* R-07: ComposedChart — bars for income/expenses + line for accumulated balance */}
       <div className="h-56">
         {hasData ? (

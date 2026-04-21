@@ -219,7 +219,12 @@ function CategoryDonut({ title, entries, shadowClass, onEntryClick }: CategoryDo
   const total = entries.reduce((s, e) => s + e.value, 0)
 
   return (
-    <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
+    <div
+      className={cn(
+        'rounded-2xl bg-surface-container border border-outline-variant p-6',
+        shadowClass
+      )}
+    >
       <div className="flex items-baseline justify-between mb-4">
         <h3 className="text-sm font-semibold text-on-surface">{title}</h3>
         {entries.length > 0 && (
