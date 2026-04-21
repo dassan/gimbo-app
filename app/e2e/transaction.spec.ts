@@ -4,7 +4,9 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const dataFile = JSON.parse(readFileSync(path.join(__dirname, 'fixtures/dataFile.json'), 'utf-8')) as Record<string, unknown>
+const dataFile = JSON.parse(
+  readFileSync(path.join(__dirname, 'fixtures/dataFile.json'), 'utf-8')
+) as Record<string, unknown>
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((data) => {
@@ -47,8 +49,12 @@ test('edit transaction: opens drawer pre-filled on row click', async ({ page }) 
   await page.goto('/transactions')
   await expect(page).toHaveURL(/\/transactions/)
 
-  // The fixture has one transaction "Salário Janeiro" in January 2024 — switch to "custom" period to see it
-  await page.getByRole('button', { name: 'Personalizado' }).click()
+  // The fixture has one transaction "Salário Janeiro" in January 2024 — switch to a custom range to see it
+  await page.getByRole('button', { name: 'period-selector' }).click()
+  await page.getByRole('menuitem', { name: 'Escolher período' }).click()
+  await page.getByLabel('custom-start-date').fill('2024-01-01')
+  await page.getByLabel('custom-end-date').fill('2024-12-31')
+  await page.getByRole('button', { name: 'Ok' }).click()
 
   // Click the transaction row
   const txRow = page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })
@@ -75,7 +81,11 @@ test('edit transaction: updates description and saves', async ({ page }) => {
   await page.goto('/transactions')
   await expect(page).toHaveURL(/\/transactions/)
 
-  await page.getByRole('button', { name: 'Personalizado' }).click()
+  await page.getByRole('button', { name: 'period-selector' }).click()
+  await page.getByRole('menuitem', { name: 'Escolher período' }).click()
+  await page.getByLabel('custom-start-date').fill('2024-01-01')
+  await page.getByLabel('custom-end-date').fill('2024-12-31')
+  await page.getByRole('button', { name: 'Ok' }).click()
 
   const txRow = page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })
   await txRow.waitFor({ state: 'visible', timeout: 5000 })
@@ -95,14 +105,20 @@ test('edit transaction: updates description and saves', async ({ page }) => {
   await expect(backdrop).toHaveClass(/pointer-events-none/, { timeout: 3000 })
 
   // Updated transaction appears in the list
-  await expect(page.locator('[role="button"]').filter({ hasText: 'Salário Fevereiro' })).toBeVisible()
+  await expect(
+    page.locator('[role="button"]').filter({ hasText: 'Salário Fevereiro' })
+  ).toBeVisible()
 })
 
 test('delete transaction: removes the transaction from the list', async ({ page }) => {
   await page.goto('/transactions')
   await expect(page).toHaveURL(/\/transactions/)
 
-  await page.getByRole('button', { name: 'Personalizado' }).click()
+  await page.getByRole('button', { name: 'period-selector' }).click()
+  await page.getByRole('menuitem', { name: 'Escolher período' }).click()
+  await page.getByLabel('custom-start-date').fill('2024-01-01')
+  await page.getByLabel('custom-end-date').fill('2024-12-31')
+  await page.getByRole('button', { name: 'Ok' }).click()
 
   const txRow = page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })
   await txRow.waitFor({ state: 'visible', timeout: 5000 })
@@ -117,5 +133,7 @@ test('delete transaction: removes the transaction from the list', async ({ page 
   await expect(backdrop).toHaveClass(/pointer-events-none/, { timeout: 3000 })
 
   // Transaction no longer in the list
-  await expect(page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })).toHaveCount(0)
+  await expect(page.locator('[role="button"]').filter({ hasText: 'Salário Janeiro' })).toHaveCount(
+    0
+  )
 })
