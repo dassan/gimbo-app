@@ -16,10 +16,32 @@ import CreditCardPage from '@/pages/CreditCard'
 
 export default function App() {
   const initWorkspace = useWorkspaceStore((s) => s.init)
+  const theme = useWorkspaceStore((s) => s.workspace.theme)
   const loadData = useDataStore((s) => s.loadData)
   const data = useDataStore((s) => s.data)
   const [hydrated, setHydrated] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const root = document.documentElement
+
+    if (theme === 'dark') {
+      root.classList.add('dark')
+      return
+    }
+
+    if (theme === 'light') {
+      root.classList.remove('dark')
+      return
+    }
+
+    // system: follow prefers-color-scheme
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = (matches: boolean) => root.classList.toggle('dark', matches)
+    apply(mq.matches)
+    mq.addEventListener('change', (e) => apply(e.matches))
+    return () => mq.removeEventListener('change', (e) => apply(e.matches))
+  }, [theme])
 
   useEffect(() => {
     async function init() {

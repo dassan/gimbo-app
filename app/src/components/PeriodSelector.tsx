@@ -135,8 +135,8 @@ export default function PeriodSelector({ value, onChange }: PeriodSelectorProps)
       {/* ── Period dropdown ──────────────────────────────────────────────── */}
       {showMenu && (
         <div
-          className="absolute left-0 top-full mt-2 z-30 min-w-44 overflow-hidden rounded-2xl bg-white py-1"
-          style={{ boxShadow: '0px 8px 24px rgba(25,28,29,0.12)' }}
+          className="absolute left-0 top-full mt-2 z-30 min-w-44 overflow-hidden rounded-2xl bg-surface-container-high border border-outline-variant py-1"
+          style={{ boxShadow: '0px 8px 24px rgba(0,0,0,0.3)' }}
           role="menu"
         >
           <button
@@ -165,8 +165,8 @@ export default function PeriodSelector({ value, onChange }: PeriodSelectorProps)
       {/* ── Custom date range picker ─────────────────────────────────────── */}
       {showCustomPicker && (
         <div
-          className="absolute left-0 top-full mt-2 z-30 w-72 rounded-2xl bg-white p-5"
-          style={{ boxShadow: '0px 8px 24px rgba(25,28,29,0.12)' }}
+          className="absolute left-0 top-full mt-2 z-30 w-72 rounded-2xl bg-surface-container-high border border-outline-variant p-5"
+          style={{ boxShadow: '0px 8px 24px rgba(0,0,0,0.3)' }}
         >
           <div className="space-y-3 mb-4">
             <div className="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">

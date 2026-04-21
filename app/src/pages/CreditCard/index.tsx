@@ -211,7 +211,7 @@ export default function CreditCardPage() {
       </div>
 
       {/* ── Invoice period + summary card (full width) ────────────────────── */}
-      <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
+      <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
         <div className="flex items-start justify-between gap-4">
           {/* Left: period info */}
           <div className="flex-1">
@@ -336,7 +336,7 @@ export default function CreditCardPage() {
           )}
 
           {/* Transaction list */}
-          <div className={cn('rounded-2xl bg-white overflow-hidden', shadowClass)}>
+          <div className={cn('rounded-2xl bg-surface-container border border-outline-variant overflow-hidden', shadowClass)}>
             {filteredTransactions.length === 0 ? (
               <div className="p-12 text-center">
                 <p className="text-sm text-on-surface/40">{t('creditCard.noTransactions')}</p>
@@ -358,7 +358,7 @@ export default function CreditCardPage() {
         {/* Right column: spending summary (sticky) */}
         <div className="col-span-1 sticky top-8">
           {categoryTotals.length > 0 && (
-            <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
+            <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
               <h3 className="text-sm font-semibold text-on-surface mb-4">
                 {t('creditCard.spendingSummary')}
               </h3>
@@ -514,8 +514,8 @@ function PayInvoiceModal({
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-5"
-          style={{ boxShadow: '0px 20px 60px rgba(25,28,29,0.15)' }}
+          className="w-full max-w-sm rounded-2xl bg-surface-container-low border border-outline-variant p-6 space-y-5"
+          style={{ boxShadow: '0px 20px 60px rgba(0,0,0,0.4)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
