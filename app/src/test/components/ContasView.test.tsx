@@ -244,7 +244,11 @@ describe('ContasView — R-15: CREDIT accounts in separate section', () => {
   it('hides accounts and credit cards with includeInBalance=false', () => {
     const accounts = [
       makeRetailAccount({ id: 'acc-hidden', name: 'Conta Oculta', includeInBalance: false }),
-      makeCreditAccount({ id: 'acc-credit-hidden', name: 'Cartão Oculto', includeInBalance: false }),
+      makeCreditAccount({
+        id: 'acc-credit-hidden',
+        name: 'Cartão Oculto',
+        includeInBalance: false,
+      }),
     ]
     render(
       <ContasView
