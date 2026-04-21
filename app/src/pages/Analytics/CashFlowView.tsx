@@ -26,6 +26,7 @@ export interface CashFlowViewProps {
 
 interface PeriodRow {
   label: string
+  fullLabel: string
   income: number
   expenses: number
   result: number
@@ -44,11 +45,15 @@ export default function CashFlowView({
   const { t } = useTranslation()
 
   const rows = useMemo((): PeriodRow[] => {
-    const months: { label: string; m: number; y: number }[] = []
+    const months: { label: string; fullLabel: string; m: number; y: number }[] = []
     const cur = new Date(startDate)
     while (cur <= endDate) {
+      const fullLabel = cur
+        .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+        .replace(/^(.)/, (c) => c.toUpperCase())
       months.push({
         label: cur.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
+        fullLabel,
         m: cur.getMonth(),
         y: cur.getFullYear(),
       })
@@ -56,7 +61,7 @@ export default function CashFlowView({
     }
 
     let cumulative = 0
-    return months.map(({ label, m, y }) => {
+    return months.map(({ label, fullLabel, m, y }) => {
       const txs = transactions.filter((tx) => {
         // CC-17: CREDIT_PAYMENT is liability liquidation, not income/expense
         if (tx.type === 'CREDIT_PAYMENT') return false
@@ -71,7 +76,7 @@ export default function CashFlowView({
       const expenses = txs.filter((t) => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
       const result = income - expenses
       cumulative += result
-      return { label, income, expenses, result, balance: cumulative }
+      return { label, fullLabel, income, expenses, result, balance: cumulative }
     })
   }, [transactions, accounts, startDate, endDate, includeUnpaid, accountId])
 
@@ -175,7 +180,7 @@ export default function CashFlowView({
                 key={row.label}
                 className="grid grid-cols-5 rounded-xl px-2 py-2 hover:bg-surface-container-low transition-colors"
               >
-                <p className="text-xs font-medium text-on-surface">{row.label}</p>
+                <p className="text-xs font-medium text-on-surface">{row.fullLabel}</p>
                 <p className="text-xs text-right text-primary font-medium">
                   {formatCurrency(row.income)}
                 </p>

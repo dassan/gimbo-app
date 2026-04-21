@@ -167,11 +167,11 @@ describe('ContasView — R-15: account grid', () => {
 // ─── R-15: CREDIT accounts separate section ───────────────────────────────────
 
 describe('ContasView — R-15: CREDIT accounts in separate section', () => {
-  it('renders the creditCards section header for CREDIT accounts', () => {
+  it('renders the creditCards section header for CREDIT accounts with includeInBalance', () => {
     render(
       <ContasView
         transactions={[]}
-        accounts={[makeCreditAccount()]}
+        accounts={[makeCreditAccount({ includeInBalance: true })]}
         startDate={APR_START}
         endDate={APR_END}
         includeUnpaid={true}
@@ -186,7 +186,7 @@ describe('ContasView — R-15: CREDIT accounts in separate section', () => {
     render(
       <ContasView
         transactions={[]}
-        accounts={[makeCreditAccount({ name: 'Nubank Platinum' })]}
+        accounts={[makeCreditAccount({ name: 'Nubank Platinum', includeInBalance: true })]}
         startDate={APR_START}
         endDate={APR_END}
         includeUnpaid={true}
@@ -199,7 +199,7 @@ describe('ContasView — R-15: CREDIT accounts in separate section', () => {
   it('does not mix CREDIT accounts into the non-CREDIT grid', () => {
     const accounts = [
       makeRetailAccount({ id: 'acc-retail', name: 'Conta Corrente' }),
-      makeCreditAccount({ id: 'acc-credit', name: 'Cartão Roxo' }),
+      makeCreditAccount({ id: 'acc-credit', name: 'Cartão Roxo', includeInBalance: true }),
     ]
     render(
       <ContasView
@@ -230,7 +230,7 @@ describe('ContasView — R-15: CREDIT accounts in separate section', () => {
     render(
       <ContasView
         transactions={transactions}
-        accounts={[makeCreditAccount()]}
+        accounts={[makeCreditAccount({ includeInBalance: true })]}
         startDate={APR_START}
         endDate={APR_END}
         includeUnpaid={true}
@@ -239,6 +239,26 @@ describe('ContasView — R-15: CREDIT accounts in separate section', () => {
     )
     // Invoice total 750 should be visible in the card
     expect(screen.getByText(/750/)).toBeInTheDocument()
+  })
+
+  it('hides accounts and credit cards with includeInBalance=false', () => {
+    const accounts = [
+      makeRetailAccount({ id: 'acc-hidden', name: 'Conta Oculta', includeInBalance: false }),
+      makeCreditAccount({ id: 'acc-credit-hidden', name: 'Cartão Oculto', includeInBalance: false }),
+    ]
+    render(
+      <ContasView
+        transactions={[]}
+        accounts={accounts}
+        startDate={APR_START}
+        endDate={APR_END}
+        includeUnpaid={true}
+        shadowClass={SHADOW}
+      />
+    )
+    expect(screen.queryByText('Conta Oculta')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cartão Oculto')).not.toBeInTheDocument()
+    expect(screen.getByText('analytics.contas.selectPrompt')).toBeInTheDocument()
   })
 })
 
@@ -304,7 +324,7 @@ describe('ContasView — R-16: drill-down and back navigation', () => {
     render(
       <ContasView
         transactions={[]}
-        accounts={[makeCreditAccount({ name: 'Cartão Visa' })]}
+        accounts={[makeCreditAccount({ name: 'Cartão Visa', includeInBalance: true })]}
         startDate={APR_START}
         endDate={APR_END}
         includeUnpaid={true}

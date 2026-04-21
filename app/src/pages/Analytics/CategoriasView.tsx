@@ -220,7 +220,12 @@ function CategoryDonut({ title, entries, shadowClass, onEntryClick }: CategoryDo
 
   return (
     <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
-      <h3 className="text-sm font-semibold text-on-surface mb-4">{title}</h3>
+      <div className="flex items-baseline justify-between mb-4">
+        <h3 className="text-sm font-semibold text-on-surface">{title}</h3>
+        {entries.length > 0 && (
+          <span className="text-sm font-bold text-on-surface">{formatCurrency(total)}</span>
+        )}
+      </div>
 
       {entries.length === 0 ? (
         <p className="py-8 text-center text-sm text-on-surface/30">
@@ -229,14 +234,14 @@ function CategoryDonut({ title, entries, shadowClass, onEntryClick }: CategoryDo
       ) : (
         <div className="flex gap-6">
           {/* Donut chart */}
-          <div className="relative shrink-0" style={{ width: 120, height: 120 }}>
-            <PieChart width={120} height={120}>
+          <div className="relative shrink-0" style={{ width: 160, height: 160 }}>
+            <PieChart width={160} height={160}>
               <Pie
                 data={entries}
-                cx={60}
-                cy={60}
-                innerRadius={40}
-                outerRadius={56}
+                cx={80}
+                cy={80}
+                innerRadius={53}
+                outerRadius={74}
                 paddingAngle={2}
                 dataKey="value"
                 strokeWidth={0}
@@ -251,21 +256,6 @@ function CategoryDonut({ title, entries, shadowClass, onEntryClick }: CategoryDo
                 ))}
               </Pie>
             </PieChart>
-            {/* M-29: font size scales down for long currency values to avoid overflow */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-1">
-              <p
-                className={cn(
-                  'font-bold text-on-surface text-center leading-tight',
-                  formatCurrency(total).length >= 12
-                    ? 'text-[9px]'
-                    : formatCurrency(total).length >= 10
-                      ? 'text-[10px]'
-                      : 'text-xs'
-                )}
-              >
-                {formatCurrency(total)}
-              </p>
-            </div>
           </div>
 
           {/* Legend — all categories, no 5-item limit (R-09) */}
