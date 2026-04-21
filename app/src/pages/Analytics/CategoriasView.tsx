@@ -219,7 +219,7 @@ function CategoryDonut({ title, entries, shadowClass, onEntryClick }: CategoryDo
   const total = entries.reduce((s, e) => s + e.value, 0)
 
   return (
-    <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
+    <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
       <div className="flex items-baseline justify-between mb-4">
         <h3 className="text-sm font-semibold text-on-surface">{title}</h3>
         {entries.length > 0 && (
@@ -350,8 +350,8 @@ function DrilldownModal({
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="w-full max-w-lg rounded-2xl bg-white p-6 space-y-4 flex flex-col max-h-[85vh]"
-          style={{ boxShadow: '0px 20px 60px rgba(25,28,29,0.15)' }}
+          className="w-full max-w-lg rounded-2xl bg-surface-container-low border border-outline-variant p-6 space-y-4 flex flex-col max-h-[85vh]"
+          style={{ boxShadow: '0px 20px 60px rgba(0,0,0,0.4)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

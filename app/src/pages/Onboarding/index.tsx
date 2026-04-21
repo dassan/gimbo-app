@@ -172,8 +172,8 @@ export default function Onboarding() {
         {/* ── Right form panel ── */}
         <div className="flex flex-1 items-center justify-center bg-surface-container-low p-6 lg:p-12">
           <div
-            className="w-full max-w-md rounded-3xl bg-white p-8"
-            style={{ boxShadow: '0px 20px 60px rgba(25,28,29,0.08)' }}
+            className="w-full max-w-md rounded-3xl bg-surface-container border border-outline-variant p-8"
+            style={{ boxShadow: '0px 20px 60px rgba(0,0,0,0.3)' }}
           >
             {/* Tabs */}
             <div className="flex rounded-full bg-surface-container-low p-1 mb-8">
@@ -344,7 +344,7 @@ function TabButton({
       className={cn(
         'flex-1 rounded-full py-2 text-sm font-medium transition-all',
         active
-          ? 'bg-white text-on-surface shadow-sm'
+          ? 'bg-surface-container-high text-on-surface shadow-sm'
           : 'text-on-surface/40 hover:text-on-surface/60'
       )}
     >

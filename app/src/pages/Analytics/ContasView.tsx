@@ -151,7 +151,7 @@ export default function ContasView({
     <div className="space-y-6">
       {/* Non-CREDIT accounts grid */}
       {summaries.length === 0 && creditSummaries.length === 0 ? (
-        <div className={cn('rounded-2xl bg-white p-12 text-center', shadowClass)}>
+        <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-12 text-center', shadowClass)}>
           <p className="text-sm text-on-surface/30">{t('analytics.contas.selectPrompt')}</p>
         </div>
       ) : (
@@ -229,7 +229,7 @@ function AccountCard({
     <button
       onClick={onClick}
       className={cn(
-        'rounded-2xl bg-white p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.99]',
+        'rounded-2xl bg-surface-container border border-outline-variant p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.99]',
         shadowClass
       )}
     >
@@ -290,7 +290,7 @@ function CreditAccountCard({
     <button
       onClick={onClick}
       className={cn(
-        'rounded-2xl bg-white p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.99]',
+        'rounded-2xl bg-surface-container border border-outline-variant p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.99]',
         shadowClass
       )}
     >

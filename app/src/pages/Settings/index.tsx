@@ -451,8 +451,7 @@ export default function Settings() {
                           <button
                             key={acc.id}
                             onClick={() => setModal({ open: true, account: acc })}
-                            className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
-                            style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                            className="flex w-full items-center gap-4 rounded-2xl bg-surface-container border border-outline-variant px-5 py-4 text-left hover:bg-surface-container-high transition-colors"
                           >
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
                               <span className="text-primary">{accountTypeIcon(acc.type)}</span>
@@ -500,8 +499,7 @@ export default function Settings() {
                             <button
                               key={acc.id}
                               onClick={() => setModal({ open: true, account: acc })}
-                              className="flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
-                              style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                              className="flex w-full items-center gap-4 rounded-2xl bg-surface-container border border-outline-variant px-5 py-4 text-left hover:bg-surface-container-high transition-colors"
                             >
                               <div
                                 className="flex h-10 w-10 items-center justify-center rounded-xl text-white"
@@ -562,8 +560,7 @@ export default function Settings() {
                       <div key={parent.id}>
                         <button
                           onClick={() => setCategoryModal({ open: true, category: parent })}
-                          className="flex w-full items-center gap-3 rounded-2xl bg-white px-5 py-4 text-left hover:bg-surface-container-low transition-colors"
-                          style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                          className="flex w-full items-center gap-3 rounded-2xl bg-surface-container border border-outline-variant px-5 py-4 text-left hover:bg-surface-container-high transition-colors"
                         >
                           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
                             <span className="text-primary">{categoryIcon(parent.icon)}</span>
@@ -695,8 +692,7 @@ export default function Settings() {
 
                   {/* Ambient shadows toggle (R-06) */}
                   <div
-                    className="rounded-2xl bg-white px-5 py-4"
-                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                    className="rounded-2xl bg-surface-container border border-outline-variant px-5 py-4"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -724,8 +720,7 @@ export default function Settings() {
 
                   {/* Audit log retention toggle */}
                   <div
-                    className="rounded-2xl bg-white px-5 py-4 space-y-3"
-                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                    className="rounded-2xl bg-surface-container border border-outline-variant px-5 py-4 space-y-3"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -779,8 +774,7 @@ export default function Settings() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={handleExport}
-                    className="flex flex-col items-center gap-2 rounded-2xl bg-white py-6 hover:bg-surface-container-low transition-colors"
-                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                    className="flex flex-col items-center gap-2 rounded-2xl bg-surface-container border border-outline-variant py-6 hover:bg-surface-container-high transition-colors"
                   >
                     <Download size={22} className="text-on-surface/60" strokeWidth={1.5} />
                     <span className="text-sm font-medium text-on-surface">
@@ -789,8 +783,7 @@ export default function Settings() {
                   </button>
                   <button
                     onClick={() => void handleImport()}
-                    className="flex flex-col items-center gap-2 rounded-2xl bg-white py-6 hover:bg-surface-container-low transition-colors"
-                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                    className="flex flex-col items-center gap-2 rounded-2xl bg-surface-container border border-outline-variant py-6 hover:bg-surface-container-high transition-colors"
                   >
                     <Upload size={22} className="text-on-surface/60" strokeWidth={1.5} />
                     <span className="text-sm font-medium text-on-surface">
@@ -816,8 +809,7 @@ export default function Settings() {
                     </p>
                     <button
                       onClick={handleExport}
-                      className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      style={{ boxShadow: '0px 1px 4px rgba(25,28,29,0.06)' }}
+                      className="flex items-center gap-1.5 rounded-lg bg-surface-container border border-outline-variant px-3 py-1.5 text-xs font-medium text-on-surface hover:bg-surface-container-high transition-colors"
                     >
                       <Download size={12} strokeWidth={2} />
                       {t('settings.exportLocalData')}
@@ -832,8 +824,7 @@ export default function Settings() {
               <Section title={t('audit.title')} subtitle={t('audit.subtitle')}>
                 {auditLog.length === 0 ? (
                   <div
-                    className="rounded-2xl bg-white py-12 text-center"
-                    style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                    className="rounded-2xl bg-surface-container border border-outline-variant py-12 text-center"
                   >
                     <History
                       size={32}
@@ -850,8 +841,7 @@ export default function Settings() {
                           {dateGroupLabel(dateKey)}
                         </p>
                         <div
-                          className="rounded-2xl bg-white overflow-hidden"
-                          style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+                          className="rounded-2xl bg-surface-container border border-outline-variant overflow-hidden"
                         >
                           {entries.map((entry, i) => (
                             <div
@@ -1035,7 +1025,7 @@ function AddAccountModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm rounded-3xl bg-surface-container-low border border-outline-variant p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-semibold text-on-surface">
@@ -1287,7 +1277,7 @@ function AddTagModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm rounded-3xl bg-surface-container-low border border-outline-variant p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between mb-5">
           <div>
@@ -1440,7 +1430,7 @@ function AddCategoryModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm rounded-3xl bg-surface-container-low border border-outline-variant p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between mb-5">
           <div>
@@ -1651,8 +1641,7 @@ function Section({
 function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div
-      className="flex items-center justify-between rounded-2xl bg-white px-5 py-4"
-      style={{ boxShadow: '0px 2px 12px rgba(25,28,29,0.04)' }}
+      className="flex items-center justify-between rounded-2xl bg-surface-container border border-outline-variant px-5 py-4"
     >
       <span className="text-sm text-on-surface">{label}</span>
       {children}

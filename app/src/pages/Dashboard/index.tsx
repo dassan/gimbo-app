@@ -212,7 +212,7 @@ export default function Dashboard() {
       {/* ── Minhas Contas + Meus Cartões row — always grid-cols-2 ──────────── */}
       <div className="grid grid-cols-2 gap-4">
         {/* My Accounts — standard accounts with includeInBalance */}
-        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
+        <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
           <h3 className="text-sm font-semibold text-on-surface mb-4">
             {t('dashboard.myAccounts')}
           </h3>
@@ -235,7 +235,7 @@ export default function Dashboard() {
         </div>
 
         {/* My Cards — always rendered; empty state when no CREDIT accounts */}
-        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
+        <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-on-surface">{t('dashboard.myCards')}</h3>
             {creditAccounts.length > 0 && (
@@ -281,13 +281,13 @@ export default function Dashboard() {
       {/* ── Bottom row: Recent transactions + Donut — always grid-cols-2 ──── */}
       <div className="grid grid-cols-2 gap-4">
         {/* Recent transactions — 1/2 */}
-        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
+        <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
           <RecentTransactionsHeader t={t} onViewAll={() => void navigate('/transactions')} />
           <RecentTransactionsList recentTxs={recentTxs} data={data} t={t} />
         </div>
 
         {/* Expenses by category donut — 1/2 */}
-        <div className={cn('rounded-2xl bg-white p-6', shadowClass)}>
+        <div className={cn('rounded-2xl bg-surface-container border border-outline-variant p-6', shadowClass)}>
           <h3 className="text-sm font-semibold text-on-surface mb-4">
             {t('dashboard.byCategory')}
           </h3>
@@ -435,7 +435,7 @@ function StatCard({
     <div
       className={cn(
         'rounded-2xl p-5',
-        isBalance ? 'bg-primary text-white' : 'bg-white',
+        isBalance ? 'bg-primary text-white' : 'bg-surface-container border border-outline-variant',
         !isBalance && shadowClass
       )}
     >

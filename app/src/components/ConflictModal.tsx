@@ -11,7 +11,7 @@ export default function ConflictModal({ onOverwrite, onLoadCloud }: ConflictModa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm rounded-3xl bg-surface-container-low border border-outline-variant p-6 shadow-2xl">
         {/* Header */}
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-tertiary/10">

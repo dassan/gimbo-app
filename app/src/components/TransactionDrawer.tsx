@@ -269,7 +269,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       {/* Sheet */}
       <aside
         className={cn(
-          'fixed right-0 top-0 z-50 flex h-full w-full max-w-[480px] flex-col bg-white transition-transform duration-300 ease-out',
+          'fixed right-0 top-0 z-50 flex h-full w-full max-w-[480px] flex-col bg-surface-container-low transition-transform duration-300 ease-out',
           open ? 'translate-x-0' : 'translate-x-full'
         )}
         style={{ boxShadow: '-20px 0 60px rgba(25,28,29,0.08)' }}
@@ -314,7 +314,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                   className={cn(
                     'flex-1 rounded-xl py-2 text-sm font-medium transition-all',
                     type === key
-                      ? cn('bg-white shadow-ambient', TYPE_CONFIG[key].color)
+                      ? cn('bg-surface-container-high shadow-ambient', TYPE_CONFIG[key].color)
                       : 'text-on-surface/40 hover:text-on-surface/60'
                   )}
                 >
@@ -481,7 +481,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                         const v = Math.max(2, Math.min(36, parseInt(e.target.value, 10) || 2))
                         setInstallmentCount(v)
                       }}
-                      className="w-full rounded-xl bg-white border border-surface-container-high py-3 px-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-full rounded-xl bg-surface-container border border-outline-variant py-3 px-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
                     />
                   </div>
                   {amount > 0 && (
@@ -550,7 +550,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                 </button>
 
                 {showTagMenu && (
-                  <div className="absolute z-20 mt-1 w-full rounded-xl bg-white border border-surface-container-high shadow-ambient overflow-hidden">
+                  <div className="absolute z-20 mt-1 w-full rounded-xl bg-surface-container-high border border-outline-variant shadow-ambient overflow-hidden">
                     {(data?.tags ?? []).filter((tag) => !selectedTags.includes(tag.id)).length ===
                     0 ? (
                       <p className="px-4 py-3 text-sm text-center text-on-surface/40">
@@ -694,7 +694,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
         {/* ── CC-26: Installment deletion modal ────────────────────────────── */}
         {showInstallmentDeleteModal && transaction?.installment && (
           <div className="absolute inset-0 z-10 flex items-end bg-on-surface/30 backdrop-blur-sm">
-            <div className="w-full rounded-t-2xl bg-white px-6 pb-8 pt-6 space-y-3">
+            <div className="w-full rounded-t-2xl bg-surface-container-low border-t border-outline-variant px-6 pb-8 pt-6 space-y-3">
               <h3 className="text-base font-semibold text-on-surface">
                 {t('transactions.deleteInstallmentTitle')}
               </h3>
