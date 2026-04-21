@@ -269,7 +269,7 @@ function CategoryDonut({ title, entries, shadowClass, onEntryClick }: CategoryDo
           </div>
 
           {/* Legend — all categories, no 5-item limit (R-09) */}
-          <div className="flex-1 space-y-2 overflow-y-auto max-h-[200px]">
+          <div className="flex-1 space-y-2">
             {entries.map((entry) => (
               <button
                 key={entry.id}
