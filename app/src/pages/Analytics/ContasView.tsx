@@ -71,8 +71,14 @@ export default function ContasView({
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
 
   // ── Split accounts into non-CREDIT and CREDIT ─────────────────────────────
-  const regularAccounts = useMemo(() => accounts.filter((a) => a.type !== 'CREDIT'), [accounts])
-  const creditAccounts = useMemo(() => accounts.filter((a) => a.type === 'CREDIT'), [accounts])
+  const regularAccounts = useMemo(
+    () => accounts.filter((a) => a.type !== 'CREDIT' && a.includeInBalance),
+    [accounts]
+  )
+  const creditAccounts = useMemo(
+    () => accounts.filter((a) => a.type === 'CREDIT' && a.includeInBalance),
+    [accounts]
+  )
 
   // ── Compute income/expenses/result per non-CREDIT account ─────────────────
   const summaries = useMemo((): AccountSummary[] => {
