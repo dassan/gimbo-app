@@ -24,26 +24,47 @@ Most finance tools trade your privacy for convenience — storing transaction hi
 | # | Feature |
 |---|---------|
 | F-1 | User profile (name, e-mail) |
-| F-2 | Account management — 8 types: Checking, Savings, Credit Card, Crypto, Forex, Asset, Stocks, Other |
+| F-2 | Account management — 8 types: Checking, Savings, Credit Card, Crypto, Forex, Asset, Stocks, Other; initial balance; issuer icon for credit cards |
 | F-3 | Categories with sub-category hierarchy and icon picker |
 | F-4 | Customisable tags with colour palette, assignable to transactions |
-| F-5 | Full transaction CRUD — Income, Expense, Transfer |
-| F-6 | Monthly dashboard — income, expenses, consolidated balance, accounts list |
-| F-7 | Cash-flow chart (line) — configurable period with monthly/semester/custom views |
-| F-8 | Expense & income breakdown by category (donut charts) |
+| F-5 | Full transaction CRUD — Income, Expense, Transfer, Credit Payment |
+| F-6 | Monthly dashboard — income, expenses, consolidated balance, accounts & cards list with credit utilisation bar, expense donut chart, recent transactions (first instalment only for split purchases) |
+| F-7 | Analytics — Cash-flow chart (bars + cumulative balance line) with ±3-month configurable period |
+| F-8 | Analytics — Expense & income breakdown by category with percentage legend and drill-down modal |
 | F-9 | Export / Import `data.json` |
 | F-10 | Language selector (pt-BR / en-US) with live switching |
 | F-11 | Onboarding — create a new ledger or import an existing file |
+| F-12 | Auto-save via IndexedDB with ~300 ms debounce |
+| F-13 | Audit log with configurable retention (200 entries / 90 days, opt-in unlimited) |
 
 ### Credit Cards
 
 | # | Feature |
 |---|---------|
-| F-21 | Credit account type with `limit`, `closingDay`, and `dueDay` fields |
+| F-21 | Credit account type with `limit`, `closingDay`, `dueDay`, and `issuerIcon` fields; "Accounts & Cards" split in Settings; available-limit display on Dashboard |
 | F-22 | Virtual invoice engine — invoice periods, due dates, and available limit computed at runtime (nothing extra stored in `data.json`) |
-| F-23 | Invoice detail page (`/credit-card/:accountId`) — transactions per period, category chips filter, spending summary, period navigation |
-| F-24 | Instalment purchases — a single purchase splits into N independent transactions with `(X/N)` suffix and per-month dates |
-| F-25 | Invoice payment (`CREDIT_PAYMENT`) — dedicated transaction type linking the credit account to the debit account |
+| F-23 | Invoice detail page (`/credit-card/:accountId`) — transactions per period, category chips filter, spending summary sidebar, period navigation |
+| F-24 | Instalment purchases — a single purchase splits into N independent transactions with `(X/N)` suffix and per-month dates; delete-one or delete-all modal |
+| F-25 | Invoice payment (`CREDIT_PAYMENT`) — dedicated drawer on the invoice page linking the credit account to the debit account; excluded from income/expense totals |
+
+### Analytics (Advanced Reports)
+
+| # | Feature |
+|---|---------|
+| R-1 | 4-tab analytics shell with shared period selector (month / custom range) and "include unpaid" toggle |
+| R-2 | **Cash Flow view** — grouped bar chart (income/expenses) + cumulative balance line; data grid table with period, income, expenses, result, and balance columns |
+| R-3 | **Categories view** — 50/50 income/expense donuts with enriched legend (icon, name, amount, %); click any segment or row to open a drill-down modal with the filtered transactions |
+| R-4 | **Accounts view** — card grid with per-account period summary (income, expenses, result); click a card for an inline cash-flow drill-down; credit cards in a separate section |
+| R-5 | **Tags view** — ranked horizontal bar chart for expenses and income; multi-tag filter with OR / AND toggle |
+| R-6 | Ambient shadows feature toggle (Settings → Preferences) |
+
+### Transactions & Period Navigation
+
+| Feature | Detail |
+|---------|--------|
+| Transactions page | Shows only non-credit cash-flow entries; spending summary sidebar per period |
+| Period selector | Shared `PeriodSelector` component used in Transactions and all Analytics views |
+| Credit entries | Managed exclusively in `/credit-card/:accountId` |
 
 ### Sync & Resilience
 
@@ -54,6 +75,7 @@ Most finance tools trade your privacy for convenience — storing transaction hi
 | Conflict detection | If the file was modified outside Nexus, a modal lets you choose: keep local or load from file |
 | Tombstone sync | Deleted entities are tracked in `deletedIds` — they never re-appear after merging with the disk file |
 | FileHandle persistence | The File System Access handle is saved in IndexedDB; on cold start the file opens without a picker dialog |
+| Re-permission flow | `queryPermission` on startup; permission prompt deferred to first user interaction |
 | Multi-tab guard | A `BroadcastChannel` detects concurrent tabs and blocks mutations in the secondary tab |
 | FSA fallback | On Firefox / Safari, sync is replaced by file download + `<input type="file">` import |
 
@@ -148,8 +170,10 @@ nexus-app/
 │       └── audit.yml       # weekly dependency audit
 ├── plan/
 │   ├── PRD.md              # Product Requirements Document
-│   ├── SPEC.md             # Technical specification (sync, milestones)
+│   ├── ARCHITECTURE.md     # Stack, data model, persistence flows, tests
 │   ├── BACKLOG.md          # Bugs (B-XX) and improvements (M-XX)
+│   ├── REPORTS.md          # Advanced analytics epic (4 views)
+│   ├── CREDIT_CARD.md      # Credit card module decisions and spec
 │   ├── RULES.md            # Human + AI development workflow
 │   └── SYNC_SCENARIOS.md   # Edge-case scenarios for persistence
 ├── design/
@@ -170,21 +194,22 @@ nexus-app/
     │   │       └── sync.ts         # importFileToIdb() + syncToFile()
     │   ├── store/
     │   │   ├── useDataStore.ts         # Financial data, mutations, sync state
-    │   │   └── useWorkspaceStore.ts    # UI preferences (theme, locale, defaultView)
+    │   │   └── useWorkspaceStore.ts    # UI preferences (theme, locale, defaultView, ambientShadows)
     │   ├── components/
     │   │   ├── AppLayout.tsx           # Shell: Navbar + Outlet + FAB + modals + banners
     │   │   ├── TransactionDrawer.tsx   # Slide-in form for creating/editing transactions
+    │   │   ├── PeriodSelector.tsx      # Shared period navigation (month/custom) used in Transactions and Analytics
     │   │   ├── ConflictModal.tsx       # File conflict resolution modal
     │   │   └── ...
     │   ├── pages/
     │   │   ├── Onboarding/     # Create or import a ledger
-    │   │   ├── Dashboard/      # Monthly stat cards, accounts list, donut, recent transactions
-    │   │   ├── Transactions/   # Full ledger with filters and date grouping
-    │   │   ├── Analytics/      # Cash-flow chart + category breakdown
-    │   │   ├── CreditCard/     # Invoice detail for a specific credit account
-    │   │   └── Settings/       # Accounts, categories, tags, profile, preferences, audit log
+    │   │   ├── Dashboard/      # Monthly stat cards, accounts & cards list, donut, recent transactions
+    │   │   ├── Transactions/   # Cash-flow ledger with period selector and spending summary
+    │   │   ├── Analytics/      # 4-tab shell + CashFlowView, CategoriasView, ContasView, TagsView
+    │   │   ├── CreditCard/     # Invoice detail for a specific credit account + payment drawer
+    │   │   └── Settings/       # Accounts & Cards, categories, tags, profile, preferences, audit log
     │   └── test/
-    │       ├── fixtures/       # makeDataFile() and other test factories
+    │       ├── fixtures/       # makeDataFile(), makeCreditAccount(), makeInstallmentGroup()
     │       ├── lib/            # Unit tests for storage modules and utilities
     │       ├── store/          # Unit tests for store mutations and persistence
     │       └── components/     # Unit tests for React components
@@ -201,7 +226,8 @@ nexus-app/
   "user":         { "name", "email", "createdAt", "updatedAt" },
   "settings":     { "fileCreatedAt", "fileUpdatedAt", "auditLogRetentionLimit" },
   "accounts":     [{ "id", "name", "type", "balance", "includeInBalance",
-                     "creditMetadata?": { "limit", "closingDay", "dueDay" } }],
+                     "creditMetadata?": { "limit", "closingDay", "dueDay" },
+                     "issuerIcon?": "string" }],
   "categories":   [{ "id", "parentId", "name", "icon", "color", "type" }],
   "tags":         [{ "id", "name", "color" }],
   "transactions": [{ "id", "accountId", "categoryId", "amount", "type",
@@ -218,7 +244,7 @@ nexus-app/
 **`nexus_workspace`** (localStorage) — UI preferences, never leaves the browser:
 
 ```jsonc
-{ "theme": "system | light | dark", "locale": "pt-BR | en-US", "defaultView": "dashboard" }
+{ "theme": "system | light | dark", "locale": "pt-BR | en-US", "defaultView": "dashboard", "useAmbientShadows": false }
 ```
 
 ### Architecture Highlights
@@ -250,6 +276,8 @@ User action
 
 Credit card invoices are not stored — they are computed at runtime from `closingDay` and `dueDay`. Four pure functions compose the engine: `getInvoicePeriod`, `getInvoiceDueDate`, `getCurrentInvoiceBalance`, `getEffectiveCashFlowDate`. All use `parseDateLocal` internally.
 
+`getEffectiveCashFlowDate` is used exclusively in the cash-flow chart to shift credit expenses to the invoice due date. Category breakdowns always use `tx.date` directly.
+
 ### Quality Gates
 
 Run all checks before opening a PR — CI executes the same commands:
@@ -260,11 +288,11 @@ cd app
 npm run format:check   # Prettier
 npm run lint           # ESLint
 npx tsc -b --noEmit    # TypeScript strict
-npx vitest run --coverage  # 351 unit tests — threshold: 80% lines/functions
+npx vitest run --coverage  # 473 unit tests — threshold: 80% lines/functions
 npx playwright test    # 19 E2E tests (Chromium only)
 ```
 
-Current coverage: **97.3% statements**, ~92% branches, ~95% functions.
+Current coverage: **~97% statements**, ~92% branches, ~95% functions.
 
 ### Commit Convention
 
@@ -302,10 +330,10 @@ Reference bug/milestone IDs when applicable: `fix(B-09): use effective cash-flow
 - Automated Open Banking / bank import
 - Native mobile app (iOS / Android)
 - Cloud storage or online authentication
-- Chargebacks / reversals (mapped as M-22)
+- Chargebacks / reversals (M-22, low priority — manual workaround available)
 
 ---
 
 ## Licence
 
-Private repository — all rights reserved.
+MIT.
