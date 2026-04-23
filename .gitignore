@@ -27,3 +27,6 @@ app/dev-dist/
 # Claude Code / Agent SDK — installed skills (like node_modules; use skills-lock.json instead)
 .claude/
 .agents/
+
+# Data directory
+data/
