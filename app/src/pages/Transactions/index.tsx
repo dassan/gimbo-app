@@ -429,9 +429,8 @@ function TxRow({
   const { t } = useTranslation()
   const cat = data.categories.find((c) => c.id === tx.categoryId)
   const acc = data.accounts.find((a) => a.id === tx.accountId)
-  const destAcc = tx.type === 'TRANSFER'
-    ? data.accounts.find((a) => a.id === tx.transferAccountId)
-    : null
+  const destAcc =
+    tx.type === 'TRANSFER' ? data.accounts.find((a) => a.id === tx.transferAccountId) : null
   const txTags = data.tags.filter((tag) => tx.tags.includes(tag.id))
   const isIncome = tx.type === 'INCOME'
   const isTransfer = tx.type === 'TRANSFER'
@@ -506,9 +505,7 @@ function TxRow({
         <div className="text-right">
           {isTransfer ? (
             <>
-              <p className="text-sm font-bold text-on-surface/50">
-                {formatCurrency(tx.amount)}
-              </p>
+              <p className="text-sm font-bold text-on-surface/50">{formatCurrency(tx.amount)}</p>
               <p className="text-[10px] text-on-surface/30 mt-0.5">Transf.</p>
             </>
           ) : (

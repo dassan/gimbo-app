@@ -50,7 +50,8 @@ export default function Navbar({
       {/* Logo + nav */}
       <div className="flex items-center gap-8">
         <span className="text-sm font-semibold tracking-tight">
-          <span className="text-primary">Gim</span><span style={{ color: '#D4A017' }}>bo</span>
+          <span className="text-primary">Gim</span>
+          <span style={{ color: '#D4A017' }}>bo</span>
         </span>
 
         <nav className="flex items-center gap-1">
