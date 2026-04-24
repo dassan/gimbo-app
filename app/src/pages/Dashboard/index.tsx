@@ -41,12 +41,12 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ReactNode> = {
 
 const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
   RETAIL: '#3B82F6',
-  SAVINGS: '#22C55E',
+  SAVINGS: '#3D9E82',
   CREDIT: '#1F2937',
   CRYPTO: '#F59E0B',
   FOREX: '#8B5CF6',
   ASSET: '#6B7280',
-  STOCKS: '#006E2F',
+  STOCKS: '#2D6A4F',
   OTHER: '#9CA3AF',
 }
 
@@ -65,7 +65,7 @@ function getIssuerColor(issuerIcon?: string): string {
 }
 
 // ─── Colour palette for donut chart ──────────────────────────────────────────
-const DONUT_COLORS = ['#006E2F', '#22C55E', '#FF8A83', '#B91A24', '#6B7280', '#F59E0B', '#3B82F6']
+const DONUT_COLORS = ['#2D6A4F', '#1B4F72', '#D4A017', '#C0392B', '#3D9E82', '#A8AA9F']
 
 export default function Dashboard() {
   const { t, i18n } = useTranslation()

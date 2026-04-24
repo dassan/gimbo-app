@@ -1,4 +1,4 @@
-# Nexus — app/
+# Gimbo — app/
 
 This directory contains the Vite application. See the [root README](../README.md) for full project documentation.
 

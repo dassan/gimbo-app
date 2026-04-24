@@ -122,7 +122,7 @@ describe('createNewDataFile', () => {
     await createNewDataFile(makeDataFile())
 
     expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ suggestedName: 'nexus-finances.json' })
+      expect.objectContaining({ suggestedName: 'gimbo-finances.json' })
     )
   })
 

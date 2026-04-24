@@ -131,12 +131,12 @@ export default function CashFlowView({
                 wrapperStyle={{ fontSize: 12, paddingTop: 16 }}
                 formatter={(value) => tooltipLabels[String(value)] ?? String(value)}
               />
-              <Bar dataKey="income" fill="#22C55E" radius={[4, 4, 0, 0]} maxBarSize={32} />
-              <Bar dataKey="expenses" fill="#FF8A83" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="income" fill="#2D6A4F" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="expenses" fill="#C0392B" radius={[4, 4, 0, 0]} maxBarSize={32} />
               <Line
                 type="monotone"
                 dataKey="balance"
-                stroke="#006E2F"
+                stroke="#1F4D38"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4 }}

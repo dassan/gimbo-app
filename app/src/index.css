@@ -3,76 +3,76 @@
 
 @theme {
   /* ── Typography ──────────────────────────────────────────── */
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 
   /* ── Brand colors (light mode) ───────────────────────────── */
-  --color-primary:                 #006E2F;
+  --color-primary:                 #2D6A4F;
   --color-on-primary:              #FFFFFF;
-  --color-primary-container:       #22C55E;
-  --color-on-primary-container:    #003919;
-  --color-tertiary:                #B91A24;
+  --color-primary-container:       #AADFD1;
+  --color-on-primary-container:    #0A1F16;
+  --color-tertiary:                #C0392B;
   --color-on-tertiary:             #FFFFFF;
-  --color-tertiary-container:      #FF8A83;
-  --color-on-tertiary-container:   #68000F;
+  --color-tertiary-container:      #FAD0CC;
+  --color-on-tertiary-container:   #5A0000;
 
   /* ── Surface scale ───────────────────────────────────────── */
-  --color-surface:                    #F8F9FA;
+  --color-surface:                    #F4F5F0;
   --color-surface-container-lowest:   #FFFFFF;
-  --color-surface-container-low:      #F3F4F5;
-  --color-surface-container:          #EDEEF0;
-  --color-surface-container-high:     #E8E9EA;
-  --color-surface-container-highest:  #DDDEE0;
+  --color-surface-container-low:      #F4F5F0;
+  --color-surface-container:          #E8EAE2;
+  --color-surface-container-high:     #D6D8D0;
+  --color-surface-container-highest:  #C4C6BE;
 
   /* ── On-surface ──────────────────────────────────────────── */
-  --color-on-surface:              #191C1D;
-  --color-on-surface-variant:      #44474F;
-  --color-outline:                 #75777F;
-  --color-outline-variant:         rgba(25, 28, 29, 0.15);
+  --color-on-surface:              #1A1F2E;
+  --color-on-surface-variant:      #6B7280;
+  --color-outline:                 #A8AA9F;
+  --color-outline-variant:         rgba(10, 31, 22, 0.15);
 
   /* ── Semantic: error ─────────────────────────────────────── */
-  --color-error:                   #BA1A1A;
+  --color-error:                   #C0392B;
   --color-on-error:                #FFFFFF;
-  --color-error-container:         #FFDAD6;
-  --color-on-error-container:      #410002;
+  --color-error-container:         #FAD0CC;
+  --color-on-error-container:      #5A0000;
 
   /* ── Shadows ─────────────────────────────────────────────── */
-  --shadow-ambient: 0px 20px 40px rgba(25, 28, 29, 0.06);
+  --shadow-ambient: 0px 20px 40px rgba(10, 31, 22, 0.06);
 }
 
-/* ── Dark mode overrides (Nexus Finance Editorial Dark) ────── */
+/* ── Dark mode overrides ────────────────────────────────────── */
 .dark {
   /* Brand colors */
-  --color-primary:                    #54e98a;
-  --color-on-primary:                 #003919;
-  --color-primary-container:          #2ecc71;
-  --color-on-primary-container:       #005027;
-  --color-tertiary:                   #ffbebb;
-  --color-on-tertiary:                #68000f;
-  --color-tertiary-container:         #ff9592;
-  --color-on-tertiary-container:      #8a131e;
+  --color-primary:                    #3D9E82;
+  --color-on-primary:                 #0A1F16;
+  --color-primary-container:          #1F4D38;
+  --color-on-primary-container:       #AADFD1;
+  --color-tertiary:                   #F1948A;
+  --color-on-tertiary:                #5A0000;
+  --color-tertiary-container:         #7B241C;
+  --color-on-tertiary-container:      #FAD0CC;
 
   /* Surface scale */
-  --color-surface:                    #0f141b;
-  --color-surface-container-lowest:   #090f15;
-  --color-surface-container-low:      #171c23;
-  --color-surface-container:          #1b2027;
-  --color-surface-container-high:     #252a32;
-  --color-surface-container-highest:  #30353d;
+  --color-surface:                    #0A1F16;
+  --color-surface-container-lowest:   #060F0D;
+  --color-surface-container-low:      #0F2C1E;
+  --color-surface-container:          #143326;
+  --color-surface-container-high:     #1A3D2E;
+  --color-surface-container-highest:  #214836;
 
   /* On-surface */
-  --color-on-surface:                 #dee2ec;
-  --color-on-surface-variant:         #bbcbbb;
-  --color-outline:                    #869486;
-  --color-outline-variant:            #3d4a3e;
+  --color-on-surface:                 #D5F0E8;
+  --color-on-surface-variant:         #A8AA9F;
+  --color-outline:                    #6B7280;
+  --color-outline-variant:            rgba(213, 240, 232, 0.12);
 
   /* Semantic: error */
-  --color-error:                      #ffb4ab;
-  --color-on-error:                   #690005;
-  --color-error-container:            #93000a;
-  --color-on-error-container:         #ffdad6;
+  --color-error:                      #F1948A;
+  --color-on-error:                   #5A0000;
+  --color-error-container:            #7B241C;
+  --color-on-error-container:         #FAD0CC;
 
   /* Shadows (subtle in dark mode) */
-  --shadow-ambient:                   0px 20px 40px rgba(0, 0, 0, 0.3);
+  --shadow-ambient:                   0px 20px 40px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Base reset ───────────────────────────────────────────── */
@@ -95,16 +95,16 @@ body {
 
 /* ── Card shadow utilities ────────────────────────────────── */
 .shadow-card {
-  box-shadow: 0px 4px 20px rgba(25, 28, 29, 0.04);
+  box-shadow: 0 1px 3px rgba(10, 31, 22, 0.08);
 }
 .shadow-card-ambient {
-  box-shadow: 0px 20px 40px rgba(25, 28, 29, 0.06);
+  box-shadow: 0 4px 12px rgba(10, 31, 22, 0.12);
 }
 .dark .shadow-card {
-  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.3);
 }
 .dark .shadow-card-ambient {
-  box-shadow: 0px 20px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0px 20px 40px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Label utility ────────────────────────────────────────── */

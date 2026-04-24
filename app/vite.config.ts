@@ -12,11 +12,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png'],
       manifest: {
-        name: 'Nexus — Finanças Pessoais',
-        short_name: 'Nexus',
+        name: 'Gimbo — Finanças Pessoais',
+        short_name: 'Gimbo',
         description: 'Gestão de finanças pessoais, 100% local e privada.',
-        theme_color: '#006E2F',
-        background_color: '#F8F9FA',
+        theme_color: '#2D6A4F',
+        background_color: '#F4F5F0',
         display: 'standalone',
         orientation: 'portrait',
         icons: [

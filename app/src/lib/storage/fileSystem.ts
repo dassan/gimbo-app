@@ -143,7 +143,7 @@ export async function openDataFile(): Promise<{
 } | null> {
   try {
     const [handle] = await window.showOpenFilePicker({
-      types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
+      types: [{ description: 'Gimbo Data', accept: { 'application/json': ['.json'] } }],
     })
     const file = await handle.getFile()
     _dataHandle = handle
@@ -161,12 +161,12 @@ export async function openDataFile(): Promise<{
  */
 export async function createNewDataFile(
   data: DataFile,
-  suggestedName = 'nexus-finances.json'
+  suggestedName = 'gimbo-finances.json'
 ): Promise<FileSystemFileHandle | null> {
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName,
-      types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
+      types: [{ description: 'Gimbo Data', accept: { 'application/json': ['.json'] } }],
     })
     const writable = await handle.createWritable()
     await writable.write(JSON.stringify(data, null, 2))
@@ -212,8 +212,8 @@ export async function readCurrentDataFile(): Promise<{
 export async function saveDataFile(data: DataFile): Promise<boolean> {
   try {
     _dataHandle ??= await window.showSaveFilePicker({
-      suggestedName: 'nexus-finances.json',
-      types: [{ description: 'Nexus Data', accept: { 'application/json': ['.json'] } }],
+      suggestedName: 'gimbo-finances.json',
+      types: [{ description: 'Gimbo Data', accept: { 'application/json': ['.json'] } }],
     })
     const writable = await _dataHandle.createWritable()
     await writable.write(JSON.stringify(data, null, 2))
@@ -241,7 +241,7 @@ export async function saveDataFile(data: DataFile): Promise<boolean> {
 }
 
 /** Fallback: trigger a browser download of the data file. */
-export function downloadDataFile(data: DataFile, filename = 'nexus-finances.json'): void {
+export function downloadDataFile(data: DataFile, filename = 'gimbo-finances.json'): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

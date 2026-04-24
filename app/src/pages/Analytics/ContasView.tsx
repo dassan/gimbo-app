@@ -39,12 +39,12 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ReactNode> = {
 
 const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
   RETAIL: '#3B82F6',
-  SAVINGS: '#22C55E',
+  SAVINGS: '#3D9E82',
   CREDIT: '#1F2937',
   CRYPTO: '#F59E0B',
   FOREX: '#8B5CF6',
   ASSET: '#6B7280',
-  STOCKS: '#006E2F',
+  STOCKS: '#2D6A4F',
   OTHER: '#9CA3AF',
 }
 
