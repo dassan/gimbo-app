@@ -78,6 +78,7 @@
     "creditPayment": "Pag. Fatura",
     "cardToPay": "Cartão a pagar",
     "payFrom": "Pagar com",
+    "transferTitle": "Transferência",
     "transferFrom": "Conta de origem",
     "transferTo": "Conta de destino",
     "currentInvoice": "Fatura atual",

@@ -78,6 +78,7 @@
     "creditPayment": "Bill Payment",
     "cardToPay": "Card to pay",
     "payFrom": "Pay from",
+    "transferTitle": "Transfer",
     "transferFrom": "From account",
     "transferTo": "To account",
     "currentInvoice": "Current invoice",

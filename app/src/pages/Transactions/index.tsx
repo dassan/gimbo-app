@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
-import { Search, CheckCircle2, Clock, ChevronDown } from 'lucide-react'
+import { Search, CheckCircle2, Clock, ChevronDown, ArrowRightLeft } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
 import { formatCurrency, cn, parseDateLocal } from '@/lib/utils'
@@ -426,10 +426,15 @@ function TxRow({
   isLast: boolean
   onEdit: (tx: Transaction) => void
 }) {
+  const { t } = useTranslation()
   const cat = data.categories.find((c) => c.id === tx.categoryId)
   const acc = data.accounts.find((a) => a.id === tx.accountId)
+  const destAcc = tx.type === 'TRANSFER'
+    ? data.accounts.find((a) => a.id === tx.transferAccountId)
+    : null
   const txTags = data.tags.filter((tag) => tx.tags.includes(tag.id))
   const isIncome = tx.type === 'INCOME'
+  const isTransfer = tx.type === 'TRANSFER'
 
   const timeStr = new Date(tx.date).toLocaleTimeString('pt-BR', {
     hour: '2-digit',
@@ -437,7 +442,7 @@ function TxRow({
   })
 
   // Type label shown above the description (CREDIT and CREDIT_PAYMENT filtered upstream — M-26)
-  const typeLabel = tx.type === 'INCOME' ? 'Receita' : tx.type === 'EXPENSE' ? 'Despesa' : 'Transf.'
+  const typeLabel = isIncome ? 'Receita' : isTransfer ? 'Transf.' : 'Despesa'
 
   return (
     <div
@@ -450,13 +455,19 @@ function TxRow({
         !isLast && 'border-b border-surface-container-low'
       )}
     >
-      {/* Category avatar */}
-      <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white text-sm font-semibold"
-        style={{ backgroundColor: cat?.color ?? '#6B7280' }}
-      >
-        {cat?.name?.[0] ?? '?'}
-      </div>
+      {/* Category avatar — transfers get a neutral icon instead of category initial */}
+      {isTransfer ? (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-container-high text-on-surface/40">
+          <ArrowRightLeft size={18} strokeWidth={1.5} />
+        </div>
+      ) : (
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white text-sm font-semibold"
+          style={{ backgroundColor: cat?.color ?? '#6B7280' }}
+        >
+          {cat?.name?.[0] ?? '?'}
+        </div>
+      )}
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -467,7 +478,7 @@ function TxRow({
         </div>
         <p className="text-sm font-semibold text-on-surface truncate">
           {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
-          {tx.description || cat?.name || '—'}
+          {tx.description || (isTransfer ? t('transactions.transferTitle') : cat?.name) || '—'}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
           {txTags.map((tag) => (
@@ -479,7 +490,13 @@ function TxRow({
               #{tag.name}
             </span>
           ))}
-          {acc && <span className="text-xs text-on-surface/30">{acc.name}</span>}
+          {isTransfer ? (
+            <span className="text-xs text-on-surface/30">
+              {acc?.name ?? '—'} → {destAcc?.name ?? '—'}
+            </span>
+          ) : (
+            acc && <span className="text-xs text-on-surface/30">{acc.name}</span>
+          )}
           <span className="text-xs text-on-surface/30">{timeStr}</span>
         </div>
       </div>
@@ -487,13 +504,24 @@ function TxRow({
       {/* Amount + paid status */}
       <div className="flex items-center gap-3 shrink-0">
         <div className="text-right">
-          <p className={cn('text-sm font-bold', isIncome ? 'text-primary' : 'text-tertiary')}>
-            {isIncome ? '+' : '-'}
-            {formatCurrency(tx.amount)}
-          </p>
-          <p className="text-[10px] text-on-surface/30 mt-0.5">
-            {isIncome ? 'Depósito' : 'Débito'}
-          </p>
+          {isTransfer ? (
+            <>
+              <p className="text-sm font-bold text-on-surface/50">
+                {formatCurrency(tx.amount)}
+              </p>
+              <p className="text-[10px] text-on-surface/30 mt-0.5">Transf.</p>
+            </>
+          ) : (
+            <>
+              <p className={cn('text-sm font-bold', isIncome ? 'text-primary' : 'text-tertiary')}>
+                {isIncome ? '+' : '-'}
+                {formatCurrency(tx.amount)}
+              </p>
+              <p className="text-[10px] text-on-surface/30 mt-0.5">
+                {isIncome ? 'Depósito' : 'Débito'}
+              </p>
+            </>
+          )}
         </div>
         <div className="flex h-8 w-8 items-center justify-center rounded-full">
           {tx.isPaid ? (

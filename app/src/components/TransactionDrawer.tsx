@@ -166,6 +166,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       setAccountId(first)
       setTransferAccountId(second)
       setCategoryId('')
+      setIsPaid(true)
     } else {
       setAccountId(data?.accounts[0]?.id ?? '')
     }
