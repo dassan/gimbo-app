@@ -1,4 +1,4 @@
-# Nexus Finance — CLAUDE.md
+# Gimbo — CLAUDE.md
 
 > Instruções permanentes para qualquer IA que trabalhe neste projeto.
 > Leia este arquivo integralmente antes de propor ou implementar qualquer coisa.
@@ -8,7 +8,7 @@
 
 ## Identidade do Projeto
 
-**Nexus Finance** — app web de finanças pessoais **local-first**, instalável como PWA.
+**Gimbo** — app web de finanças pessoais **local-first**, instalável como PWA.
 Toda a informação reside em um `data.json` controlado pelo usuário, sem servidor, sem nuvem.
 Workflow de desenvolvimento IA + humano definido em `plan/RULES.md`.
 

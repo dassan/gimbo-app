@@ -1,6 +1,6 @@
 # Particularidades do Ciclo de Vida: Cartões de Crédito
 
-Este documento visa consolidar as regras de negócio, comportamentos esperados e particularidades na tratativa de **Cartões de Crédito** dentro do contexto do aplicativo Nexus Finance.
+Este documento visa consolidar as regras de negócio, comportamentos esperados e particularidades na tratativa de **Cartões de Crédito** dentro do contexto do aplicativo Gimbo.
 
 ---
 

@@ -1,11 +1,11 @@
-# [PRD] Nexus - App de Finanças Pessoais (Client-Side)
+# [PRD] Gimbo - App de Finanças Pessoais (Client-Side)
 
-Este documento atua como a Fonte da Verdade para o desenvolvimento do Nexus.
+Este documento atua como a Fonte da Verdade para o desenvolvimento do Gimbo.
 
 ---
 
 ## 1. Resumo Executivo (TL;DR)
-O Nexus é um aplicativo web (PWA Client-side) de gestão de finanças pessoais focado em extrema privacidade, velocidade de uso diário e planejamento avançado. Ele combina uma UX simples e rápida — inspirada em ferramentas comerciais — com uma arquitetura local (100% de leitura de arquivo JSON) que isenta a dependência de servidores terceiros e devolve ao usuário a propriedade de seus dados, enquanto também provê ferramentas sofisticadas para análise e previsão de fluxo de caixa.
+O Gimbo é um aplicativo web (PWA Client-side) de gestão de finanças pessoais focado em extrema privacidade, velocidade de uso diário e planejamento avançado. Ele combina uma UX simples e rápida — inspirada em ferramentas comerciais — com uma arquitetura local (100% de leitura de arquivo JSON) que isenta a dependência de servidores terceiros e devolve ao usuário a propriedade de seus dados, enquanto também provê ferramentas sofisticadas para análise e previsão de fluxo de caixa.
 
 ## 2. Visão Geral e Problema
 **Declaração do Problema:** Usuários rigorosos com suas finanças sofrem com a falta de privacidade de ferramentas comuns (que armazenam dados em nuvens corporativas), além de esbarrarem na limitação analítica dessas plataformas, não conseguindo ter clareza de como seu fluxo de passivo/ativo se comportará num horizonte temporal de curto/médio prazo.

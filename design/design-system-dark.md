@@ -1,5 +1,5 @@
 ---
-name: Nexus Finance Editorial Dark
+name: Gimbo Editorial Dark
 colors:
   surface: '#0f141b'
   surface-dim: '#0f141b'

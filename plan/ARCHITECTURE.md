@@ -1,4 +1,4 @@
-# Nexus Finance — Arquitetura Técnica
+# Gimbo — Arquitetura Técnica
 
 > Documento de referência técnica completa. Para regras de desenvolvimento, veja `../CLAUDE.md`.
 > Para decisões de cartão de crédito, veja `CREDIT_CARD.md`. Para cenários de sync, veja `SYNC_SCENARIOS.md`.

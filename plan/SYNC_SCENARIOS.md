@@ -1,6 +1,6 @@
 # Sincronização Local: IndexedDB ↔ File System (JSON)
 
-Como o Nexus Finance App possui uma premissa **100% offline e local**, a arquitetura de armazenamento depende de dois pilares:
+Como o Gimbo possui uma premissa **100% offline e local**, a arquitetura de armazenamento depende de dois pilares:
 1. **IndexedDB:** Armazenamento primário, de altíssima performance para consultas e modificações, que faz o app ser "instantâneo".
 2. **File System Access API (Arquivo JSON):** O "Single Source of Truth" (Fonte da Verdade) tangível para o usuário, permitindo o backup via nuvem (Google Drive, Dropbox) e controle total dos dados.
 
@@ -64,7 +64,7 @@ Abaixo estão os cenários de orquestração para garantir a resiliência dos da
 **Risco:** As duas abas competem para escrever no IndexedDB e fazer flush para o mesmo arquivo JSON. A segunda aba pode sobrescrever mutações da primeira, corrompendo silenciosamente o `auditLog` e o estado das entidades.
 **Fluxo Ideal:**
 - O app detecta que já existe uma aba ativa (via `BroadcastChannel` ou `localStorage` com timestamp de "liveness").
-- A segunda aba exibe um banner de aviso: *"O Nexus já está aberto em outra aba. Para evitar conflitos de dados, use apenas uma aba por vez."*
+- A segunda aba exibe um banner de aviso: *"O Gimbo já está aberto em outra aba. Para evitar conflitos de dados, use apenas uma aba por vez."*
 - A segunda aba pode operar em modo leitura (sem botão de save) ou simplesmente bloquear toda mutação até a outra aba ser fechada.
 
 ## 9. Re-solicitação de Permissão do FileHandle (Sessão Recorrente)

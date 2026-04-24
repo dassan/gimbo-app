@@ -1,6 +1,6 @@
-# [SPEC] Nexus — Especificação Técnica de Implementação
+# [SPEC] Gimbo — Especificação Técnica de Implementação
 
-> **Contexto:** Este documento define as tarefas de implementação do Nexus, derivadas do [PRD.md](./PRD.md) e do [Design System](../design/design_system.md). Serve como fonte da verdade para o desenvolvimento, complementando o PRD com decisões técnicas concretas.
+> **Contexto:** Este documento define as tarefas de implementação do Gimbo, derivadas do [PRD.md](./PRD.md) e do [Design System](../design/design_system.md). Serve como fonte da verdade para o desenvolvimento, complementando o PRD com decisões técnicas concretas.
 >
 > **Stack aprovada:** React + Vite + TypeScript · Tailwind CSS v4 · Zustand · i18next · Recharts · vite-plugin-pwa
 
@@ -170,7 +170,7 @@ app, nav, onboarding, dashboard, transactions, analytics, settings, accounts, co
 
 **Estrutura da navbar (conforme design do Dashboard):**
 ```
-[Nexus Finance]  [Visão Geral] [Lançamentos] [Relatórios]      [🔔] [⚙️] [Avatar]
+[Gimbo]  [Visão Geral] [Lançamentos] [Relatórios]      [🔔] [⚙️] [Avatar]
 ```
 - "Planejamento" omitido (fora do escopo inicial)
 - Seção "Contas" acessada via ⚙️ (Settings), não na navbar principal

@@ -1,7 +1,7 @@
 # Épico: Módulo Analítico Avançado (Executive Dashboard)
 
 ## Visão Geral
-Como parte da expansão corporativa e analítica do **Nexus Finance**, o antigo fluxo pontual da página `Analytics` precisa dar lugar a uma estrutura central de **Relatórios Avançados**. Inspirada inicialmente no minimalismo das soluções comuns do mercado (como o *Organizze*), esta arquitetura foi otimizada via conceitos de **UI/UX Pro Max** para apoiar usuários *power-users* capazes de cruzar tags, checar fluxos acumulativos e fazer o _drill-down_ do panorama generalista para a abstração micro-financeira.
+Como parte da expansão corporativa e analítica do **Gimbo**, o antigo fluxo pontual da página `Analytics` precisa dar lugar a uma estrutura central de **Relatórios Avançados**. Inspirada inicialmente no minimalismo das soluções comuns do mercado (como o *Organizze*), esta arquitetura foi otimizada via conceitos de **UI/UX Pro Max** para apoiar usuários *power-users* capazes de cruzar tags, checar fluxos acumulativos e fazer o _drill-down_ do panorama generalista para a abstração micro-financeira.
 
 ---
 
