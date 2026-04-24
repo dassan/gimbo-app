@@ -78,6 +78,8 @@
     "creditPayment": "Pag. Fatura",
     "cardToPay": "Cartão a pagar",
     "payFrom": "Pagar com",
+    "transferFrom": "Conta de origem",
+    "transferTo": "Conta de destino",
     "currentInvoice": "Fatura atual",
     "installments": "Parcelar?",
     "installmentCount": "Número de parcelas",

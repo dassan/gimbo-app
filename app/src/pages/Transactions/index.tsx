@@ -126,7 +126,7 @@ export default function Transactions() {
       if (creditAccountIds.has(tx.accountId) || tx.type === 'CREDIT_PAYMENT') return s
       if (tx.type === 'INCOME') return s + tx.amount
       if (tx.type === 'EXPENSE') return s - tx.amount
-      if (tx.type === 'TRANSFER') return s - tx.amount
+      if (tx.type === 'TRANSFER') return s
       return s
     }, total)
   }, [data, creditAccountIds])

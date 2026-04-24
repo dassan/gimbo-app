@@ -61,7 +61,7 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const [amountStr, setAmountStr] = useState('0,00')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [accountId, setAccountId] = useState('')
-  // transferAccountId: the "pay from" account for CREDIT_PAYMENT transactions
+  // transferAccountId: destination for TRANSFER, or "pay from" account for CREDIT_PAYMENT
   const [transferAccountId, setTransferAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
@@ -153,12 +153,18 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // When switching to CREDIT_PAYMENT, auto-select the first credit and non-credit accounts
+  // When switching type, auto-select sensible account defaults
   function handleTypeChange(newType: TxType) {
     setType(newType)
     if (newType === 'CREDIT_PAYMENT') {
       setAccountId(creditAccounts[0]?.id ?? '')
       setTransferAccountId(nonCreditAccounts[0]?.id ?? '')
+      setCategoryId('')
+    } else if (newType === 'TRANSFER') {
+      const first = nonCreditAccounts[0]?.id ?? ''
+      const second = nonCreditAccounts[1]?.id ?? nonCreditAccounts[0]?.id ?? ''
+      setAccountId(first)
+      setTransferAccountId(second)
       setCategoryId('')
     } else {
       setAccountId(data?.accounts[0]?.id ?? '')
@@ -201,7 +207,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       description,
       isPaid,
       tags: selectedTags,
-      ...(type === 'CREDIT_PAYMENT' && transferAccountId ? { transferAccountId } : {}),
+      ...((type === 'CREDIT_PAYMENT' || type === 'TRANSFER') && transferAccountId
+        ? { transferAccountId }
+        : {}),
       ...(isEditMode && transaction.installment ? { installment: transaction.installment } : {}),
       ...(hasInstallments
         ? { installment: { parentId, currentIndex: 1, total: installmentCount } }
@@ -387,6 +395,65 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                       </option>
                     ))}
                     {nonCreditAccounts.length === 0 && (
+                      <option value="">{t('common.noData')}</option>
+                    )}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+                  />
+                </div>
+              </div>
+            </>
+          ) : type === 'TRANSFER' ? (
+            /* ── TRANSFER: origin + destination accounts ────────────────── */
+            <>
+              {/* From account */}
+              <div>
+                <label className="label text-on-surface/40 block mb-2">
+                  {t('transactions.transferFrom')}
+                </label>
+                <div className="relative">
+                  <select
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                    className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {nonCreditAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                    {nonCreditAccounts.length === 0 && (
+                      <option value="">{t('common.noData')}</option>
+                    )}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface/40 pointer-events-none"
+                  />
+                </div>
+              </div>
+
+              {/* To account */}
+              <div>
+                <label className="label text-on-surface/40 block mb-2">
+                  {t('transactions.transferTo')}
+                </label>
+                <div className="relative">
+                  <select
+                    value={transferAccountId}
+                    onChange={(e) => setTransferAccountId(e.target.value)}
+                    className="w-full appearance-none rounded-xl bg-surface-container-low py-3 pl-4 pr-9 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {nonCreditAccounts
+                      .filter((a) => a.id !== accountId)
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                    {nonCreditAccounts.filter((a) => a.id !== accountId).length === 0 && (
                       <option value="">{t('common.noData')}</option>
                     )}
                   </select>

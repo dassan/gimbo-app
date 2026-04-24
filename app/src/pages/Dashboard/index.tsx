@@ -124,7 +124,15 @@ export default function Dashboard() {
       if (!account || account.type === 'CREDIT') return
       if (tx.type === 'INCOME') map[tx.accountId] = (map[tx.accountId] ?? 0) + tx.amount
       if (tx.type === 'EXPENSE') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
-      if (tx.type === 'TRANSFER') map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
+      if (tx.type === 'TRANSFER') {
+        map[tx.accountId] = (map[tx.accountId] ?? 0) - tx.amount
+        if (tx.transferAccountId) {
+          const dest = data.accounts.find((a) => a.id === tx.transferAccountId)
+          if (dest && dest.type !== 'CREDIT') {
+            map[tx.transferAccountId] = (map[tx.transferAccountId] ?? 0) + tx.amount
+          }
+        }
+      }
     })
 
     // CREDIT accounts: available limit = creditMetadata.limit − current invoice balance

@@ -78,6 +78,8 @@
     "creditPayment": "Bill Payment",
     "cardToPay": "Card to pay",
     "payFrom": "Pay from",
+    "transferFrom": "From account",
+    "transferTo": "To account",
     "currentInvoice": "Current invoice",
     "installments": "Split into installments?",
     "installmentCount": "Number of installments",
