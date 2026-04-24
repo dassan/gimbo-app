@@ -1,83 +1,19 @@
-# Nexus Finance
+# Gimbo
 
 > Personal finance management — 100% local, zero cloud dependency.
 
-Nexus is a **client-side PWA** that runs entirely in the browser. Your financial data lives as a portable `data.json` file on your own device. No accounts, no servers, no subscription.
+Gimbo is a **client-side PWA** that runs entirely in the browser. Your financial data lives as a portable `data.json` file on your own device. No accounts, no servers, no subscription.
 
 ---
 
-## Why Nexus
+## Why Gimbo
 
-Most finance tools trade your privacy for convenience — storing transaction history on corporate servers and monetising your spending patterns. Nexus rejects that model:
+Most finance tools trade your privacy for convenience — storing transaction history on corporate servers and monetising your spending patterns. Gimbo rejects that model:
 
 - **Local-first:** all data stays on your device as a plain JSON file you own and control
 - **Portable:** copy `data.json` to any device and pick up where you left off
 - **No lock-in:** open or edit your ledger in any text editor at any time
 - **Offline-capable:** works with no internet connection once installed as a PWA
-
----
-
-## Features
-
-### Core
-
-| # | Feature |
-|---|---------|
-| F-1 | User profile (name, e-mail) |
-| F-2 | Account management — 8 types: Checking, Savings, Credit Card, Crypto, Forex, Asset, Stocks, Other; initial balance; issuer icon for credit cards |
-| F-3 | Categories with sub-category hierarchy and icon picker |
-| F-4 | Customisable tags with colour palette, assignable to transactions |
-| F-5 | Full transaction CRUD — Income, Expense, Transfer, Credit Payment |
-| F-6 | Monthly dashboard — income, expenses, consolidated balance, accounts & cards list with credit utilisation bar, expense donut chart, recent transactions (first instalment only for split purchases) |
-| F-7 | Analytics — Cash-flow chart (bars + cumulative balance line) with ±3-month configurable period |
-| F-8 | Analytics — Expense & income breakdown by category with percentage legend and drill-down modal |
-| F-9 | Export / Import `data.json` |
-| F-10 | Language selector (pt-BR / en-US) with live switching |
-| F-11 | Onboarding — create a new ledger or import an existing file |
-| F-12 | Auto-save via IndexedDB with ~300 ms debounce |
-| F-13 | Audit log with configurable retention (200 entries / 90 days, opt-in unlimited) |
-
-### Credit Cards
-
-| # | Feature |
-|---|---------|
-| F-21 | Credit account type with `limit`, `closingDay`, `dueDay`, and `issuerIcon` fields; "Accounts & Cards" split in Settings; available-limit display on Dashboard |
-| F-22 | Virtual invoice engine — invoice periods, due dates, and available limit computed at runtime (nothing extra stored in `data.json`) |
-| F-23 | Invoice detail page (`/credit-card/:accountId`) — transactions per period, category chips filter, spending summary sidebar, period navigation |
-| F-24 | Instalment purchases — a single purchase splits into N independent transactions with `(X/N)` suffix and per-month dates; delete-one or delete-all modal |
-| F-25 | Invoice payment (`CREDIT_PAYMENT`) — dedicated drawer on the invoice page linking the credit account to the debit account; excluded from income/expense totals |
-
-### Analytics (Advanced Reports)
-
-| # | Feature |
-|---|---------|
-| R-1 | 4-tab analytics shell with shared period selector (month / custom range) and "include unpaid" toggle |
-| R-2 | **Cash Flow view** — grouped bar chart (income/expenses) + cumulative balance line; data grid table with period, income, expenses, result, and balance columns |
-| R-3 | **Categories view** — 50/50 income/expense donuts with enriched legend (icon, name, amount, %); click any segment or row to open a drill-down modal with the filtered transactions |
-| R-4 | **Accounts view** — card grid with per-account period summary (income, expenses, result); click a card for an inline cash-flow drill-down; credit cards in a separate section |
-| R-5 | **Tags view** — ranked horizontal bar chart for expenses and income; multi-tag filter with OR / AND toggle |
-| R-6 | Ambient shadows feature toggle (Settings → Preferences) |
-
-### Transactions & Period Navigation
-
-| Feature | Detail |
-|---------|--------|
-| Transactions page | Shows only non-credit cash-flow entries; spending summary sidebar per period |
-| Period selector | Shared `PeriodSelector` component used in Transactions and all Analytics views |
-| Credit entries | Managed exclusively in `/credit-card/:accountId` |
-
-### Sync & Resilience
-
-| Feature | Detail |
-|---------|--------|
-| Auto-save | Every mutation is debounced to IndexedDB (300 ms); data survives page reload |
-| Read-before-write | On every sync, Nexus reads the file first and merges by UUID — recovering data from partial cache evictions |
-| Conflict detection | If the file was modified outside Nexus, a modal lets you choose: keep local or load from file |
-| Tombstone sync | Deleted entities are tracked in `deletedIds` — they never re-appear after merging with the disk file |
-| FileHandle persistence | The File System Access handle is saved in IndexedDB; on cold start the file opens without a picker dialog |
-| Re-permission flow | `queryPermission` on startup; permission prompt deferred to first user interaction |
-| Multi-tab guard | A `BroadcastChannel` detects concurrent tabs and blocks mutations in the secondary tab |
-| FSA fallback | On Firefox / Safari, sync is replaced by file download + `<input type="file">` import |
 
 ---
 
@@ -87,8 +23,8 @@ Most finance tools trade your privacy for convenience — storing transaction hi
 
 ```bash
 # 1. Clone the repository
-git clone git@github.com:dassan/nexus-app.git
-cd nexus-app/app
+git clone git@github.com:dassan/gimbo-app.git
+cd gimbo-app/app
 
 # 2. Install dependencies
 npm install
@@ -103,7 +39,7 @@ Open [http://localhost:5173](http://localhost:5173) — the Onboarding screen wi
 
 Found a bug or have a suggestion? Please open an issue on GitHub:
 
-**[github.com/dassan/nexus-app/issues](https://github.com/dassan/nexus-app/issues)**
+**[github.com/dassan/gimbo-app/issues](https://github.com/dassan/gimbo-app/issues)**
 
 When reporting a bug, include:
 - What you were doing when it happened
@@ -163,7 +99,7 @@ On browsers without the File System Access API, the sync button is hidden and th
 ### Project Structure
 
 ```
-nexus-app/
+gimbo-app/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml          # type-check → lint → format → test → build
