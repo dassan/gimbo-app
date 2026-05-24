@@ -13,6 +13,7 @@ import Transactions from '@/pages/Transactions'
 import Analytics from '@/pages/Analytics'
 import Settings from '@/pages/Settings'
 import CreditCardPage from '@/pages/CreditCard'
+import About from '@/pages/About'
 
 export default function App() {
   const initWorkspace = useWorkspaceStore((s) => s.init)
@@ -114,6 +115,7 @@ export default function App() {
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/credit-card/:accountId" element={<CreditCardPage />} />
+              <Route path="/gimbo" element={<About />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
           ) : (

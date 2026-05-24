@@ -30,3 +30,8 @@ app/dev-dist/
 
 # Data directory
 data/
+
+# Test & coverage artifacts
+app/coverage/
+app/playwright-report/
+app/test-results/

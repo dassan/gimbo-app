@@ -9,6 +9,8 @@ export default mergeConfig(
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       exclude: ['node_modules', 'e2e'],
+      reporters: ['default', 'json'],
+      outputFile: { json: './coverage/unit-results.json' },
       coverage: {
         provider: 'v8',
         include: [
@@ -20,6 +22,7 @@ export default mergeConfig(
           'src/lib/utils.ts',
           'src/store/useDataStore.ts',
         ],
+        reporter: ['text', 'html', 'json-summary'],
         thresholds: { lines: 80, functions: 80 },
       },
     },

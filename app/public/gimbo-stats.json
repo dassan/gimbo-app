@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-05-24T11:28:24.796Z",
+  "coverage": {
+    "statements": {
+      "covered": 877,
+      "total": 901,
+      "pct": 97.33
+    },
+    "branches": {
+      "covered": 255,
+      "total": 276,
+      "pct": 92.39
+    },
+    "functions": {
+      "covered": 69,
+      "total": 72,
+      "pct": 95.83
+    },
+    "files": 7
+  },
+  "unitTests": {
+    "total": 474,
+    "passed": 474,
+    "failed": 0,
+    "suites": 147
+  },
+  "e2eTests": {
+    "status": "passed",
+    "failed": 0
+  }
+}
