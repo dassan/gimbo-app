@@ -126,7 +126,50 @@ Ao incluir `LOAN` no v1, a F-29 deixou de ser "ligar motores num mock": virou um
 
 ---
 
-## 7. Estado atual
+## 7. Decisões de produto (sessão 2026-06-25) — família de empréstimos
+
+Sessão de produto desencadeada por uma pergunta sobre como o usuário registra/converte um empréstimo, já que não havia caminho óbvio na UI. A investigação revelou que o problema não era "falta de cadastro" (a entidade `LOAN` já tinha modal e edição) — era o **motor de dívida ignorar o formato de dado mais comum**: um empréstimo lançado **parcela a parcela** numa conta comum. Isso foi resolvido no HE-15. A discussão seguinte desenhou o modelo conceitual que organiza os próximos passos (HE-16 a HE-18 no `BACKLOG.md`).
+
+### D6 — Empréstimo é uma família com dois *backings*, não duas features
+
+Existe **um** conceito ("dívida não-cartão") com **dois backings**, distinguidos por uma única pergunta: **as parcelas existem como transações no ledger ou não?**
+
+| | Conta `LOAN` (backing **opaco**) | Série marcada (backing **rastreado**) |
+|---|---|---|
+| Natureza | dívida sem parcelas rastreáveis | parcelas lançadas como `Transaction` |
+| Exemplos | consignado descontado na fonte; financiamento de banco não importado; **dívida informal** ("devo R$ 11k pro meu pai") | financiamento/empréstimo lançado parcela a parcela (ex.: "Refinanciamento Itaú", 84x) |
+| Fonte do saldo/parcela/prazo | declarado pelo usuário | **derivado do ledger** |
+| Existe como | `Account` | anotação leve apontando pra uma série (`parentId`) |
+
+**Por que a `LOAN` opaca não é redundante:** há dívidas que **só** podem ser opacas — não há transação de parcela pra marcar (consignado na fonte, conta não importada, dívida informal). A série-rastreada é estruturalmente impossível nesses casos. Além disso, hoje a `LOAN` é a única que entra como passivo no Patrimônio (F-24).
+
+**Unificação na apresentação, não nos dados:** ambos os backings afloram como `kind: 'loan'` no breakdown (mesmo ícone/selo/semântica). A distinção fica só na origem do dado. **Rejeitada** a unificação "pesada" (marca criar uma conta `LOAN` linkada que auto-deriva): contradiz o modelo da HE-06 e abre risco de dupla contagem (estático + installment), forçando exclusões frágeis.
+
+### D7 — Princípio comum: pedir o principal, derivar o tempo
+
+Os dois backings convergem num princípio único: **pedir ao usuário só o que não dá pra derivar; derivar tudo que é função do tempo.**
+
+- **Pedir `principal`, não a taxa de juros.** A taxa em `% a.m.` é precisa mas inverificável (enterrada no contrato; a "nominal" nem inclui seguro/IOF/tarifas embutidos na parcela). O **principal** ("caiu R$ 50.000 na conta") é concreto e memorável. Pede-se o que o usuário *sabe*.
+- **Derivar o custo, *estimar* a taxa.** Com principal + parcelas materializadas:
+  - **Custo do crédito** = Σ parcelas − principal (exato dado o principal; Σ via `installment.total × parcela`, robusto a parcelas antigas fora da janela de import).
+  - **Multiplicador** = total pago ÷ principal → *"pra cada R$ 1 que entrou, você devolve R$ 1,57"*. **É o número-herói** — inegável e alinhado à tese da §1.
+  - **Taxa estimada** (`≈ X% a.m.`) — secundária e caveateada. Como cada parcela é transação real (data + valor), dá pra calcular o IRR do fluxo *real* (Newton/bisseção), não um "Price ideal". Ainda é *estimativa* porque: parcelas antigas podem faltar na janela; seguro/tarifas inflam a taxa implícita; o t0/principal é aproximado. **O verbo é "estimar", não "calcular".**
+- **Aplicar o mesmo princípio à `LOAN` opaca (set-once):** em vez de exigir atualização mensal do `outstandingBalance` (que desatualiza — um número velho é pior que nenhum), pedir principal + parcela + data de início e **derivar o saldo corrente pelo tempo decorrido**. Transforma "mantida à mão" em "set-once". É a amortização automática que a HE-06 adiou, na forma mais simples.
+
+### D8 — Marca leve mora numa anotação por `parentId`
+
+A série é identificada por `installment.parentId`. A marca guarda o mínimo: `{ parentId, principal, name? }` — **`interestRate` deixa de ser armazenado** (vira derivado/estimado). Caminho recomendado: **coleção leve nova** em `DataFile` (ex.: `installmentLoans`), keyed por `parentId` (sobrevive ao sync por UUID, não polui `Transaction`). Rejeitados: Tag de sistema (não carrega `principal`, é por-tx) e campo no parent da série (mistura classificação em `Transaction`). A marca é **reversível** e **nunca** altera as transações.
+
+### Ponta solta reconhecida
+
+Uma série parcelada (marcada ou não) entra na **Saúde** mas **não** como passivo no **Patrimônio** (F-24) — lá só a `LOAN` conta, via `getLoanLiability`. Tornar séries passivo no net worth é decisão **própria** (vale pra marcadas e não-marcadas) → HE-18, fora do escopo da marca.
+
+### Premissa a validar
+- Quantas dívidas reais são rastreadas (parcelas no ledger) vs. opacas? Se quase todas forem rastreadas, a `LOAN` opaca é nicho — mas não zero (cobre consignado na fonte e dívida informal). Mantida, na forma derivada (D7).
+
+---
+
+## 8. Estado atual
 
 **v1 (dívida + orçamento) ligado aos motores reais (HE-04 a HE-11, 2026-06-21).** `pages/Health/index.tsx` lê `useDataStore`/`useWorkspaceStore`: dívida total, comprometido mensal e horizonte vêm de `getTotalCommittedDebt`/`getMonthlyCommitment`/`getDebtHorizon` (HE-08); o detalhamento expansível vem de `getDebtBreakdown` (HE-10), que agrupa por conta CREDIT (itens de parcela aberta) e LOAN (item único a partir de `loanMetadata`), sempre reconciliando com os agregados. Renda mensal usa `deriveMonthlyIncome` (HE-09) com override do usuário em `workspace.monthlyIncomeOverride`, editável inline (lápis → input → confirmar) e rotulada por confiança (`confirmedByYou`/`basedOnMonths`/`estimateConfirm`/CTA manual). Rota, navbar e i18n (`nav.health`, `health.*`) ligados. Testes: `Health.test.tsx` (HE-11, 9 testes de componente) + 5 testes unitários de `getDebtBreakdown` em `utils.test.ts`.
 
