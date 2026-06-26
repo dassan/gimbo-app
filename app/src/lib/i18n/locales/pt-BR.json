@@ -471,7 +471,15 @@
     "recalculate": "Recalcular pelo histórico",
     "setIncomeCta": "Defina sua renda mensal",
     "incomePlaceholder": "R$ 0,00",
-    "reservePlaceholder": "Em breve"
+    "reservePlaceholder": "Em breve",
+    "markAsLoan": "Marcar como empréstimo",
+    "unmarkLoan": "Remover marca de empréstimo",
+    "loanMarkName": "Nome (opcional)",
+    "loanMarkNamePlaceholder": "Ex.: Refinanciamento Itaú",
+    "loanMarkPrincipal": "Valor recebido do empréstimo",
+    "loanMarkMultiplier": "{{multiplier}}× do que você recebeu",
+    "loanMarkCost": "Custo: {{cost}}",
+    "loanMarkRateEstimate": "≈ {{rate}}% a.m. (estimativa)"
   },
   "welcome": {
     "title": "Bem-vindo ao Gimbo",

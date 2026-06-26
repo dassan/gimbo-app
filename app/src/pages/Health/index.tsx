@@ -75,7 +75,7 @@ export default function Health() {
       monthlyCommitted: getMonthlyCommitment(data.transactions, data.accounts),
       monthlyExpenses: getMonthlyExpenses(data.transactions, data.accounts),
       longestHorizon: getDebtHorizon(data.transactions, data.accounts),
-      debtGroups: getDebtBreakdown(data.transactions, data.accounts),
+      debtGroups: getDebtBreakdown(data.transactions, data.accounts, data.installmentLoans),
       incomeEstimate: deriveMonthlyIncome(data.transactions, data.accounts, incomeWindowMonths),
     }
   }, [data, incomeWindowMonths])
@@ -457,7 +457,12 @@ function DebtCard({ group, sortBy }: { group: DebtGroup; sortBy: 'time' | 'value
           {items.map((item, idx) => (
             <div key={idx} className="flex items-center gap-3 py-2.5">
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-on-surface truncate">{item.description}</p>
+                <p className="flex items-center gap-1.5 text-sm text-on-surface truncate">
+                  {item.kind === 'installment' && item.loanMark && (
+                    <Landmark size={12} strokeWidth={1.5} className="shrink-0 text-on-surface/40" />
+                  )}
+                  <span className="truncate">{item.description}</span>
+                </p>
                 <p className="text-xs text-on-surface/40 mt-0.5">
                   {item.kind === 'installment'
                     ? t('health.installmentsRemaining', {
@@ -470,6 +475,23 @@ function DebtCard({ group, sortBy }: { group: DebtGroup; sortBy: 'time' | 'value
                     <> · {t('health.interestRate', { rate: item.interestRate })}</>
                   )}
                 </p>
+                {item.kind === 'installment' && item.loanMark && (
+                  <p className="text-xs text-on-surface/40 mt-0.5">
+                    {t('health.loanMarkMultiplier', {
+                      multiplier: item.loanMark.multiplier.toFixed(2),
+                    })}{' '}
+                    · {t('health.loanMarkCost', { cost: formatCurrency(item.loanMark.cost) })}
+                    {item.loanMark.estimatedRate !== null && (
+                      <>
+                        {' '}
+                        ·{' '}
+                        {t('health.loanMarkRateEstimate', {
+                          rate: (item.loanMark.estimatedRate * 100).toFixed(2),
+                        })}
+                      </>
+                    )}
+                  </p>
+                )}
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-semibold tabular-nums" style={{ color: '#A87B0C' }}>

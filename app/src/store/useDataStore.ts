@@ -7,6 +7,7 @@ import type {
   Transaction,
   Valuation,
   SavedPeriod,
+  InstallmentLoan,
   AuditEntry,
   AuditAction,
   AuditEntity,
@@ -60,6 +61,7 @@ function buildSummary(
     transaction: 'Transação',
     user: 'Perfil',
     savedPeriod: 'Período salvo',
+    installmentLoan: 'Marca de empréstimo',
   }
   const actionLabel: Record<AuditAction, string> = {
     CREATE: 'criada',
@@ -113,6 +115,10 @@ interface DataStore {
   // M-45: named custom date ranges saved from the Reports period picker
   addSavedPeriod: (period: SavedPeriod) => void
   deleteSavedPeriod: (id: string) => void
+
+  // HE-16: mark/unmark an installment series as a loan/financing (create-or-update by parentId)
+  setInstallmentLoan: (loan: InstallmentLoan) => void
+  unmarkInstallmentLoan: (parentId: string) => void
 
   updateUser: (patch: Partial<DataFile['user']>) => void
   setRetentionLimit: (limit: number | null) => void
@@ -534,6 +540,49 @@ export const useDataStore = create<DataStore>((set) => ({
         addAudit(
           d,
           makeEntry('DELETE', 'savedPeriod', id, `Período salvo removido: ${period?.name ?? id}`)
+        )
+      })
+    ),
+
+  // ── Installment loan marks (HE-16) ──────────────────────────────────────────
+
+  setInstallmentLoan: (loan) =>
+    set((s) =>
+      mutate(
+        s,
+        (d) => {
+          const i = d.installmentLoans.findIndex((l) => l.parentId === loan.parentId)
+          const isUpdate = i !== -1
+          if (isUpdate) d.installmentLoans[i] = loan
+          else d.installmentLoans.push(loan)
+          const valueStr = `R$ ${loan.principal.toFixed(2).replace('.', ',')}`
+          addAudit(
+            d,
+            makeEntry(
+              isUpdate ? 'UPDATE' : 'CREATE',
+              'installmentLoan',
+              loan.parentId,
+              `Marca de empréstimo ${isUpdate ? 'atualizada' : 'criada'}: ${loan.name || loan.parentId} — principal ${valueStr}`
+            )
+          )
+        },
+        'installment_loan_marked'
+      )
+    ),
+
+  unmarkInstallmentLoan: (parentId) =>
+    set((s) =>
+      mutate(s, (d) => {
+        const loan = d.installmentLoans.find((l) => l.parentId === parentId)
+        d.installmentLoans = d.installmentLoans.filter((l) => l.parentId !== parentId)
+        addAudit(
+          d,
+          makeEntry(
+            'DELETE',
+            'installmentLoan',
+            parentId,
+            `Marca de empréstimo removida: ${loan?.name || parentId}`
+          )
         )
       })
     ),

@@ -638,6 +638,113 @@ describe('TransactionDrawer — CC-26: installment deletion modal', () => {
   })
 })
 
+// ─── HE-16: "Marcar como empréstimo" ──────────────────────────────────────────
+
+describe('TransactionDrawer — HE-16: mark installment as loan', () => {
+  const installmentTx: Transaction = {
+    id: 'tx-fin-1',
+    accountId: testAccount.id,
+    categoryId: 'cat-1',
+    amount: 500,
+    type: 'EXPENSE',
+    date: '2024-03-15',
+    description: 'Refinanciamento Itaú (10/84)',
+    isPaid: false,
+    tags: [],
+    installment: { parentId: 'fin-parent', currentIndex: 10, total: 84 },
+  }
+
+  it('shows the "mark as loan" CTA for an installment occurrence with no existing mark', () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testAccount], transactions: [installmentTx] }),
+    })
+    renderDrawer({ transaction: installmentTx })
+    expect(screen.getByText('health.markAsLoan')).toBeInTheDocument()
+  })
+
+  it('does not show the section for a non-installment transaction', () => {
+    renderDrawer({ transaction: testTransaction })
+    expect(screen.queryByText('health.markAsLoan')).not.toBeInTheDocument()
+  })
+
+  it('does not show the section in create mode', () => {
+    renderDrawer()
+    expect(screen.queryByText('health.markAsLoan')).not.toBeInTheDocument()
+  })
+
+  it('calls setInstallmentLoan with the parentId, principal and trimmed name on save', async () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testAccount], transactions: [installmentTx] }),
+    })
+    const setInstallmentLoan = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'setInstallmentLoan').mockImplementation(setInstallmentLoan)
+
+    renderDrawer({ transaction: installmentTx })
+    await userEvent.click(screen.getByText('health.markAsLoan'))
+    await userEvent.type(
+      screen.getByPlaceholderText('health.loanMarkNamePlaceholder'),
+      '  Refi Itaú  '
+    )
+    await userEvent.type(screen.getByPlaceholderText('R$ 0,00'), '50000,00')
+    await userEvent.click(screen.getByRole('button', { name: /common\.save/i }))
+
+    expect(setInstallmentLoan).toHaveBeenCalledWith({
+      parentId: 'fin-parent',
+      principal: 50000,
+      name: 'Refi Itaú',
+    })
+  })
+
+  it('omits the name field when left blank', async () => {
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [testAccount], transactions: [installmentTx] }),
+    })
+    const setInstallmentLoan = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'setInstallmentLoan').mockImplementation(setInstallmentLoan)
+
+    renderDrawer({ transaction: installmentTx })
+    await userEvent.click(screen.getByText('health.markAsLoan'))
+    await userEvent.type(screen.getByPlaceholderText('R$ 0,00'), '50000,00')
+    await userEvent.click(screen.getByRole('button', { name: /common\.save/i }))
+
+    expect(setInstallmentLoan).toHaveBeenCalledWith({ parentId: 'fin-parent', principal: 50000 })
+  })
+
+  it('shows the existing mark instead of the CTA, with an edit affordance', () => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [testAccount],
+        transactions: [installmentTx],
+        installmentLoans: [{ parentId: 'fin-parent', principal: 50000, name: 'Refi Itaú' }],
+      }),
+    })
+    renderDrawer({ transaction: installmentTx })
+    expect(screen.getByText('Refi Itaú')).toBeInTheDocument()
+    expect(screen.getByText('common.edit')).toBeInTheDocument()
+    expect(screen.queryByText('health.markAsLoan')).not.toBeInTheDocument()
+  })
+
+  it('calls unmarkInstallmentLoan when "remove" is clicked from the edit form', async () => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [testAccount],
+        transactions: [installmentTx],
+        installmentLoans: [{ parentId: 'fin-parent', principal: 50000, name: 'Refi Itaú' }],
+      }),
+    })
+    const unmarkInstallmentLoan = vi.fn()
+    vi.spyOn(useDataStore.getState(), 'unmarkInstallmentLoan').mockImplementation(
+      unmarkInstallmentLoan
+    )
+
+    renderDrawer({ transaction: installmentTx })
+    await userEvent.click(screen.getByText('common.edit'))
+    await userEvent.click(screen.getByText('health.unmarkLoan'))
+
+    expect(unmarkInstallmentLoan).toHaveBeenCalledWith('fin-parent')
+  })
+})
+
 // ─── M-20: auto-focus amount field on open ────────────────────────────────────
 
 describe('TransactionDrawer — M-20: auto-focus amount field on open', () => {

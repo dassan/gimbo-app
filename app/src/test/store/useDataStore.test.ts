@@ -10,6 +10,7 @@ import type {
   LoanMetadata,
   Valuation,
   SavedPeriod,
+  InstallmentLoan,
 } from '@/types'
 
 function makeAccount(overrides: Partial<Account> = {}): Account {
@@ -1119,5 +1120,80 @@ describe('deleteSavedPeriod', () => {
     useDataStore.setState({ data: makeDataFile({ savedPeriods: [] }) })
     expect(() => useDataStore.getState().deleteSavedPeriod('ghost-id')).not.toThrow()
     expect(useDataStore.getState().data!.deletedIds).toContain('ghost-id')
+  })
+})
+
+// ─── Installment loan marks (HE-16) ────────────────────────────────────────────
+
+function makeInstallmentLoan(overrides: Partial<InstallmentLoan> = {}): InstallmentLoan {
+  return { parentId: 'fin-1', principal: 50000, name: 'Refinanciamento Itaú', ...overrides }
+}
+
+describe('setInstallmentLoan', () => {
+  it('creates a new mark and records a CREATE audit entry', () => {
+    useDataStore.setState({ data: makeDataFile() })
+    useDataStore.getState().setInstallmentLoan(makeInstallmentLoan())
+    const { installmentLoans, auditLog } = useDataStore.getState().data!
+    expect(installmentLoans).toHaveLength(1)
+    expect(installmentLoans[0]).toEqual(makeInstallmentLoan())
+    const entry = auditLog.at(-1)!
+    expect(entry.action).toBe('CREATE')
+    expect(entry.entity).toBe('installmentLoan')
+    expect(entry.summary).toContain('Refinanciamento Itaú')
+  })
+
+  it('updates the existing mark in place (by parentId) and records an UPDATE audit entry', () => {
+    useDataStore.setState({ data: makeDataFile({ installmentLoans: [makeInstallmentLoan()] }) })
+    useDataStore
+      .getState()
+      .setInstallmentLoan(makeInstallmentLoan({ principal: 60000, name: 'Refi atualizado' }))
+    const { installmentLoans, auditLog } = useDataStore.getState().data!
+    expect(installmentLoans).toHaveLength(1)
+    expect(installmentLoans[0]).toEqual(
+      makeInstallmentLoan({ principal: 60000, name: 'Refi atualizado' })
+    )
+    const entry = auditLog.at(-1)!
+    expect(entry.action).toBe('UPDATE')
+    expect(entry.entity).toBe('installmentLoan')
+  })
+
+  it('never touches transactions — purely additive metadata', () => {
+    const tx = makeTransaction({
+      id: 'tx-1',
+      installment: { parentId: 'fin-1', currentIndex: 1, total: 4 },
+    })
+    useDataStore.setState({ data: makeDataFile({ transactions: [tx] }) })
+    useDataStore.getState().setInstallmentLoan(makeInstallmentLoan())
+    expect(useDataStore.getState().data!.transactions).toEqual([tx])
+  })
+
+  it('does nothing when data is null', () => {
+    useDataStore.setState({ data: null })
+    useDataStore.getState().setInstallmentLoan(makeInstallmentLoan())
+    expect(useDataStore.getState().data).toBeNull()
+  })
+})
+
+describe('unmarkInstallmentLoan', () => {
+  it('removes the mark and records a DELETE audit entry', () => {
+    useDataStore.setState({ data: makeDataFile({ installmentLoans: [makeInstallmentLoan()] }) })
+    useDataStore.getState().unmarkInstallmentLoan('fin-1')
+    const { installmentLoans, auditLog } = useDataStore.getState().data!
+    expect(installmentLoans).toHaveLength(0)
+    const entry = auditLog.at(-1)!
+    expect(entry.action).toBe('DELETE')
+    expect(entry.entity).toBe('installmentLoan')
+    expect(entry.summary).toContain('Refinanciamento Itaú')
+  })
+
+  it('is idempotent: unmarking a non-existent parentId does not crash', () => {
+    useDataStore.setState({ data: makeDataFile({ installmentLoans: [] }) })
+    expect(() => useDataStore.getState().unmarkInstallmentLoan('ghost-id')).not.toThrow()
+  })
+
+  it('does not add the parentId to deletedIds — it is not a tombstoned entity', () => {
+    useDataStore.setState({ data: makeDataFile({ installmentLoans: [makeInstallmentLoan()] }) })
+    useDataStore.getState().unmarkInstallmentLoan('fin-1')
+    expect(useDataStore.getState().data!.deletedIds).not.toContain('fin-1')
   })
 })
