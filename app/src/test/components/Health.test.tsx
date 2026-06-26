@@ -211,4 +211,72 @@ describe('Health page', () => {
     fireEvent.click(screen.getByText('Empréstimo Pessoal'))
     expect(document.body.textContent).toContain(formatCurrency(15000))
   })
+
+  // ─── HE-16: installment series marked as a loan ─────────────────────────────
+
+  it('renders a marked installment series with its name override, multiplier and cost', () => {
+    const checking = {
+      id: 'acc-retail',
+      name: 'Conta Corrente',
+      type: 'RETAIL' as const,
+      balance: 0,
+      includeInBalance: true,
+    }
+    const today = todayStr()
+    const txs: Transaction[] = [1, 2].map((i) => ({
+      id: `fin-${i}`,
+      accountId: 'acc-retail',
+      categoryId: 'cat-1',
+      amount: 100,
+      type: 'EXPENSE',
+      date: today,
+      description: `Refinanciamento Itaú (${i}/2)`,
+      isPaid: false,
+      tags: [],
+      installment: { parentId: 'fin-parent', currentIndex: i, total: 2 },
+    }))
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [checking],
+        transactions: txs,
+        installmentLoans: [{ parentId: 'fin-parent', principal: 150, name: 'Refi Itaú' }],
+      }),
+    })
+    render(<Health />)
+
+    expect(screen.getByText('Conta Corrente')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Conta Corrente'))
+    expect(screen.getByText('Refi Itaú')).toBeInTheDocument()
+    expect(document.body.textContent).toContain('health.loanMarkMultiplier')
+    expect(document.body.textContent).toContain('health.loanMarkCost')
+  })
+
+  it('does not render loan-mark insight for an unmarked installment series', () => {
+    const checking = {
+      id: 'acc-retail',
+      name: 'Conta Corrente',
+      type: 'RETAIL' as const,
+      balance: 0,
+      includeInBalance: true,
+    }
+    const today = todayStr()
+    const txs: Transaction[] = [1, 2].map((i) => ({
+      id: `sofa-${i}`,
+      accountId: 'acc-retail',
+      categoryId: 'cat-1',
+      amount: 100,
+      type: 'EXPENSE',
+      date: today,
+      description: `Sofá (${i}/2)`,
+      isPaid: false,
+      tags: [],
+      installment: { parentId: 'sofa-parent', currentIndex: i, total: 2 },
+    }))
+    useDataStore.setState({ data: makeDataFile({ accounts: [checking], transactions: txs }) })
+    render(<Health />)
+
+    fireEvent.click(screen.getByText('Conta Corrente'))
+    expect(screen.getByText('Sofá')).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('health.loanMarkMultiplier')
+  })
 })

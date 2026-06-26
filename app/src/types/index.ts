@@ -14,7 +14,14 @@ export type CategoryType = 'INCOME' | 'EXPENSE'
 export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'CREDIT_PAYMENT'
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
-export type AuditEntity = 'account' | 'category' | 'tag' | 'transaction' | 'user' | 'savedPeriod'
+export type AuditEntity =
+  | 'account'
+  | 'category'
+  | 'tag'
+  | 'transaction'
+  | 'user'
+  | 'savedPeriod'
+  | 'installmentLoan'
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 
@@ -129,6 +136,18 @@ export interface SavedPeriod {
   end: string // "YYYY-MM-DD"
 }
 
+// HE-16: opt-in annotation marking an installment series (identified by its
+// installment.parentId) as a loan/financing for the Financial Health debt breakdown.
+// Stores only what the ledger can't derive — the principal disbursed by the lender, and
+// an optional friendly name. interestRate is deliberately NOT stored: it's estimated from
+// the series' real cash flow (see lib/utils.ts#getInstallmentLoanInsight). Never alters
+// the underlying transactions — purely a classification layer, reversible at any time.
+export interface InstallmentLoan {
+  parentId: string // UUID — installment.parentId of the marked series
+  principal: number // amount disbursed by the lender (HE-16/D7) — what the user actually knows
+  name?: string // friendly name override (defaults to the series' own description)
+}
+
 // ─── Root data.json shape ─────────────────────────────────────────────────────
 
 export interface DataFile {
@@ -143,6 +162,7 @@ export interface DataFile {
   auditLog: AuditEntry[]
   deletedIds: string[] // tombstone: IDs explicitly deleted on this device (B-11)
   savedPeriods: SavedPeriod[] // M-45: named custom date ranges saved from Reports
+  installmentLoans: InstallmentLoan[] // HE-16: installment series marked as loans/financing
 }
 
 // ─── workspace.json shape ─────────────────────────────────────────────────────

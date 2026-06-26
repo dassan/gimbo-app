@@ -26,7 +26,7 @@ function makeEntry(daysAgo: number): AuditEntry {
 }
 
 const MINIMAL_VALID: DataFile = {
-  schemaVersion: 10,
+  schemaVersion: CURRENT_SCHEMA_VERSION,
   user: { name: 'x', email: '', createdAt: '', updatedAt: '' },
   settings: { fileCreatedAt: '', fileUpdatedAt: '', auditLogRetentionLimit: 200 },
   accounts: [],
@@ -37,6 +37,7 @@ const MINIMAL_VALID: DataFile = {
   auditLog: [],
   deletedIds: [],
   savedPeriods: [],
+  installmentLoans: [],
 }
 
 // ─── applyRetention ───────────────────────────────────────────────────────────
@@ -322,11 +323,12 @@ describe('validateDataFile — v1 → v2 migration', () => {
     auditLog: [],
     deletedIds: [],
     savedPeriods: [],
+    installmentLoans: [],
   }
 
-  it('migrates a v1 file to schemaVersion 10 (current)', () => {
+  it('migrates a v1 file to schemaVersion 11 (current)', () => {
     const result = validateDataFile(V1_FILE)
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
   it('preserves all existing accounts during v1 → v2 migration', () => {
@@ -343,53 +345,59 @@ describe('validateDataFile — v1 → v2 migration', () => {
     expect(result.transactions[0].installment).toBeUndefined()
   })
 
-  it('accepts a v2 file and migrates it to schemaVersion 10', () => {
+  it('accepts a v2 file and migrates it to schemaVersion 11', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 2 })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('migrates a v3 file to schemaVersion 10', () => {
+  it('migrates a v3 file to schemaVersion 11', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 3, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('migrates a v4 file to schemaVersion 10', () => {
+  it('migrates a v4 file to schemaVersion 11', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 4, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('migrates a v5 file to schemaVersion 10 (B-18, no-op shape change)', () => {
+  it('migrates a v5 file to schemaVersion 11 (B-18, no-op shape change)', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 5, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('migrates a v6 file to schemaVersion 10 (CC-33, no-op shape change)', () => {
+  it('migrates a v6 file to schemaVersion 11 (CC-33, no-op shape change)', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 6, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('migrates a v7 file to schemaVersion 10 (M-42, no-op shape change)', () => {
+  it('migrates a v7 file to schemaVersion 11 (M-42, no-op shape change)', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 7, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('migrates a v8 file to schemaVersion 10 (M-45, no-op shape change)', () => {
+  it('migrates a v8 file to schemaVersion 11 (M-45, no-op shape change)', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 8, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('migrates a v9 file to schemaVersion 10 (HE-04, no-op shape change)', () => {
+  it('migrates a v9 file to schemaVersion 11 (HE-04, no-op shape change)', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 9, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
-  it('accepts a v10 file without running migration (idempotent)', () => {
+  it('migrates a v10 file to schemaVersion 11 (HE-16, installmentLoans: [])', () => {
     const result = validateDataFile({ ...V1_FILE, schemaVersion: 10, valuations: [] })
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
+    expect(result.installmentLoans).toEqual([])
   })
 
-  it('throws SchemaVersionError for a v11 file (future version)', () => {
-    expect(() => validateDataFile({ ...V1_FILE, schemaVersion: 11, valuations: [] })).toThrow(
+  it('accepts a v11 file without running migration (idempotent)', () => {
+    const result = validateDataFile({ ...V1_FILE, schemaVersion: 11, valuations: [] })
+    expect(result.schemaVersion).toBe(11)
+  })
+
+  it('throws SchemaVersionError for a v12 file (future version)', () => {
+    expect(() => validateDataFile({ ...V1_FILE, schemaVersion: 12, valuations: [] })).toThrow(
       SchemaVersionError
     )
   })
@@ -634,11 +642,12 @@ describe('validateDataFile — v2 → v3 migration (NW-08)', () => {
     auditLog: [],
     deletedIds: [],
     savedPeriods: [],
+    installmentLoans: [],
   }
 
-  it('migrates a v2 file to schemaVersion 10 (current)', () => {
+  it('migrates a v2 file to schemaVersion 11 (current)', () => {
     const result = validateDataFile(V2_FILE)
-    expect(result.schemaVersion).toBe(10)
+    expect(result.schemaVersion).toBe(11)
   })
 
   it('adds valuations: [] when field is absent in a v2 file', () => {
@@ -660,14 +669,19 @@ describe('validateDataFile — v2 → v3 migration (NW-08)', () => {
     expect(file.valuations).toEqual([])
   })
 
-  it('createEmptyDataFile sets schemaVersion to 10', () => {
+  it('createEmptyDataFile sets schemaVersion to 11', () => {
     const file = createEmptyDataFile('Test', 'test@example.com')
-    expect(file.schemaVersion).toBe(10)
+    expect(file.schemaVersion).toBe(11)
   })
 
   it('createEmptyDataFile includes savedPeriods: []', () => {
     const file = createEmptyDataFile('Test', 'test@example.com')
     expect(file.savedPeriods).toEqual([])
+  })
+
+  it('createEmptyDataFile includes installmentLoans: []', () => {
+    const file = createEmptyDataFile('Test', 'test@example.com')
+    expect(file.installmentLoans).toEqual([])
   })
 })
 
@@ -947,6 +961,38 @@ describe('validateDataFile — savedPeriods (M-45)', () => {
       ...MINIMAL_VALID,
       savedPeriods: [{ id: 'p1', name: 'Q1 2026' }],
     }
+    expect(() => validateDataFile(data)).toThrow()
+  })
+})
+
+// ─── installmentLoans (HE-16) ─────────────────────────────────────────────────
+
+describe('validateDataFile — installmentLoans (HE-16)', () => {
+  it('accepts a file with a valid InstallmentLoan entry', () => {
+    const data = {
+      ...MINIMAL_VALID,
+      installmentLoans: [{ parentId: 'p1', principal: 50000, name: 'Refinanciamento Itaú' }],
+    }
+    const result = validateDataFile(data)
+    expect(result.installmentLoans).toEqual([
+      { parentId: 'p1', principal: 50000, name: 'Refinanciamento Itaú' },
+    ])
+  })
+
+  it('accepts an InstallmentLoan without a name (field is optional)', () => {
+    const data = { ...MINIMAL_VALID, installmentLoans: [{ parentId: 'p1', principal: 50000 }] }
+    expect(() => validateDataFile(data)).not.toThrow()
+  })
+
+  it('adds installmentLoans: [] when the field is absent (older files)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { installmentLoans: _il, ...withoutInstallmentLoans } = MINIMAL_VALID
+    const result = validateDataFile(withoutInstallmentLoans)
+    expect(result.installmentLoans).toEqual([])
+  })
+
+  it('rejects an InstallmentLoan with missing fields', () => {
+    const data = { ...MINIMAL_VALID, installmentLoans: [{ parentId: 'p1' }] }
     expect(() => validateDataFile(data)).toThrow()
   })
 })

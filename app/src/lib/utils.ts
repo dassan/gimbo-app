@@ -1,4 +1,4 @@
-import type { Account, Category, IncomeWindowMonths, Transaction } from '@/types'
+import type { Account, Category, IncomeWindowMonths, InstallmentLoan, Transaction } from '@/types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -319,6 +319,7 @@ export function getLoanLiability(account: Account): number {
 // ones are those dated today or later; past occurrences are treated as settled.
 
 interface OpenInstallmentGroup {
+  parentId: string // installment.parentId shared by every occurrence in the group (HE-16)
   description: string // purchase description, with the "(X/N)" suffix stripped (HE-10)
   currentIndex: number // 1-based installment index of the next-due occurrence (HE-10)
   total: number // total installments in the group, e.g. 10 for a 10x purchase (HE-10)
@@ -350,6 +351,7 @@ function _getOpenInstallmentGroups(
     )
     const next = sorted[0]
     return {
+      parentId: next.installment?.parentId ?? '',
       description: next.description.replace(/\s*\(\d+\/\d+\)$/, ''),
       currentIndex: next.installment?.currentIndex ?? 1,
       total: next.installment?.total ?? sorted.length,
@@ -421,6 +423,76 @@ export function getDebtHorizon(transactions: Transaction[], accounts: Account[])
   return Math.max(installmentHorizon, loanHorizon)
 }
 
+// ─── Financial Health — Installment Loan Mark (HE-16) ────────────────────────
+//
+// An installment series (installment.parentId) can be opt-in marked as a loan/
+// financing — see InstallmentLoan in types/index.ts and D7/D8 in FINANCIAL_HEALTH.md.
+// Only the principal (what the lender disbursed) is stored; everything time-dependent
+// is derived from the series' own materialized transactions.
+
+export interface InstallmentLoanInsight {
+  totalPaid: number // Σ of every installment in the series, paid and still open
+  cost: number // totalPaid − principal — what the credit actually cost
+  multiplier: number // totalPaid ÷ principal — "for every R$1 received, you pay back R$X"
+  estimatedRate: number | null // monthly IRR of the real cash flow; null when it can't be solved
+}
+
+/**
+ * Estimates the series' periodic (monthly) interest rate from its real cash flow:
+ * −principal at disbursement, +each installment's actual amount at its 1-based installment
+ * number (matches the standard amortization convention — the first payment lands one period
+ * after disbursement). Solved by bisection over [0, 100% a.m.], a deliberately wide bracket
+ * given Brazilian consumer credit can carry triple-digit annualized rates.
+ *
+ * Returns null when it can't be estimated: no principal, no installments in the series, or
+ * no sign change in the search range (e.g. totalPaid <= principal, which a real loan never
+ * produces but a misentered principal could).
+ */
+function _estimateInstallmentLoanRate(
+  transactions: Transaction[],
+  parentId: string,
+  principal: number
+): number | null {
+  if (principal <= 0) return null
+  const series = transactions.filter((tx) => tx.installment?.parentId === parentId)
+  if (series.length === 0) return null
+
+  function npv(rate: number): number {
+    return series.reduce((s, tx) => {
+      const months = tx.installment?.currentIndex ?? 0
+      return s + tx.amount / Math.pow(1 + rate, months)
+    }, -principal)
+  }
+
+  let lo = 0
+  let hi = 1
+  const signLo = Math.sign(npv(lo))
+  if (signLo === 0) return lo
+  if (signLo === Math.sign(npv(hi))) return null // no root in range — can't bracket
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (Math.sign(npv(mid)) === signLo) lo = mid
+    else hi = mid
+  }
+  return (lo + hi) / 2
+}
+
+/** Pure derivations for a marked installment series — feeds the debt breakdown (HE-16). */
+export function getInstallmentLoanInsight(
+  transactions: Transaction[],
+  loan: InstallmentLoan
+): InstallmentLoanInsight {
+  const totalPaid = transactions
+    .filter((tx) => tx.installment?.parentId === loan.parentId)
+    .reduce((s, tx) => s + tx.amount, 0)
+  return {
+    totalPaid,
+    cost: totalPaid - loan.principal,
+    multiplier: loan.principal > 0 ? totalPaid / loan.principal : 0,
+    estimatedRate: _estimateInstallmentLoanRate(transactions, loan.parentId, loan.principal),
+  }
+}
+
 // ─── Financial Health — Debt Breakdown (HE-10) ───────────────────────────────
 //
 // Per-account, per-item detail behind the aggregates above — feeds the expandable
@@ -436,6 +508,9 @@ export interface DebtInstallmentItem {
   remaining: number // still-open occurrences
   monthly: number
   remainingTotal: number
+  // HE-16: present when the series was marked as a loan/financing — never changes the
+  // counting above, only annotates it with the principal-based insight (D7).
+  loanMark?: { name?: string; principal: number } & InstallmentLoanInsight
 }
 
 export interface DebtLoanItem {
@@ -463,22 +538,40 @@ export interface DebtGroup {
 /**
  * Per-account breakdown of open committed debt — installment groups on any non-LOAN
  * account (credit cards → kind 'card'; regular accounts → kind 'installments', e.g. a
- * financing booked parcela by parcela) + LOAN balances.
+ * financing booked parcela by parcela) + LOAN balances. `installmentLoans` (HE-16)
+ * annotates matching series with `loanMark` — purely additive, never changes the
+ * counting (a marked series was already counted as an installment group since HE-15).
  */
-export function getDebtBreakdown(transactions: Transaction[], accounts: Account[]): DebtGroup[] {
+export function getDebtBreakdown(
+  transactions: Transaction[],
+  accounts: Account[],
+  installmentLoans: InstallmentLoan[] = []
+): DebtGroup[] {
   const installmentGroups = accounts
     .filter((a) => a.type !== 'LOAN')
     .map((acc): DebtGroup => {
       const items: DebtInstallmentItem[] = _getOpenInstallmentGroups(transactions, acc.id).map(
-        (g) => ({
-          kind: 'installment',
-          description: g.description,
-          current: g.currentIndex,
-          total: g.total,
-          remaining: g.remainingCount,
-          monthly: g.monthly,
-          remainingTotal: g.remainingTotal,
-        })
+        (g) => {
+          const loan = installmentLoans.find((l) => l.parentId === g.parentId)
+          return {
+            kind: 'installment',
+            description: loan?.name?.trim() || g.description,
+            current: g.currentIndex,
+            total: g.total,
+            remaining: g.remainingCount,
+            monthly: g.monthly,
+            remainingTotal: g.remainingTotal,
+            ...(loan
+              ? {
+                  loanMark: {
+                    name: loan.name,
+                    principal: loan.principal,
+                    ...getInstallmentLoanInsight(transactions, loan),
+                  },
+                }
+              : {}),
+          }
+        }
       )
       return {
         accountId: acc.id,

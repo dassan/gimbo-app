@@ -11,6 +11,7 @@ import type {
   CreditMetadata,
   DataFile,
   Installment,
+  InstallmentLoan,
   LoanMetadata,
   Recurrence,
   SavedPeriod,
@@ -532,6 +533,19 @@ export class StorageService {
     }))
   }
 
+  // ─── Installment loan marks (HE-16) ───────────────────────────────────────────
+
+  async getInstallmentLoans(): Promise<InstallmentLoan[]> {
+    const rows = await this.query(
+      'SELECT parent_id, principal, name FROM installment_loans ORDER BY created_at'
+    )
+    return rows.map((r) => ({
+      parentId: r.parent_id as string,
+      principal: r.principal as number,
+      ...(r.name !== null && r.name !== undefined ? { name: r.name as string } : {}),
+    }))
+  }
+
   // ─── Export / Import ─────────────────────────────────────────────────────────
 
   async exportBlob(): Promise<Blob> {
@@ -568,6 +582,7 @@ export class StorageService {
       auditLog,
       deletedIds,
       savedPeriods,
+      installmentLoans,
     ] = await Promise.all([
       this.getAccounts(),
       this.getCategories(),
@@ -577,6 +592,7 @@ export class StorageService {
       this.getAuditLog(),
       this.getDeletedIds(),
       this.getSavedPeriods(),
+      this.getInstallmentLoans(),
     ])
 
     return {
@@ -591,6 +607,7 @@ export class StorageService {
       auditLog,
       deletedIds,
       savedPeriods,
+      installmentLoans,
     }
   }
 

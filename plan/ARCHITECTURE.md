@@ -80,7 +80,7 @@ MyFinanceApp/
 │   │   │       ├── index.ts          # Singleton `storage` (StorageService)
 │   │   │       ├── StorageService.ts # API tipada usada pela app (main thread)
 │   │   │       ├── worker.ts         # Web Worker: wa-sqlite + OPFS, runMigrations()
-│   │   │       └── migrations/       # v1.sql .. v7.sql — schema físico incremental
+│   │   │       └── migrations/       # v1.sql .. v9.sql — schema físico incremental
 │   │   ├── store/
 │   │   │   ├── useDataStore.ts  # Dados financeiros + mutações + persistência debounced
 │   │   │   └── useWorkspaceStore.ts # Preferências UI (tema, locale, shadows, net worth)
@@ -104,6 +104,7 @@ MyFinanceApp/
 │   │   │   ├── Analytics/       # Shell com 5 views: index.tsx + CategoriasView, CashFlowView, ContasView, TagsView, FaturasView
 │   │   │   ├── CreditCard/      # Detalhe de fatura: período, lançamentos, filtro/busca, "Pagar Agora"
 │   │   │   ├── NetWorth/        # Patrimônio líquido: ativos − passivos, valuations
+│   │   │   ├── Health/          # Saúde Financeira: dívida total, peso no orçamento, marcas de empréstimo (F-29)
 │   │   │   ├── Settings/        # Contas e Cartões, Categorias, Tags, Perfil, Preferências, Backup & Sync, Histórico
 │   │   │   ├── About/           # Sobre o Gimbo: cobertura de testes, arquitetura
 │   │   │   ├── Docs/            # Páginas estáticas de ajuda (por que storage local, backup local, cloud sync)
@@ -218,6 +219,7 @@ Main Thread
 | Tombstones | `getDeletedIds()`, `addDeletedId(id)` |
 | Valuations | `getValuations()` |
 | Períodos salvos | `getSavedPeriods()` (M-45) |
+| Marcas de empréstimo | `getInstallmentLoans()` (HE-16) |
 | Export/Import/Versão | `exportBlob()`, `importBlob(blob)`, `getDatabaseVersion()` |
 | Bulk | `loadDataFile()` — monta um `DataFile` completo a partir de todas as tabelas; `replaceAll(data)` — substitui tudo numa transação; `clearAll()` |
 | Lifecycle | `terminate()` |
@@ -280,11 +282,11 @@ merge, syncService) — ver itens `CS-01` a `CS-12` em `plan/BACKLOG.md`.
 
 ## Modelo de Dados
 
-### `DataFile` (schema v9)
+### `DataFile` (schema v11)
 
 ```typescript
 interface DataFile {
-  schemaVersion: number        // atualmente 9
+  schemaVersion: number        // atualmente 11
   user: User                    // { name, email, createdAt, updatedAt }
   settings: Settings            // { fileCreatedAt, fileUpdatedAt, auditLogRetentionLimit: number | null }
   accounts: Account[]
@@ -295,6 +297,7 @@ interface DataFile {
   auditLog: AuditEntry[]
   deletedIds: string[]           // tombstones de entidades deletadas neste device (B-11)
   savedPeriods: SavedPeriod[]    // M-45: períodos customizados salvos no seletor de Relatórios
+  installmentLoans: InstallmentLoan[] // HE-16: séries parceladas marcadas como empréstimo/financiamento
 }
 ```
 
@@ -308,6 +311,7 @@ interface Account {
   balance: number               // saldo inicial — nunca exibido diretamente
   includeInBalance: boolean
   creditMetadata?: CreditMetadata // apenas contas CREDIT
+  loanMetadata?: LoanMetadata      // apenas contas LOAN (HE-04) — saldo mantido pelo usuário, sem replay de transações
   issuerIcon?: string             // 'nubank' | 'itau' | 'bradesco' | 'inter' | 'santander' | 'caixa' | 'generic' | undefined (M-34)
   archived?: boolean               // M-42: oculta de seletores/listas, mas continua contando em saldos/totais
 }
@@ -316,6 +320,13 @@ interface CreditMetadata {
   limit: number
   closingDay: number   // 1–31
   dueDay: number       // 1–31
+}
+
+interface LoanMetadata {            // HE-04 — empréstimos/financiamentos não-cartão, backing opaco
+  outstandingBalance: number        // saldo devedor — mantido pelo usuário, sem amortização automática
+  monthlyPayment: number
+  remainingInstallments: number
+  interestRate?: number             // % a.m., opcional
 }
 
 interface Category {
@@ -378,11 +389,19 @@ interface SavedPeriod {           // M-45
   end: string           // YYYY-MM-DD
 }
 
+interface InstallmentLoan {       // HE-16 — marca opt-in de uma série installment como empréstimo, backing rastreado
+  parentId: string                // installment.parentId da série marcada
+  principal: number                // valor desembolsado pelo credor — único dado que o usuário precisa informar
+  name?: string                    // nome amigável (default: descrição da própria série)
+  // interestRate NÃO é armazenado — é derivado/estimado por IRR a partir das parcelas reais
+  // (lib/utils.ts#getInstallmentLoanInsight)
+}
+
 interface AuditEntry {
   id: string
   timestamp: string     // ISO 8601
   action: AuditAction    // 'CREATE' | 'UPDATE' | 'DELETE'
-  entity: AuditEntity     // 'account' | 'category' | 'tag' | 'transaction' | 'user' | 'savedPeriod'
+  entity: AuditEntity     // 'account' | 'category' | 'tag' | 'transaction' | 'user' | 'savedPeriod' | 'installmentLoan'
   entityId: string
   summary: string        // texto legível, gerado no idioma ativo no momento da mutação
 }
@@ -390,7 +409,7 @@ interface AuditEntry {
 
 ### Enums
 
-- `AccountType`: `RETAIL | SAVINGS | CREDIT | CRYPTO | FOREX | ASSET | STOCKS | OTHER`
+- `AccountType`: `RETAIL | SAVINGS | CREDIT | CRYPTO | FOREX | ASSET | STOCKS | LOAN | OTHER`
 - `TransactionType`: `INCOME | EXPENSE | TRANSFER | CREDIT_PAYMENT`
 - `CategoryType`: `INCOME | EXPENSE`
 
@@ -403,12 +422,14 @@ interface WorkspaceFile {
   defaultView: string
   useAmbientShadows: boolean
   netWorthIncludeHidden: boolean // inclui contas com includeInBalance=false no Patrimônio (default true)
+  monthlyIncomeOverride?: number // HE-09/D1: renda confirmada pelo usuário — sempre vence a sugestão derivada
+  incomeWindowMonths: 3 | 6 | 9 | 12 // HE-09: janela de histórico para a sugestão de renda (default 6)
 }
 ```
 
 ### Versionamento do Schema
 
-- `CURRENT_SCHEMA_VERSION = 9` (em `lib/storage/schema.ts`)
+- `CURRENT_SCHEMA_VERSION = 11` (em `lib/storage/schema.ts`)
 - Arquivos com versão antiga são migrados automaticamente; arquivos de versão futura lançam `SchemaVersionError`
 - Migrações são bumps idempotentes (campos opcionais não exigem backfill):
   - **v1→v2**: `creditMetadata` (Account) e `installment` (Transaction)
@@ -419,18 +440,22 @@ interface WorkspaceFile {
   - **v6→v7**: `invoiceDueDate` (Transaction, CC-33)
   - **v7→v8**: `archived` (Account, M-42)
   - **v8→v9**: `savedPeriods: []` (M-45)
-- Schema físico SQLite (`PRAGMA user_version`, migrações em `services/storage/migrations/*.sql`):
-  - `v1.sql` — tabelas base (`users`, `settings`, `accounts`, `categories`, `tags`, `transactions`
-    com colunas de parcelamento, `transaction_tags`, `audit_log`, `deleted_ids`)
-  - `v2.sql` — tabela `valuations`
-  - `v3.sql` — colunas `recurrence_*` em `transactions`
-  - `v4.sql` — coluna `reference_month`
-  - `v5.sql` — coluna `invoice_due_date`
-  - `v6.sql` — coluna `archived` em `accounts` (default 0)
-  - `v7.sql` — tabela `saved_periods`
-
-  As migrações `v8`/`v9` do schema em memória não exigem alteração de DDL (campos já cobertos
-  pelas colunas/tabelas acima), por isso não há `v8.sql`/`v9.sql`.
+  - **v9→v10**: tipo de conta `LOAN` + `loanMetadata` (Account, HE-04)
+  - **v10→v11**: `installmentLoans: []` (HE-16)
+- Schema físico SQLite (`PRAGMA user_version`, migrações em `services/storage/migrations/*.sql`) —
+  a numeração **não coincide** com a do schema em memória: a transição **v5→v6** (generalização de
+  `referenceMonth`, B-18) não exige DDL e por isso não consome um arquivo `.sql` próprio, abrindo um
+  deslocamento de +2 entre as duas numerações a partir daí:
+  - `v1.sql` (memória v1→v2) — tabelas base (`users`, `settings`, `accounts`, `categories`, `tags`,
+    `transactions` com colunas de parcelamento, `transaction_tags`, `audit_log`, `deleted_ids`)
+  - `v2.sql` (memória v2→v3) — tabela `valuations`
+  - `v3.sql` (memória v3→v4) — colunas `recurrence_*` em `transactions`
+  - `v4.sql` (memória v4→v5) — coluna `reference_month`
+  - `v5.sql` (memória v6→v7 — pula a v5→v6, sem DDL) — coluna `invoice_due_date`
+  - `v6.sql` (memória v7→v8) — coluna `archived` em `accounts` (default 0)
+  - `v7.sql` (memória v8→v9) — tabela `saved_periods`
+  - `v8.sql` (memória v9→v10) — colunas `loan_*` em `accounts` (HE-04)
+  - `v9.sql` (memória v10→v11) — tabela `installment_loans` (HE-16)
 
 ---
 
@@ -453,6 +478,7 @@ data: DataFile | null   // null = sem cofre criado (route guard → /onboarding)
 | Transações | `addTransaction`, `updateTransaction`, `deleteTransaction`, `deleteInstallmentGroup(parentId)`, `deleteRecurrenceFrom(parentId, fromDate)` (M-35) |
 | Valuations | `addValuation`, `updateValuation`, `deleteValuation` |
 | Períodos salvos | `addSavedPeriod`, `deleteSavedPeriod` (M-45) |
+| Marcas de empréstimo | `setInstallmentLoan`, `unmarkInstallmentLoan` (HE-16) |
 | Usuário/Config | `updateUser(patch)`, `setRetentionLimit(limit)` |
 
 ### `mutate()` / persistência
@@ -625,6 +651,24 @@ global "Incluir não pagos":
 - Stat cards (total, ativos, passivos), breakdown por conta, gráfico de evolução (AreaChart)
 - Toggle `netWorthIncludeHidden` (workspace) — inclui contas com `includeInBalance=false`
 
+### Health (`/health`, F-29)
+
+Tela de Saúde Financeira — foco em dívida e seu peso no orçamento (≠ Patrimônio/F-24). Decisões
+de produto completas em `plan/FINANCIAL_HEALTH.md`.
+
+- **Peso no orçamento** — renda mensal (`deriveMonthlyIncome`, HE-09, com override do usuário em
+  `workspace.monthlyIncomeOverride`) vs. comprometido mensal; medidor de % da renda comprometida
+- **Dívida total comprometida** — `getTotalCommittedDebt`/`getMonthlyCommitment`/`getDebtHorizon`
+  (HE-08): soma séries `installment` abertas de **qualquer conta não-LOAN** (cartão ou conta
+  comum, ex. financiamento lançado parcela a parcela — HE-15) + saldo/parcela/prazo de cada conta
+  `LOAN` (`loanMetadata`, HE-04, backing opaco)
+- **Detalhamento expansível** — `getDebtBreakdown` agrupa por conta (`DebtGroup.kind`:
+  `'card' | 'installments' | 'loan'`); cada item parcelado pode ter um `loanMark` (HE-16) quando a
+  série foi marcada como empréstimo via `TransactionDrawer` — `getInstallmentLoanInsight` deriva
+  `totalPaid`/`cost`/`multiplier`/`estimatedRate` (IRR) só a partir do `principal` informado
+- **Reserva de Emergência** — ainda mockada (`MOCK_EMERGENCY_RESERVE`/`MOCK_MONTHLY_COST`), selo
+  "Em breve"; épico próprio HE-12 a HE-14
+
 ### Settings (`/settings`)
 
 7 seções (sidebar no desktop, abas horizontais no mobile):
@@ -716,14 +760,14 @@ para deploys públicos de demonstração (sem persistência).
 
 ### Cobertura Atual
 
-- **548 testes unitários** — 21 arquivos (`src/test/{components,lib,store}`)
+- **642 testes unitários** — 22 arquivos (`src/test/{components,lib,store}`)
 - **44 testes E2E** — 5 specs (`e2e/*.spec.ts`), em dois perfis Playwright: `chromium` (desktop) e `mobile-chrome`
 - Cobertura: ~97% statements
 
 ### Testes Unitários (Vitest)
 
 - Ambiente: `jsdom`, setup: `src/test/setup.ts`
-- Factories: `makeDataFile()` (schemaVersion 9), `makeCreditAccount()`, `makeInstallmentGroup()`
+- Factories: `makeDataFile()`, `makeCreditAccount()`, `makeLoanAccount()`, `makeInstallmentGroup()`
 - Threshold: 80% linhas e funções para arquivos críticos
 
 ### Testes E2E (Playwright)

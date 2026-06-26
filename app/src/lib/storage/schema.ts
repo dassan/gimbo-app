@@ -4,7 +4,7 @@ import { uuid, now } from '@/lib/utils'
 
 export const AUDIT_RETENTION_DEFAULT = 200
 export const AUDIT_RETENTION_DAYS = 90
-export const CURRENT_SCHEMA_VERSION = 10
+export const CURRENT_SCHEMA_VERSION = 11
 
 /**
  * Thrown by validateDataFile() when the parsed file declares a schemaVersion
@@ -133,11 +133,27 @@ const SavedPeriodSchema = z.object({
   end: z.string(),
 })
 
+// HE-16: opt-in annotation marking an installment series as a loan/financing. interestRate
+// is deliberately not part of this shape — it's derived/estimated, never stored.
+const InstallmentLoanSchema = z.object({
+  parentId: z.string(),
+  principal: z.number(),
+  name: z.string().optional(),
+})
+
 const AuditEntrySchema = z.object({
   id: z.string(),
   timestamp: z.string(),
   action: z.enum(['CREATE', 'UPDATE', 'DELETE']),
-  entity: z.enum(['account', 'category', 'tag', 'transaction', 'user', 'savedPeriod']),
+  entity: z.enum([
+    'account',
+    'category',
+    'tag',
+    'transaction',
+    'user',
+    'savedPeriod',
+    'installmentLoan',
+  ]),
   entityId: z.string(),
   summary: z.string(),
 })
@@ -154,6 +170,7 @@ export const DataFileSchema = z.object({
   auditLog: z.array(AuditEntrySchema),
   deletedIds: z.array(z.string()).default([]), // tombstone — B-11; absent in v1/v2 files defaults to []
   savedPeriods: z.array(SavedPeriodSchema).default([]), // M-45; absent in older files defaults to []
+  installmentLoans: z.array(InstallmentLoanSchema).default([]), // HE-16; absent in older files defaults to []
 })
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -243,6 +260,13 @@ function migrateDataFile(data: DataFile): DataFile {
     migrated = { ...migrated, schemaVersion: 10 }
   }
 
+  // v10 → v11: adds installmentLoans array (HE-16) — opt-in annotations marking installment
+  // series as loans/financing. Absent in older files; Zod default already fills it via
+  // DataFileSchema.parse, so we only need to bump the version here.
+  if (migrated.schemaVersion === 10) {
+    migrated = { ...migrated, schemaVersion: 11, installmentLoans: migrated.installmentLoans ?? [] }
+  }
+
   return migrated
 }
 
@@ -266,6 +290,7 @@ export function createEmptyDataFile(name: string, email: string): DataFile {
     auditLog: [],
     deletedIds: [],
     savedPeriods: [],
+    installmentLoans: [],
   }
 }
 

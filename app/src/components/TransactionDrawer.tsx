@@ -9,6 +9,8 @@ import {
   Tag,
   Trash2,
   CreditCard,
+  Landmark,
+  Check,
 } from 'lucide-react'
 import { useDataStore } from '@/store/useDataStore'
 import {
@@ -69,6 +71,8 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const deleteTransaction = useDataStore((s) => s.deleteTransaction)
   const deleteInstallmentGroup = useDataStore((s) => s.deleteInstallmentGroup)
   const deleteRecurrenceFrom = useDataStore((s) => s.deleteRecurrenceFrom)
+  const setInstallmentLoan = useDataStore((s) => s.setInstallmentLoan)
+  const unmarkInstallmentLoan = useDataStore((s) => s.unmarkInstallmentLoan)
 
   const isEditMode = transaction !== undefined
 
@@ -103,6 +107,11 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>('monthly')
   const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
   const [showRecurrenceDeleteModal, setShowRecurrenceDeleteModal] = useState(false)
+
+  // ── HE-16: "Marcar como empréstimo" — opt-in annotation on an installment series ──
+  const [loanMarkEditing, setLoanMarkEditing] = useState(false)
+  const [loanMarkName, setLoanMarkName] = useState('')
+  const [loanMarkPrincipalStr, setLoanMarkPrincipalStr] = useState('')
 
   // Derived account lists for CREDIT_PAYMENT selectors
   const creditAccounts = useMemo(
@@ -150,6 +159,19 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
   const showRecurrenceSection =
     !isEditMode && (type === 'INCOME' || type === 'EXPENSE') && !installmentsEnabled
 
+  // HE-16: "Marcar como empréstimo" is only meaningful for an existing installment
+  // occurrence — any account type, not just CREDIT (e.g. a financing on a checking account).
+  const showLoanMarkSection = isEditMode && !!transaction?.installment
+  const existingLoanMark = useMemo(
+    () =>
+      transaction?.installment
+        ? (data?.installmentLoans ?? []).find(
+            (l) => l.parentId === transaction.installment!.parentId
+          )
+        : undefined,
+    [data, transaction]
+  )
+
   // Reset or pre-fill on open — intentional setState-in-effect to initialise form fields
   useEffect(() => {
     if (open) {
@@ -185,6 +207,9 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
       setRecurrenceEndDate('')
       setShowRecurrenceDeleteModal(false)
       setShowTagMenu(false)
+      setLoanMarkEditing(false)
+      setLoanMarkName('')
+      setLoanMarkPrincipalStr('')
     }
   }, [open, transaction, data, activeAccounts, activeNonCreditAccounts])
 
@@ -334,6 +359,33 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
     deleteInstallmentGroup(transaction.installment.parentId)
     setShowInstallmentDeleteModal(false)
     onClose()
+  }
+
+  // ── HE-16: "Marcar como empréstimo" — opt-in, never touches the transactions ──
+  function startMarkAsLoan() {
+    setLoanMarkName(existingLoanMark?.name ?? '')
+    setLoanMarkPrincipalStr(
+      existingLoanMark ? existingLoanMark.principal.toFixed(2).replace('.', ',') : ''
+    )
+    setLoanMarkEditing(true)
+  }
+
+  function confirmMarkAsLoan() {
+    if (!transaction?.installment) return
+    const principal = parseFloat(loanMarkPrincipalStr.replace(',', '.')) || 0
+    if (principal <= 0) return
+    setInstallmentLoan({
+      parentId: transaction.installment.parentId,
+      principal,
+      ...(loanMarkName.trim() ? { name: loanMarkName.trim() } : {}),
+    })
+    setLoanMarkEditing(false)
+  }
+
+  function handleUnmarkLoan() {
+    if (!transaction?.installment) return
+    unmarkInstallmentLoan(transaction.installment.parentId)
+    setLoanMarkEditing(false)
   }
 
   // M-58: move a CREDIT charge/credit to the previous/next invoice by setting its
@@ -947,6 +999,99 @@ export default function TransactionDrawer({ open, onClose, transaction }: Transa
                   <ChevronsRight size={16} strokeWidth={1.5} />
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* ── HE-16: "Marcar como empréstimo" — opt-in annotation on the series ── */}
+          {showLoanMarkSection && (
+            <div className="rounded-xl bg-surface-container-low px-4 py-3 space-y-3">
+              {loanMarkEditing ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Landmark size={14} strokeWidth={1.5} className="text-on-surface/40" />
+                    <span className="text-sm font-medium text-on-surface">
+                      {t('health.markAsLoan')}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="label text-on-surface/40 block mb-2">
+                      {t('health.loanMarkName')}
+                    </label>
+                    <input
+                      type="text"
+                      value={loanMarkName}
+                      onChange={(e) => setLoanMarkName(e.target.value)}
+                      placeholder={t('health.loanMarkNamePlaceholder')}
+                      className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="label text-on-surface/40 block mb-2">
+                      {t('health.loanMarkPrincipal')}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={loanMarkPrincipalStr}
+                      onChange={(e) => setLoanMarkPrincipalStr(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={confirmMarkAsLoan}
+                      disabled={!loanMarkPrincipalStr}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white hover:brightness-110 transition-all disabled:opacity-40"
+                    >
+                      <Check size={14} strokeWidth={2} />
+                      {t('common.save')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLoanMarkEditing(false)}
+                      className="flex-1 rounded-xl py-2.5 text-sm font-medium text-on-surface/50 hover:bg-surface-container-high transition-colors"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                  {existingLoanMark && (
+                    <button
+                      type="button"
+                      onClick={handleUnmarkLoan}
+                      className="w-full text-center text-xs text-tertiary hover:underline"
+                    >
+                      {t('health.unmarkLoan')}
+                    </button>
+                  )}
+                </>
+              ) : existingLoanMark ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Landmark size={14} strokeWidth={1.5} className="text-on-surface/40" />
+                    <span className="text-sm text-on-surface">
+                      {existingLoanMark.name || t('health.markAsLoan')}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={startMarkAsLoan}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    {t('common.edit')}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startMarkAsLoan}
+                  className="flex w-full items-center gap-2 text-sm font-medium text-primary"
+                >
+                  <Landmark size={14} strokeWidth={1.5} />
+                  {t('health.markAsLoan')}
+                </button>
+              )}
             </div>
           )}
 

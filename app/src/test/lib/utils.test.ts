@@ -16,6 +16,7 @@ import {
   getMonthlyCommitment,
   getDebtHorizon,
   getDebtBreakdown,
+  getInstallmentLoanInsight,
   deriveMonthlyIncome,
   invoicePeriodKey,
   filterArchivedAccounts,
@@ -25,7 +26,7 @@ import {
   parseDateLocal,
   sortCategoriesHierarchical,
 } from '@/lib/utils'
-import type { Account, Category, Transaction } from '@/types'
+import type { Account, Category, InstallmentLoan, Transaction } from '@/types'
 
 describe('formatCurrency', () => {
   it('formats BRL with comma decimal separator', () => {
@@ -534,6 +535,110 @@ describe('getDebtBreakdown (HE-10)', () => {
       monthly: 500,
       remainingTotal: 7500,
     })
+  })
+})
+
+// ─── Financial Health — Installment Loan Mark (HE-16) ────────────────────────
+
+describe('getInstallmentLoanInsight (HE-16)', () => {
+  it('computes cost and multiplier from the series total vs. principal', () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const series = makeInstallmentGroup('acc-retail', 'fin', 3, 100, today, 1) // Σ = 300
+    const loan: InstallmentLoan = { parentId: 'fin', principal: 250 }
+    const insight = getInstallmentLoanInsight(series, loan)
+    expect(insight.totalPaid).toBe(300)
+    expect(insight.cost).toBe(50)
+    expect(insight.multiplier).toBeCloseTo(1.2, 5)
+  })
+
+  it('sums every installment in the series, including already-settled ones', () => {
+    const past = makeInstallmentGroup('acc-retail', 'fin', 4, 100, '2015-01-01', 1)
+    const today = new Date().toISOString().slice(0, 10)
+    const open = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 3)
+    const loan: InstallmentLoan = { parentId: 'fin', principal: 350 }
+    // Both groups share parentId 'fin' but represent the same conceptual series here —
+    // totalPaid must reconcile against every occurrence regardless of date.
+    const insight = getInstallmentLoanInsight([...past.slice(0, 2), ...open], loan)
+    expect(insight.totalPaid).toBe(400) // 4 occurrences × 100
+  })
+
+  it('returns multiplier 0 and a null rate when principal is 0 or negative', () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const series = makeInstallmentGroup('acc-retail', 'fin', 2, 100, today, 1)
+    const insight = getInstallmentLoanInsight(series, { parentId: 'fin', principal: 0 })
+    expect(insight.multiplier).toBe(0)
+    expect(insight.estimatedRate).toBeNull()
+  })
+
+  it('returns a null rate when the series has no transactions', () => {
+    const insight = getInstallmentLoanInsight([], { parentId: 'ghost', principal: 1000 })
+    expect(insight.totalPaid).toBe(0)
+    expect(insight.estimatedRate).toBeNull()
+  })
+
+  it('estimates a monthly rate close to the real one from a Price-amortized series', () => {
+    // Standard Price/amortization formula: A = P × r / (1 − (1+r)^−n). Generate a series
+    // with this exact installment and verify the IRR bisection recovers r.
+    const principal = 1000
+    const months = 6
+    const rate = 0.03
+    const installment = (principal * rate) / (1 - Math.pow(1 + rate, -months))
+    const amount = Math.round(installment * 100) / 100
+    const today = new Date().toISOString().slice(0, 10)
+    const series = makeInstallmentGroup('acc-retail', 'fin', months, amount, today, 1)
+    const insight = getInstallmentLoanInsight(series, { parentId: 'fin', principal })
+    expect(insight.estimatedRate).not.toBeNull()
+    expect(insight.estimatedRate!).toBeCloseTo(rate, 3)
+  })
+})
+
+describe('getDebtBreakdown — installmentLoans mark (HE-16)', () => {
+  it('annotates a matching installment item with loanMark, leaving the count unchanged', () => {
+    const checking = makeAccount({ id: 'acc-retail', type: 'RETAIL', creditMetadata: undefined })
+    const today = new Date().toISOString().slice(0, 10)
+    const group = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 1) // 4 remain × 100 = 400
+    const loan: InstallmentLoan = { parentId: 'fin', principal: 350, name: 'Refi Itaú' }
+
+    const withoutMark = getDebtBreakdown(group, [checking])
+    const withMark = getDebtBreakdown(group, [checking], [loan])
+
+    // Counting is unaffected by the mark — only the annotation changes.
+    expect(withMark[0].remainingTotal).toBe(withoutMark[0].remainingTotal)
+    expect(withMark[0].monthly).toBe(withoutMark[0].monthly)
+
+    const [item] = withMark[0].items
+    expect(item.kind).toBe('installment')
+    expect(item.description).toBe('Refi Itaú') // name override
+    if (item.kind === 'installment') {
+      expect(item.loanMark).toMatchObject({ name: 'Refi Itaú', principal: 350, totalPaid: 400 })
+    }
+  })
+
+  it('leaves an unmarked series with no loanMark and its own description', () => {
+    const checking = makeAccount({ id: 'acc-retail', type: 'RETAIL', creditMetadata: undefined })
+    const today = new Date().toISOString().slice(0, 10)
+    const group = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 1)
+    group.forEach((tx) => {
+      tx.description = `Sofá (${tx.installment!.currentIndex}/4)`
+    })
+    const otherLoan: InstallmentLoan = { parentId: 'unrelated', principal: 999 }
+
+    const [debtGroup] = getDebtBreakdown(group, [checking], [otherLoan])
+    expect(debtGroup.items[0]).not.toHaveProperty('loanMark')
+    expect(debtGroup.items[0].description).toBe('Sofá')
+  })
+
+  it('falls back to the series description when the mark has no name', () => {
+    const checking = makeAccount({ id: 'acc-retail', type: 'RETAIL', creditMetadata: undefined })
+    const today = new Date().toISOString().slice(0, 10)
+    const group = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 1)
+    group.forEach((tx) => {
+      tx.description = `Refinanciamento (${tx.installment!.currentIndex}/4)`
+    })
+    const loan: InstallmentLoan = { parentId: 'fin', principal: 350 }
+
+    const [debtGroup] = getDebtBreakdown(group, [checking], [loan])
+    expect(debtGroup.items[0].description).toBe('Refinanciamento')
   })
 })
 

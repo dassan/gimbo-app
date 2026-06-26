@@ -15,6 +15,7 @@ import v5Schema from './migrations/v5.sql?raw'
 import v6Schema from './migrations/v6.sql?raw'
 import v7Schema from './migrations/v7.sql?raw'
 import v8Schema from './migrations/v8.sql?raw'
+import v9Schema from './migrations/v9.sql?raw'
 
 // ─── Protocol types ───────────────────────────────────────────────────────────
 
@@ -99,6 +100,11 @@ type RawSavedPeriod = {
   start: string
   end: string
 }
+type RawInstallmentLoan = {
+  parentId: string
+  principal: number
+  name?: string
+}
 type RawDataFile = {
   user: RawUser
   settings: RawSettings
@@ -110,6 +116,7 @@ type RawDataFile = {
   auditLog: RawAuditEntry[]
   deletedIds: string[]
   savedPeriods: RawSavedPeriod[]
+  installmentLoans: RawInstallmentLoan[]
 }
 
 // ─── SQLite state ─────────────────────────────────────────────────────────────
@@ -173,6 +180,9 @@ async function runMigrations(): Promise<void> {
   if (version < 8) {
     await sqlite3.run(db, v8Schema)
   }
+  if (version < 9) {
+    await sqlite3.run(db, v9Schema)
+  }
 }
 
 // ─── Export / Import ──────────────────────────────────────────────────────────
@@ -230,6 +240,7 @@ async function replaceAll(raw: unknown): Promise<void> {
     await sqlite3.run(db, 'DELETE FROM transactions')
     await sqlite3.run(db, 'DELETE FROM valuations')
     await sqlite3.run(db, 'DELETE FROM saved_periods')
+    await sqlite3.run(db, 'DELETE FROM installment_loans')
     await sqlite3.run(db, 'DELETE FROM categories')
     await sqlite3.run(db, 'DELETE FROM tags')
     await sqlite3.run(db, 'DELETE FROM accounts')
@@ -361,6 +372,15 @@ async function replaceAll(raw: unknown): Promise<void> {
       )
     }
 
+    // installment loan marks (HE-16)
+    for (const loan of d.installmentLoans ?? []) {
+      await sqlite3.run(
+        db,
+        'INSERT INTO installment_loans (parent_id, principal, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [loan.parentId, loan.principal, loan.name ?? null, ts, ts]
+      )
+    }
+
     // audit log
     for (const entry of d.auditLog) {
       await sqlite3.run(
@@ -397,6 +417,7 @@ async function clearAll(): Promise<void> {
     await sqlite3.run(db, 'DELETE FROM transactions')
     await sqlite3.run(db, 'DELETE FROM valuations')
     await sqlite3.run(db, 'DELETE FROM saved_periods')
+    await sqlite3.run(db, 'DELETE FROM installment_loans')
     await sqlite3.run(db, 'DELETE FROM categories')
     await sqlite3.run(db, 'DELETE FROM tags')
     await sqlite3.run(db, 'DELETE FROM accounts')

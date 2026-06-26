@@ -471,7 +471,15 @@
     "recalculate": "Recalculate from history",
     "setIncomeCta": "Set your monthly income",
     "incomePlaceholder": "$0.00",
-    "reservePlaceholder": "Coming soon"
+    "reservePlaceholder": "Coming soon",
+    "markAsLoan": "Mark as loan",
+    "unmarkLoan": "Remove loan mark",
+    "loanMarkName": "Name (optional)",
+    "loanMarkNamePlaceholder": "E.g.: Itaú Refinancing",
+    "loanMarkPrincipal": "Amount received from the loan",
+    "loanMarkMultiplier": "{{multiplier}}× what you received",
+    "loanMarkCost": "Cost: {{cost}}",
+    "loanMarkRateEstimate": "≈ {{rate}}%/mo (estimate)"
   },
   "welcome": {
     "title": "Welcome to Gimbo",
