@@ -16,7 +16,10 @@ import {
   getMonthlyCommitment,
   getDebtHorizon,
   getDebtBreakdown,
-  getInstallmentLoanInsight,
+  isLoanGenerationReady,
+  getLoanGenerationPlan,
+  getLoanBalance,
+  deterministicLoanTransactionId,
   deriveMonthlyIncome,
   invoicePeriodKey,
   filterArchivedAccounts,
@@ -26,7 +29,7 @@ import {
   parseDateLocal,
   sortCategoriesHierarchical,
 } from '@/lib/utils'
-import type { Account, Category, InstallmentLoan, Transaction } from '@/types'
+import type { Account, Category, Transaction } from '@/types'
 
 describe('formatCurrency', () => {
   it('formats BRL with comma decimal separator', () => {
@@ -540,105 +543,197 @@ describe('getDebtBreakdown (HE-10)', () => {
 
 // ─── Financial Health — Installment Loan Mark (HE-16) ────────────────────────
 
-describe('getInstallmentLoanInsight (HE-16)', () => {
-  it('computes cost and multiplier from the series total vs. principal', () => {
-    const today = new Date().toISOString().slice(0, 10)
-    const series = makeInstallmentGroup('acc-retail', 'fin', 3, 100, today, 1) // Σ = 300
-    const loan: InstallmentLoan = { parentId: 'fin', principal: 250 }
-    const insight = getInstallmentLoanInsight(series, loan)
-    expect(insight.totalPaid).toBe(300)
-    expect(insight.cost).toBe(50)
-    expect(insight.multiplier).toBeCloseTo(1.2, 5)
+// ─── Financial Health — LOAN Generation Engine (HE-19) ───────────────────────
+
+function makeGeneratingLoan(overrides: Partial<Account> = {}): Account {
+  return makeAccount({
+    id: 'loan-1',
+    type: 'LOAN',
+    creditMetadata: undefined,
+    loanMetadata: {
+      outstandingBalance: 0,
+      monthlyPayment: 1000,
+      remainingInstallments: 0,
+      schedule: 'fixed',
+      principal: 12000,
+      installmentAmount: 1000,
+      categoryId: 'cat-1',
+      startDate: '2025-01-10',
+      payerAccountId: 'acc-checking',
+    },
+    ...overrides,
+  })
+}
+
+describe('isLoanGenerationReady (HE-19/HE-20)', () => {
+  it('is false for a legacy LOAN (HE-06 shape, no schedule)', () => {
+    const loan = makeAccount({
+      type: 'LOAN',
+      creditMetadata: undefined,
+      loanMetadata: { outstandingBalance: 8000, monthlyPayment: 500, remainingInstallments: 16 },
+    })
+    expect(isLoanGenerationReady(loan)).toBe(false)
   })
 
-  it('sums every installment in the series, including already-settled ones', () => {
-    const past = makeInstallmentGroup('acc-retail', 'fin', 4, 100, '2015-01-01', 1)
-    const today = new Date().toISOString().slice(0, 10)
-    const open = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 3)
-    const loan: InstallmentLoan = { parentId: 'fin', principal: 350 }
-    // Both groups share parentId 'fin' but represent the same conceptual series here —
-    // totalPaid must reconcile against every occurrence regardless of date.
-    const insight = getInstallmentLoanInsight([...past.slice(0, 2), ...open], loan)
-    expect(insight.totalPaid).toBe(400) // 4 occurrences × 100
+  it('is false for a cold loan (schedule: none) even with principal present', () => {
+    const loan = makeGeneratingLoan({
+      loanMetadata: { ...makeGeneratingLoan().loanMetadata!, schedule: 'none' },
+    })
+    expect(isLoanGenerationReady(loan)).toBe(false)
   })
 
-  it('returns multiplier 0 and a null rate when principal is 0 or negative', () => {
-    const today = new Date().toISOString().slice(0, 10)
-    const series = makeInstallmentGroup('acc-retail', 'fin', 2, 100, today, 1)
-    const insight = getInstallmentLoanInsight(series, { parentId: 'fin', principal: 0 })
-    expect(insight.multiplier).toBe(0)
-    expect(insight.estimatedRate).toBeNull()
+  it('is false when schedule is undecided even with every field present', () => {
+    const loan = makeGeneratingLoan({
+      loanMetadata: { ...makeGeneratingLoan().loanMetadata!, schedule: undefined },
+    })
+    expect(isLoanGenerationReady(loan)).toBe(false)
   })
 
-  it('returns a null rate when the series has no transactions', () => {
-    const insight = getInstallmentLoanInsight([], { parentId: 'ghost', principal: 1000 })
-    expect(insight.totalPaid).toBe(0)
-    expect(insight.estimatedRate).toBeNull()
-  })
-
-  it('estimates a monthly rate close to the real one from a Price-amortized series', () => {
-    // Standard Price/amortization formula: A = P × r / (1 − (1+r)^−n). Generate a series
-    // with this exact installment and verify the IRR bisection recovers r.
-    const principal = 1000
-    const months = 6
-    const rate = 0.03
-    const installment = (principal * rate) / (1 - Math.pow(1 + rate, -months))
-    const amount = Math.round(installment * 100) / 100
-    const today = new Date().toISOString().slice(0, 10)
-    const series = makeInstallmentGroup('acc-retail', 'fin', months, amount, today, 1)
-    const insight = getInstallmentLoanInsight(series, { parentId: 'fin', principal })
-    expect(insight.estimatedRate).not.toBeNull()
-    expect(insight.estimatedRate!).toBeCloseTo(rate, 3)
+  it('is true once schedule is fixed and principal/installmentAmount/startDate/payerAccountId are all set', () => {
+    expect(isLoanGenerationReady(makeGeneratingLoan())).toBe(true)
   })
 })
 
-describe('getDebtBreakdown — installmentLoans mark (HE-16)', () => {
-  it('annotates a matching installment item with loanMark, leaving the count unchanged', () => {
-    const checking = makeAccount({ id: 'acc-retail', type: 'RETAIL', creditMetadata: undefined })
-    const today = new Date().toISOString().slice(0, 10)
-    const group = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 1) // 4 remain × 100 = 400
-    const loan: InstallmentLoan = { parentId: 'fin', principal: 350, name: 'Refi Itaú' }
-
-    const withoutMark = getDebtBreakdown(group, [checking])
-    const withMark = getDebtBreakdown(group, [checking], [loan])
-
-    // Counting is unaffected by the mark — only the annotation changes.
-    expect(withMark[0].remainingTotal).toBe(withoutMark[0].remainingTotal)
-    expect(withMark[0].monthly).toBe(withoutMark[0].monthly)
-
-    const [item] = withMark[0].items
-    expect(item.kind).toBe('installment')
-    expect(item.description).toBe('Refi Itaú') // name override
-    if (item.kind === 'installment') {
-      expect(item.loanMark).toMatchObject({ name: 'Refi Itaú', principal: 350, totalPaid: 400 })
-    }
+describe('getLoanGenerationPlan (HE-19)', () => {
+  it('returns an empty plan for a legacy LOAN', () => {
+    const loan = makeAccount({
+      type: 'LOAN',
+      creditMetadata: undefined,
+      loanMetadata: { outstandingBalance: 8000, monthlyPayment: 500, remainingInstallments: 16 },
+    })
+    const plan = getLoanGenerationPlan(loan, [])
+    expect(plan).toEqual({ totalInstallments: 0, due: [] })
   })
 
-  it('leaves an unmarked series with no loanMark and its own description', () => {
-    const checking = makeAccount({ id: 'acc-retail', type: 'RETAIL', creditMetadata: undefined })
-    const today = new Date().toISOString().slice(0, 10)
-    const group = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 1)
-    group.forEach((tx) => {
-      tx.description = `Sofá (${tx.installment!.currentIndex}/4)`
+  it('never includes installments beyond today (D10 — no pre-materializing the future)', () => {
+    const loan = makeGeneratingLoan({
+      loanMetadata: { ...makeGeneratingLoan().loanMetadata!, startDate: '2025-01-10' },
     })
-    const otherLoan: InstallmentLoan = { parentId: 'unrelated', principal: 999 }
-
-    const [debtGroup] = getDebtBreakdown(group, [checking], [otherLoan])
-    expect(debtGroup.items[0]).not.toHaveProperty('loanMark')
-    expect(debtGroup.items[0].description).toBe('Sofá')
+    const today = '2025-03-15'
+    const plan = getLoanGenerationPlan(loan, [], today)
+    expect(plan.totalInstallments).toBe(12) // 12000 / 1000
+    // Jan, Feb, Mar are due (10th <= 15th); Apr (2025-04-10) is in the future.
+    expect(plan.due.map((d) => d.currentIndex)).toEqual([1, 2, 3])
   })
 
-  it('falls back to the series description when the mark has no name', () => {
-    const checking = makeAccount({ id: 'acc-retail', type: 'RETAIL', creditMetadata: undefined })
-    const today = new Date().toISOString().slice(0, 10)
-    const group = makeInstallmentGroup('acc-retail', 'fin', 4, 100, today, 1)
-    group.forEach((tx) => {
-      tx.description = `Refinanciamento (${tx.installment!.currentIndex}/4)`
+  it('skips installments that already have a generated Transaction', () => {
+    const loan = makeGeneratingLoan()
+    const existing = makeTx({
+      accountId: 'acc-checking',
+      amount: 1000,
+      date: '2025-01-10',
+      installment: { parentId: 'loan-1', currentIndex: 1, total: 12 },
     })
-    const loan: InstallmentLoan = { parentId: 'fin', principal: 350 }
+    const plan = getLoanGenerationPlan(loan, [existing], '2025-02-15')
+    expect(plan.due.map((d) => d.currentIndex)).toEqual([2])
+  })
 
-    const [debtGroup] = getDebtBreakdown(group, [checking], [loan])
-    expect(debtGroup.items[0].description).toBe('Refinanciamento')
+  it('catches up on every missed period at once after a long absence', () => {
+    const loan = makeGeneratingLoan()
+    const plan = getLoanGenerationPlan(loan, [], '2025-12-31')
+    expect(plan.due).toHaveLength(12) // entire 12-installment term elapsed, nothing generated yet
+    expect(plan.due.map((d) => d.currentIndex)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+  })
+})
+
+describe('getLoanBalance (HE-19)', () => {
+  it('falls back to the stored figures for a legacy LOAN', () => {
+    const loan = makeAccount({
+      type: 'LOAN',
+      creditMetadata: undefined,
+      loanMetadata: { outstandingBalance: 8000, monthlyPayment: 500, remainingInstallments: 16 },
+    })
+    expect(getLoanBalance(loan, [])).toEqual({
+      outstandingBalance: 8000,
+      remainingInstallments: 16,
+      monthlyPayment: 500,
+    })
+  })
+
+  it('derives balance/remaining term from principal minus paid (D11), not a fixed decrement', () => {
+    const loan = makeGeneratingLoan()
+    const paidThree = [1, 2, 3].map((i) =>
+      makeTx({
+        accountId: 'acc-checking',
+        amount: 1000,
+        date: addMonths('2025-01-10', i - 1),
+        installment: { parentId: 'loan-1', currentIndex: i, total: 12 },
+      })
+    )
+    expect(getLoanBalance(loan, paidThree)).toEqual({
+      outstandingBalance: 9000,
+      remainingInstallments: 9,
+      monthlyPayment: 1000,
+    })
+  })
+
+  it('shortens the remaining term when a parcela was paid above plan', () => {
+    const loan = makeGeneratingLoan()
+    const paidExtra = [
+      makeTx({
+        accountId: 'acc-checking',
+        amount: 2000, // paid double the planned installment
+        date: '2025-01-10',
+        installment: { parentId: 'loan-1', currentIndex: 1, total: 12 },
+      }),
+    ]
+    expect(getLoanBalance(loan, paidExtra)).toEqual({
+      outstandingBalance: 10000,
+      remainingInstallments: 10,
+      monthlyPayment: 1000,
+    })
+  })
+
+  it('never returns a negative balance once the series is overpaid', () => {
+    const loan = makeGeneratingLoan()
+    const overpaid = [
+      makeTx({
+        accountId: 'acc-checking',
+        amount: 13000,
+        date: '2025-01-10',
+        installment: { parentId: 'loan-1', currentIndex: 1, total: 12 },
+      }),
+    ]
+    expect(getLoanBalance(loan, overpaid)).toEqual({
+      outstandingBalance: 0,
+      remainingInstallments: 0,
+      monthlyPayment: 0,
+    })
+  })
+
+  it('zeroes monthlyPayment once the loan is fully paid off (verified end-to-end in HE-22)', () => {
+    const loan = makeGeneratingLoan({
+      loanMetadata: { ...makeGeneratingLoan().loanMetadata!, principal: 2000 },
+    })
+    const paidInFull = [1, 2].map((i) =>
+      makeTx({
+        accountId: 'acc-checking',
+        amount: 1000,
+        date: addMonths('2025-01-10', i - 1),
+        installment: { parentId: 'loan-1', currentIndex: i, total: 2 },
+      })
+    )
+    expect(getLoanBalance(loan, paidInFull)).toEqual({
+      outstandingBalance: 0,
+      remainingInstallments: 0,
+      monthlyPayment: 0,
+    })
+  })
+})
+
+describe('deterministicLoanTransactionId (HE-19)', () => {
+  it('is deterministic for the same loan id and date', async () => {
+    const a = await deterministicLoanTransactionId('loan-1', '2025-01-10')
+    const b = await deterministicLoanTransactionId('loan-1', '2025-01-10')
+    expect(a).toBe(b)
+  })
+
+  it('differs across loans and across dates', async () => {
+    const base = await deterministicLoanTransactionId('loan-1', '2025-01-10')
+    const otherLoan = await deterministicLoanTransactionId('loan-2', '2025-01-10')
+    const otherDate = await deterministicLoanTransactionId('loan-1', '2025-02-10')
+    expect(otherLoan).not.toBe(base)
+    expect(otherDate).not.toBe(base)
   })
 })
 

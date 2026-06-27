@@ -83,7 +83,13 @@ export default function App() {
         }
 
         const saved = await storage.loadDataFile()
-        if (saved) loadData(saved)
+        if (saved) {
+          loadData(saved)
+          // HE-19: top up LOAN accounts with the real transactions due since the app was
+          // last open. Boot-only, never in demo/devSeed (synthetic/fixed data shouldn't
+          // grow on its own).
+          void useDataStore.getState().generateDueLoanInstallments()
+        }
       } catch (err) {
         setInitError(err instanceof Error ? err.message : 'Erro ao carregar dados locais')
       } finally {

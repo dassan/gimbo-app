@@ -1,5 +1,5 @@
 ﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Settings from '@/pages/Settings'
 import { useDataStore } from '@/store/useDataStore'
@@ -471,12 +471,15 @@ function makeLoanAccount(overrides: Partial<Account> = {}): Account {
 }
 
 describe('Settings — HE-05: create/edit LOAN account', () => {
-  it('shows the loan metadata fields when LOAN is selected in the new-account modal', async () => {
+  it('shows the loan metadata fields when LOAN + "no schedule" is selected in the new-account modal', async () => {
     useDataStore.setState({ data: makeDataFile({ accounts: [], transactions: [] }) })
     render(<Settings />)
 
     await userEvent.click(screen.getByRole('button', { name: /settings\.newAccount/i }))
     await userEvent.click(screen.getByText('accounts.loan'))
+    // HE-20: new LOANs default to the fixed-schedule branch — switch to "no schedule" to
+    // reach the original HE-06 hand-edited fields.
+    await userEvent.click(screen.getByText('settings.loanScheduleNone'))
 
     expect(screen.getByText('accounts.outstandingBalance')).toBeInTheDocument()
     expect(screen.getByText('accounts.monthlyPayment')).toBeInTheDocument()
@@ -494,7 +497,7 @@ describe('Settings — HE-05: create/edit LOAN account', () => {
     expect(screen.queryByText('accounts.initialBalance')).not.toBeInTheDocument()
   })
 
-  it('saves a new LOAN account with the entered loanMetadata', async () => {
+  it('saves a new "no schedule" LOAN account with the entered loanMetadata', async () => {
     useDataStore.setState({ data: makeDataFile({ accounts: [], transactions: [] }) })
     render(<Settings />)
 
@@ -504,6 +507,7 @@ describe('Settings — HE-05: create/edit LOAN account', () => {
       'Financiamento do apê'
     )
     await userEvent.click(screen.getByText('accounts.loan'))
+    await userEvent.click(screen.getByText('settings.loanScheduleNone'))
 
     const balanceInputs = screen.getAllByPlaceholderText('R$ 0,00')
     await userEvent.type(balanceInputs[0], '20000')
@@ -523,6 +527,7 @@ describe('Settings — HE-05: create/edit LOAN account', () => {
       monthlyPayment: 950,
       remainingInstallments: 24,
       interestRate: 1.2,
+      schedule: 'none',
     })
   })
 
@@ -549,6 +554,154 @@ describe('Settings — HE-05: create/edit LOAN account', () => {
     render(<Settings />)
 
     expect(screen.getByText(/15\.000,00/)).toBeInTheDocument()
+  })
+})
+
+// ─── Settings — HE-20: LOAN generation engine UI ─────────────────────────────
+
+describe('Settings — HE-20: LOAN schedule (fixed) and dedicated section', () => {
+  function makeChecking(overrides: Partial<Account> = {}): Account {
+    return {
+      id: 'acc-checking',
+      name: 'Conta Corrente',
+      type: 'RETAIL',
+      balance: 0,
+      includeInBalance: true,
+      ...overrides,
+    }
+  }
+  const expenseCategory = {
+    id: 'cat-1',
+    parentId: null,
+    name: 'Empréstimos',
+    icon: 'home',
+    color: '#000',
+    type: 'EXPENSE' as const,
+  }
+
+  it('LOAN accounts render in the dedicated "Empréstimos" section, separate from the generic accounts list', () => {
+    const loan = makeLoanAccount()
+    useDataStore.setState({
+      data: makeDataFile({ accounts: [loan, makeChecking()], transactions: [] }),
+    })
+    render(<Settings />)
+
+    expect(screen.getByText('settings.loans')).toBeInTheDocument()
+    expect(screen.getByText('Financiamento do carro')).toBeInTheDocument()
+    expect(screen.getByText('Conta Corrente')).toBeInTheDocument()
+  })
+
+  it('new LOANs default to the fixed-schedule branch, requiring principal/installment/payer/category before saving', async () => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [makeChecking()],
+        categories: [expenseCategory],
+        transactions: [],
+      }),
+    })
+    render(<Settings />)
+
+    await userEvent.click(screen.getByText('settings.newLoan'))
+    await userEvent.type(
+      screen.getByPlaceholderText('settings.accountNamePlaceholder'),
+      'Empréstimo da Maria'
+    )
+
+    const saveButton = screen.getByRole('button', { name: /settings\.saveAccount/i })
+    expect(saveButton).toBeDisabled()
+
+    await userEvent.type(screen.getAllByPlaceholderText('R$ 0,00')[0], '12000')
+    await userEvent.type(screen.getAllByPlaceholderText('R$ 0,00')[1], '1000')
+    const selects = screen.getAllByRole('combobox')
+    await userEvent.selectOptions(selects[0], 'acc-checking') // payer account
+    await userEvent.selectOptions(selects[1], 'cat-1') // category
+
+    expect(saveButton).not.toBeDisabled()
+    await userEvent.click(saveButton)
+
+    const saved = useDataStore
+      .getState()
+      .data?.accounts.find((a) => a.name === 'Empréstimo da Maria')
+    expect(saved?.loanMetadata).toMatchObject({
+      schedule: 'fixed',
+      principal: 12000,
+      installmentAmount: 1000,
+      payerAccountId: 'acc-checking',
+      categoryId: 'cat-1',
+    })
+  })
+
+  it('shows the backfill choice only once the start date is in the past, and "start fresh" overrides it to today on save', async () => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [makeChecking()],
+        categories: [expenseCategory],
+        transactions: [],
+      }),
+    })
+    render(<Settings />)
+
+    await userEvent.click(screen.getByText('settings.newLoan'))
+    await userEvent.type(
+      screen.getByPlaceholderText('settings.accountNamePlaceholder'),
+      'Financiamento antigo'
+    )
+
+    // Defaults to today — no past installments, so the backfill choice doesn't apply yet.
+    expect(screen.queryByText('settings.loanBackfillChoice')).not.toBeInTheDocument()
+
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement
+    fireEvent.change(dateInput, { target: { value: '2020-01-10' } })
+
+    expect(screen.getByText('settings.loanBackfillChoice')).toBeInTheDocument()
+    await userEvent.click(screen.getByText('settings.loanBackfillNo'))
+
+    await userEvent.type(screen.getAllByPlaceholderText('R$ 0,00')[0], '5000')
+    await userEvent.type(screen.getAllByPlaceholderText('R$ 0,00')[1], '500')
+    const selects = screen.getAllByRole('combobox')
+    await userEvent.selectOptions(selects[0], 'acc-checking')
+    await userEvent.selectOptions(selects[1], 'cat-1')
+
+    await userEvent.click(screen.getByRole('button', { name: /settings\.saveAccount/i }))
+
+    const saved = useDataStore
+      .getState()
+      .data?.accounts.find((a) => a.name === 'Financiamento antigo')
+    expect(saved?.loanMetadata?.startDate).toBe(todayStr)
+  })
+
+  it('keeps the original past start date on save when backfill is chosen (the default)', async () => {
+    useDataStore.setState({
+      data: makeDataFile({
+        accounts: [makeChecking()],
+        categories: [expenseCategory],
+        transactions: [],
+      }),
+    })
+    render(<Settings />)
+
+    await userEvent.click(screen.getByText('settings.newLoan'))
+    await userEvent.type(
+      screen.getByPlaceholderText('settings.accountNamePlaceholder'),
+      'Financiamento com histórico'
+    )
+
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement
+    fireEvent.change(dateInput, { target: { value: '2020-01-10' } })
+    // "Lançar como histórico real" is the default — no extra click needed.
+
+    await userEvent.type(screen.getAllByPlaceholderText('R$ 0,00')[0], '5000')
+    await userEvent.type(screen.getAllByPlaceholderText('R$ 0,00')[1], '500')
+    const selects = screen.getAllByRole('combobox')
+    await userEvent.selectOptions(selects[0], 'acc-checking')
+    await userEvent.selectOptions(selects[1], 'cat-1')
+
+    await userEvent.click(screen.getByRole('button', { name: /settings\.saveAccount/i }))
+
+    const saved = useDataStore
+      .getState()
+      .data?.accounts.find((a) => a.name === 'Financiamento com histórico')
+    expect(saved?.loanMetadata?.startDate).toBe('2020-01-10')
   })
 })
 

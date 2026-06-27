@@ -52,7 +52,16 @@ import {
 } from '@/lib/backupDir'
 import { useDataStore } from '@/store/useDataStore'
 import { useWorkspaceStore } from '@/store/useWorkspaceStore'
-import { formatCurrency, cn, uuid, now, getOpenCreditBalance, isCashRealized } from '@/lib/utils'
+import {
+  formatCurrency,
+  cn,
+  uuid,
+  now,
+  todayStr,
+  getOpenCreditBalance,
+  isCashRealized,
+  filterArchivedAccounts,
+} from '@/lib/utils'
 import { AUDIT_RETENTION_DEFAULT } from '@/lib/storage/schema'
 import { storage } from '@/services/storage'
 import Toast from '@/components/Toast'
@@ -367,6 +376,11 @@ export default function Settings() {
       })
     }
     setModal({ open: false })
+    // HE-20: a fixed-schedule LOAN may already have elapsed installments (backfill, D12) —
+    // materialize them immediately instead of waiting for the next app boot.
+    if (type === 'LOAN' && loanMetadata?.schedule === 'fixed') {
+      void useDataStore.getState().generateDueLoanInstallments()
+    }
   }
 
   // M-42: reactivate an archived account from the collapsible "Archived" section.
@@ -564,14 +578,16 @@ export default function Settings() {
             {activeSection === 'accounts' &&
               (() => {
                 // M-42: active accounts in the main list; archived ones in a collapsible section
+                // HE-20: LOAN accounts move out of the generic list into their own "Empréstimos"
+                // section below (richer cards: principal, parcelas, total pago, saldo devedor).
                 const nonCreditAccounts = data.accounts.filter(
-                  (a) => a.type !== 'CREDIT' && !a.archived
+                  (a) => a.type !== 'CREDIT' && a.type !== 'LOAN' && !a.archived
                 )
                 const creditAccounts = data.accounts.filter(
                   (a) => a.type === 'CREDIT' && !a.archived
                 )
                 const archivedNonCreditAccounts = data.accounts.filter(
-                  (a) => a.type !== 'CREDIT' && a.archived
+                  (a) => a.type !== 'CREDIT' && a.type !== 'LOAN' && a.archived
                 )
                 const archivedCreditAccounts = data.accounts.filter(
                   (a) => a.type === 'CREDIT' && a.archived
@@ -730,6 +746,107 @@ export default function Settings() {
                   </Section>
                 )
               })()}
+
+            {/* Loans (HE-20) — dedicated section below Contas e Cartões. LOAN accounts moved
+                out of the generic list (above) into richer cards: principal, parcelas pagas,
+                total pago, saldo devedor. Create/edit reuses AddAccountModal (defaultType LOAN). */}
+            {activeSection === 'accounts' && (
+              <div className="mt-8">
+                <Section title={t('settings.loans')}>
+                  <div className="flex items-center justify-end mb-3">
+                    <button
+                      onClick={() => setModal({ open: true, account: null, defaultType: 'LOAN' })}
+                      className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium text-on-surface/50 hover:bg-surface-container-high hover:text-on-surface transition-colors active:scale-[0.97]"
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                      {t('settings.newLoan')}
+                    </button>
+                  </div>
+                  {(() => {
+                    const loanAccounts = data.accounts.filter(
+                      (a) => a.type === 'LOAN' && !a.archived
+                    )
+                    return (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {loanAccounts.length === 0 && (
+                          <p className="py-4 text-center text-sm text-on-surface/40 sm:col-span-2">
+                            {t('common.noData')}
+                          </p>
+                        )}
+                        {loanAccounts.map((acc) => {
+                          const lm = acc.loanMetadata
+                          const isFixed = lm?.schedule === 'fixed'
+                          const totalInstallments =
+                            isFixed && lm.principal && lm.installmentAmount
+                              ? Math.ceil(lm.principal / lm.installmentAmount)
+                              : undefined
+                          const paidInstallments =
+                            totalInstallments !== undefined
+                              ? totalInstallments - (lm?.remainingInstallments ?? 0)
+                              : undefined
+                          const totalPaid =
+                            isFixed && lm?.principal !== undefined
+                              ? lm.principal - (lm.outstandingBalance ?? 0)
+                              : undefined
+                          return (
+                            <button
+                              key={acc.id}
+                              onClick={() => setModal({ open: true, account: acc })}
+                              className="flex flex-col gap-3 rounded-2xl bg-surface-container px-5 py-4 text-left hover:bg-surface-container-high transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                                  <span className="text-primary">
+                                    <Banknote size={20} strokeWidth={1.5} />
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-on-surface">
+                                    {acc.name}
+                                  </p>
+                                  <p className="text-xs text-on-surface/40">
+                                    {isFixed
+                                      ? t('settings.loanScheduleFixed')
+                                      : lm?.legacy
+                                        ? t('settings.loanPendingSetup')
+                                        : t('settings.loanScheduleNone')}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-end justify-between">
+                                <div>
+                                  {totalInstallments !== undefined && (
+                                    <p className="text-xs text-on-surface/50">
+                                      {t('settings.loanInstallmentsPaid', {
+                                        paid: paidInstallments,
+                                        total: totalInstallments,
+                                      })}
+                                    </p>
+                                  )}
+                                  {totalPaid !== undefined && (
+                                    <p className="text-xs text-on-surface/50">
+                                      {t('settings.loanTotalPaid')}: {formatCurrency(totalPaid)}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[10px] text-on-surface/40 uppercase tracking-wide">
+                                    {t('accounts.outstandingBalance')}
+                                  </p>
+                                  <span className="text-sm font-bold tabular-nums text-on-surface">
+                                    {formatCurrency(lm?.outstandingBalance ?? 0)}
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
+                </Section>
+              </div>
+            )}
 
             {/* Categories */}
             {activeSection === 'categories' && (
@@ -1133,6 +1250,8 @@ export default function Settings() {
         <AddAccountModal
           account={modal.account}
           defaultType={modal.defaultType}
+          categories={data.categories}
+          accounts={data.accounts}
           onSave={handleSaveAccount}
           onDelete={handleDeleteAccount}
           onClose={() => setModal({ open: false })}
@@ -1172,12 +1291,16 @@ export default function Settings() {
 function AddAccountModal({
   account,
   defaultType = 'RETAIL',
+  categories,
+  accounts,
   onSave,
   onDelete,
   onClose,
 }: {
   account: Account | null
   defaultType?: AccountType
+  categories: Category[]
+  accounts: Account[]
   onSave: (
     name: string,
     type: AccountType,
@@ -1246,6 +1369,38 @@ function AddAccountModal({
       : ''
   )
 
+  // ── Loan schedule state (HE-20) — explicit choice between a fixed installment schedule
+  // (the generation engine takes over, HE-19) and a "cold" loan with no schedule (e.g. an
+  // informal debt), which keeps the HE-06 hand-edited fields above. New loans default to
+  // 'fixed' (the recommended path); editing an existing account respects its own choice,
+  // falling back to 'none' for legacy accounts that haven't decided yet.
+  const [schedule, setSchedule] = useState<'fixed' | 'none'>(
+    account?.loanMetadata?.schedule ?? (isEdit ? 'none' : 'fixed')
+  )
+  const [principal, setPrincipal] = useState<string>(
+    account?.loanMetadata?.principal !== undefined ? String(account.loanMetadata.principal) : ''
+  )
+  const [installmentAmount, setInstallmentAmount] = useState<string>(
+    account?.loanMetadata?.installmentAmount !== undefined
+      ? String(account.loanMetadata.installmentAmount)
+      : ''
+  )
+  const [loanCategoryId, setLoanCategoryId] = useState<string>(
+    account?.loanMetadata?.categoryId ?? ''
+  )
+  const [payerAccountId, setPayerAccountId] = useState<string>(
+    account?.loanMetadata?.payerAccountId ?? ''
+  )
+  const [startDate, setStartDate] = useState<string>(account?.loanMetadata?.startDate ?? todayStr())
+  // D12: only relevant when startDate is in the past — backfill the elapsed installments as
+  // real history, or start counting from today with whatever balance is left.
+  const [backfillChoice, setBackfillChoice] = useState<'backfill' | 'fresh'>('backfill')
+  const startDateInPast = startDate < todayStr()
+  const expenseCategories = categories.filter((c) => c.type === 'EXPENSE')
+  const payerAccountOptions = filterArchivedAccounts(accounts, payerAccountId).filter(
+    (a) => a.id !== account?.id && a.type !== 'LOAN'
+  )
+
   function handleTypeSelect(selected: AccountType) {
     setType(selected)
     // CC-11/HE-05: auto-deselect "include in balance" for CREDIT and LOAN accounts
@@ -1284,9 +1439,30 @@ function AddAccountModal({
       }
     }
 
-    // HE-05: loanMetadata — outstandingBalance is user-maintained (mirrors Valuation pattern).
+    // HE-05/HE-20: loanMetadata. 'fixed' hands off to the generation engine (HE-19) —
+    // outstandingBalance/monthlyPayment/remainingInstallments below are just the initial
+    // figures before the engine's first run, which corrects them from real cash flow (D11).
+    // 'none' keeps the original HE-06 model: every figure is user-maintained.
     let loanMetadata: LoanMetadata | undefined
-    if (type === 'LOAN') {
+    if (type === 'LOAN' && schedule === 'fixed') {
+      const principalNum = parseFloat(principal.replace(',', '.')) || 0
+      const installmentNum = parseFloat(installmentAmount.replace(',', '.')) || 0
+      const today = todayStr()
+      // D12: "start fresh" overrides the start date to today — the engine never backfills
+      // periods before its own startDate, so the principal entered is read as "what's left".
+      const effectiveStartDate = backfillChoice === 'fresh' && startDate < today ? today : startDate
+      loanMetadata = {
+        outstandingBalance: principalNum,
+        monthlyPayment: installmentNum,
+        remainingInstallments: installmentNum > 0 ? Math.ceil(principalNum / installmentNum) : 0,
+        schedule: 'fixed',
+        principal: principalNum,
+        installmentAmount: installmentNum,
+        categoryId: loanCategoryId,
+        startDate: effectiveStartDate,
+        payerAccountId,
+      }
+    } else if (type === 'LOAN') {
       const outstanding = parseFloat(outstandingBalance.replace(',', '.')) || 0
       const payment = parseFloat(monthlyPayment.replace(',', '.')) || 0
       const remaining = parseInt(remainingInstallments, 10)
@@ -1295,6 +1471,7 @@ function AddAccountModal({
         outstandingBalance: outstanding,
         monthlyPayment: payment,
         remainingInstallments: Number.isNaN(remaining) ? 0 : remaining,
+        schedule: 'none',
         ...(interestRate.trim() && !Number.isNaN(rate) ? { interestRate: rate } : {}),
       }
     }
@@ -1325,22 +1502,26 @@ function AddAccountModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 px-4 py-8"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-sm rounded-3xl bg-surface-container-low p-6 shadow-2xl">
+      <div className="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl bg-surface-container-low p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-semibold text-on-surface">
             {isEdit
               ? type === 'CREDIT'
                 ? t('settings.editCard')
-                : t('settings.editAccount')
+                : type === 'LOAN'
+                  ? t('settings.editLoan')
+                  : t('settings.editAccount')
               : type === 'CREDIT'
                 ? t('settings.addCard')
-                : t('settings.addAccount')}
+                : type === 'LOAN'
+                  ? t('settings.addLoan')
+                  : t('settings.addAccount')}
           </h2>
           <button
             onClick={onClose}
@@ -1517,64 +1698,212 @@ function AddAccountModal({
             </div>
           )}
 
-          {/* Loan metadata fields (HE-05) — shown only when type === LOAN */}
+          {/* Loan fields — shown only when type === LOAN */}
           {type === 'LOAN' && (
             <div className="mt-4 space-y-3">
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
-                  {t('accounts.outstandingBalance')}
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={outstandingBalance}
-                  onChange={(e) => setOutstandingBalance(e.target.value)}
-                  placeholder="R$ 0,00"
-                  className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
-                />
+              {/* HE-20/D9: explicit choice between a fixed installment schedule (the engine
+                  generates real transactions, HE-19) and a "cold" loan with none (e.g. an
+                  informal debt) — never inferred from which fields happen to be filled. */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSchedule('fixed')}
+                  className={cn(
+                    'rounded-2xl border-2 px-3 py-2.5 text-xs font-semibold transition-all',
+                    schedule === 'fixed'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-transparent bg-surface-container-low text-on-surface/50 hover:border-outline-variant'
+                  )}
+                >
+                  {t('settings.loanScheduleFixed')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSchedule('none')}
+                  className={cn(
+                    'rounded-2xl border-2 px-3 py-2.5 text-xs font-semibold transition-all',
+                    schedule === 'none'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-transparent bg-surface-container-low text-on-surface/50 hover:border-outline-variant'
+                  )}
+                >
+                  {t('settings.loanScheduleNone')}
+                </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
-                    {t('accounts.monthlyPayment')}
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={monthlyPayment}
-                    onChange={(e) => setMonthlyPayment(e.target.value)}
-                    placeholder="R$ 0,00"
-                    className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
-                    {t('accounts.remainingInstallments')}
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={remainingInstallments}
-                    onChange={(e) => setRemainingInstallments(e.target.value)}
-                    placeholder="0"
-                    className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
-                  {t('accounts.interestRate')}
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={interestRate}
-                  onChange={(e) => setInterestRate(e.target.value)}
-                  placeholder="0,00%"
-                  className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
+
+              {schedule === 'fixed' ? (
+                <>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                      {t('settings.loanPrincipal')}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={principal}
+                      onChange={(e) => setPrincipal(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    {backfillChoice === 'fresh' && startDateInPast && (
+                      <p className="mt-1.5 text-xs text-on-surface/40">
+                        {t('settings.loanBackfillNoHint')}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                      {t('settings.loanInstallmentAmount')}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={installmentAmount}
+                      onChange={(e) => setInstallmentAmount(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                      {t('settings.loanStartDate')}
+                    </label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                      {t('settings.loanPayerAccount')}
+                    </label>
+                    <select
+                      value={payerAccountId}
+                      onChange={(e) => setPayerAccountId(e.target.value)}
+                      className="w-full appearance-none rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="">{t('settings.selectAccount')}</option>
+                      {payerAccountOptions.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                      {t('settings.loanCategory')}
+                    </label>
+                    <select
+                      value={loanCategoryId}
+                      onChange={(e) => setLoanCategoryId(e.target.value)}
+                      className="w-full appearance-none rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="">{t('settings.selectCategory')}</option>
+                      {expenseCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* D12: only matters when the chosen start date already elapsed */}
+                  {startDateInPast && (
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                        {t('settings.loanBackfillChoice')}
+                      </label>
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setBackfillChoice('backfill')}
+                          className={cn(
+                            'w-full rounded-2xl border-2 px-4 py-2.5 text-left text-xs font-medium transition-all',
+                            backfillChoice === 'backfill'
+                              ? 'border-primary bg-primary/5 text-primary'
+                              : 'border-transparent bg-surface-container-low text-on-surface/60 hover:border-outline-variant'
+                          )}
+                        >
+                          {t('settings.loanBackfillYes')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBackfillChoice('fresh')}
+                          className={cn(
+                            'w-full rounded-2xl border-2 px-4 py-2.5 text-left text-xs font-medium transition-all',
+                            backfillChoice === 'fresh'
+                              ? 'border-primary bg-primary/5 text-primary'
+                              : 'border-transparent bg-surface-container-low text-on-surface/60 hover:border-outline-variant'
+                          )}
+                        >
+                          {t('settings.loanBackfillNo')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                      {t('accounts.outstandingBalance')}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={outstandingBalance}
+                      onChange={(e) => setOutstandingBalance(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                        {t('accounts.monthlyPayment')}
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={monthlyPayment}
+                        onChange={(e) => setMonthlyPayment(e.target.value)}
+                        placeholder="R$ 0,00"
+                        className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                        {t('accounts.remainingInstallments')}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={remainingInstallments}
+                        onChange={(e) => setRemainingInstallments(e.target.value)}
+                        placeholder="0"
+                        className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface/40 mb-2">
+                      {t('accounts.interestRate')}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={interestRate}
+                      onChange={(e) => setInterestRate(e.target.value)}
+                      placeholder="0,00%"
+                      className="w-full rounded-xl bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1628,7 +1957,15 @@ function AddAccountModal({
         {/* Actions */}
         <button
           onClick={handleSave}
-          disabled={!name.trim()}
+          disabled={
+            !name.trim() ||
+            (type === 'LOAN' &&
+              schedule === 'fixed' &&
+              (!principal.trim() ||
+                !installmentAmount.trim() ||
+                !payerAccountId ||
+                !loanCategoryId))
+          }
           className="mb-2 flex w-full items-center justify-center rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:brightness-110 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {type === 'CREDIT' ? t('settings.saveCard') : t('settings.saveAccount')}

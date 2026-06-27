@@ -13,6 +13,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}))
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const testAccount = {
@@ -638,110 +643,46 @@ describe('TransactionDrawer — CC-26: installment deletion modal', () => {
   })
 })
 
-// ─── HE-16: "Marcar como empréstimo" ──────────────────────────────────────────
+// ─── HE-21: nudge long financings towards LOAN instead of a parcelamento ──────
 
-describe('TransactionDrawer — HE-16: mark installment as loan', () => {
-  const installmentTx: Transaction = {
-    id: 'tx-fin-1',
-    accountId: testAccount.id,
-    categoryId: 'cat-1',
-    amount: 500,
-    type: 'EXPENSE',
-    date: '2024-03-15',
-    description: 'Refinanciamento Itaú (10/84)',
-    isPaid: false,
-    tags: [],
-    installment: { parentId: 'fin-parent', currentIndex: 10, total: 84 },
-  }
-
-  it('shows the "mark as loan" CTA for an installment occurrence with no existing mark', () => {
+describe('TransactionDrawer — HE-21: long financing CTA', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear()
     useDataStore.setState({
-      data: makeDataFile({ accounts: [testAccount], transactions: [installmentTx] }),
+      data: makeDataFile({
+        accounts: [testAccount, testCreditAccount],
+        categories: [testCategory],
+      }),
     })
-    renderDrawer({ transaction: installmentTx })
-    expect(screen.getByText('health.markAsLoan')).toBeInTheDocument()
   })
 
-  it('does not show the section for a non-installment transaction', () => {
-    renderDrawer({ transaction: testTransaction })
-    expect(screen.queryByText('health.markAsLoan')).not.toBeInTheDocument()
-  })
-
-  it('does not show the section in create mode', () => {
+  it('shows the CTA once installments are enabled on a new CREDIT expense', async () => {
     renderDrawer()
-    expect(screen.queryByText('health.markAsLoan')).not.toBeInTheDocument()
+    const selects = screen.getAllByRole('combobox')
+    await userEvent.selectOptions(selects[0], testCreditAccount.id)
+    expect(screen.queryByText('transactions.longFinancingCta')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('switch', { name: 'transactions.installments' }))
+    expect(screen.getByText('transactions.longFinancingCta')).toBeInTheDocument()
   })
 
-  it('calls setInstallmentLoan with the parentId, principal and trimmed name on save', async () => {
+  it('navigates to /settings and closes the drawer on click', async () => {
+    const onClose = vi.fn()
     useDataStore.setState({
-      data: makeDataFile({ accounts: [testAccount], transactions: [installmentTx] }),
+      data: makeDataFile({ accounts: [testCreditAccount], categories: [testCategory] }),
     })
-    const setInstallmentLoan = vi.fn()
-    vi.spyOn(useDataStore.getState(), 'setInstallmentLoan').mockImplementation(setInstallmentLoan)
+    renderDrawer({ onClose })
+    await userEvent.click(screen.getByRole('switch', { name: 'transactions.installments' }))
 
-    renderDrawer({ transaction: installmentTx })
-    await userEvent.click(screen.getByText('health.markAsLoan'))
-    await userEvent.type(
-      screen.getByPlaceholderText('health.loanMarkNamePlaceholder'),
-      '  Refi Itaú  '
-    )
-    await userEvent.type(screen.getByPlaceholderText('R$ 0,00'), '50000,00')
-    await userEvent.click(screen.getByRole('button', { name: /common\.save/i }))
+    await userEvent.click(screen.getByText('transactions.longFinancingCta'))
 
-    expect(setInstallmentLoan).toHaveBeenCalledWith({
-      parentId: 'fin-parent',
-      principal: 50000,
-      name: 'Refi Itaú',
-    })
+    expect(mockNavigate).toHaveBeenCalledWith('/settings')
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('omits the name field when left blank', async () => {
-    useDataStore.setState({
-      data: makeDataFile({ accounts: [testAccount], transactions: [installmentTx] }),
-    })
-    const setInstallmentLoan = vi.fn()
-    vi.spyOn(useDataStore.getState(), 'setInstallmentLoan').mockImplementation(setInstallmentLoan)
-
-    renderDrawer({ transaction: installmentTx })
-    await userEvent.click(screen.getByText('health.markAsLoan'))
-    await userEvent.type(screen.getByPlaceholderText('R$ 0,00'), '50000,00')
-    await userEvent.click(screen.getByRole('button', { name: /common\.save/i }))
-
-    expect(setInstallmentLoan).toHaveBeenCalledWith({ parentId: 'fin-parent', principal: 50000 })
-  })
-
-  it('shows the existing mark instead of the CTA, with an edit affordance', () => {
-    useDataStore.setState({
-      data: makeDataFile({
-        accounts: [testAccount],
-        transactions: [installmentTx],
-        installmentLoans: [{ parentId: 'fin-parent', principal: 50000, name: 'Refi Itaú' }],
-      }),
-    })
-    renderDrawer({ transaction: installmentTx })
-    expect(screen.getByText('Refi Itaú')).toBeInTheDocument()
-    expect(screen.getByText('common.edit')).toBeInTheDocument()
-    expect(screen.queryByText('health.markAsLoan')).not.toBeInTheDocument()
-  })
-
-  it('calls unmarkInstallmentLoan when "remove" is clicked from the edit form', async () => {
-    useDataStore.setState({
-      data: makeDataFile({
-        accounts: [testAccount],
-        transactions: [installmentTx],
-        installmentLoans: [{ parentId: 'fin-parent', principal: 50000, name: 'Refi Itaú' }],
-      }),
-    })
-    const unmarkInstallmentLoan = vi.fn()
-    vi.spyOn(useDataStore.getState(), 'unmarkInstallmentLoan').mockImplementation(
-      unmarkInstallmentLoan
-    )
-
-    renderDrawer({ transaction: installmentTx })
-    await userEvent.click(screen.getByText('common.edit'))
-    await userEvent.click(screen.getByText('health.unmarkLoan'))
-
-    expect(unmarkInstallmentLoan).toHaveBeenCalledWith('fin-parent')
+  it('does not show the CTA for a non-CREDIT account (no installment section)', () => {
+    renderDrawer()
+    expect(screen.queryByText('transactions.longFinancingCta')).not.toBeInTheDocument()
   })
 })
 

@@ -2,7 +2,7 @@
 
 > Histórico de produto e design da tela de Saúde Financeira (`/health`).
 > Estado atual: **design inicial mockado** (sem motores reais). Implementação dos motores e testes: épico `HE` em `plan/BACKLOG.md`.
-> Última atualização: 2026-06-20.
+> Última atualização: 2026-06-26.
 
 ---
 
@@ -169,7 +169,56 @@ Uma série parcelada (marcada ou não) entra na **Saúde** mas **não** como pas
 
 ---
 
-## 8. Estado atual
+## 8. Decisões de produto (sessão 2026-06-26) — LOAN como entidade central de empréstimos longos
+
+Sessão desencadeada por uma pergunta sobre parcelamentos muito longos (ex.: financiamento imobiliário em 420 meses): lançados parcela a parcela, eles materializam centenas de `Transaction` desde a criação da série, degradando `data.json`, `audit_log`, diff de sync e listagens. Avaliou-se um mecanismo genérico de geração *lazy* no motor de `installment` (materializar N ocorrências, prever o resto) e descartou-se em favor de consolidar esses casos na entidade `LOAN` (HE-04/HE-06), que já existe e nunca pré-materializa parcelas. Isto **reverte parte do modelo da D6** (§7): em vez de dois *backings* permanentes (opaco + rastreado), `LOAN` passa a absorver também o caso hoje cobrido pela marca rastreada (HE-16).
+
+### D9 — Consolidação: `LOAN` é o único caminho para empréstimo/financiamento; marca (HE-16) é descontinuada
+
+- A D6 justificava os dois *backings* por haver dívidas estruturalmente impossíveis de rastrear (consignado na fonte, dívida informal) — isso continua verdadeiro. O que muda é o caso **rastreável mas de prazo longo** (financiamento lançado parcela a parcela numa conta comum, ex. "Refinanciamento Itaú" 84x): em vez de marcar a série existente (HE-16), o caminho recomendado passa a ser cadastrar um `LOAN` desde o início, que **gera** as transações em vez de depender do usuário lançá-las manualmente.
+- Motivo: manter dois caminhos para o mesmo conceito (lançar parcela a parcela + marcar, vs. cadastrar `LOAN`) duplicava esforço de manutenção e não escalava para prazos muito longos — exatamente o problema que motivou esta sessão.
+- **Depreciação:** a UI de marca em `TransactionDrawer.tsx` (HE-16) é removida. Em seu lugar, um CTA no fluxo de criação de transação parcelada ("isso parece um financiamento longo? cadastre como Empréstimo") aponta para a nova seção em Configurações (D13). O destino dos dados já marcados (`DataFile.installmentLoans`) é uma ponta solta (ver abaixo) — migração automática para `LOAN` não é direta, pois a marca não carrega conta pagadora nem valor de parcela fixo garantido.
+
+### D10 — Motor de geração: transações reais, nunca pré-materializadas
+
+- Cada parcela de um `LOAN` é uma `Transaction` real, debitando a conta pagadora definida no cadastro — preserva o sinal de fluxo de caixa e mantém Dashboard/Relatórios funcionando sem lógica nova (decisão do ponto 2 da revisão de complexidade: transação de verdade, não bookkeeping abstrato).
+- Geração ocorre conforme o tempo passa (mês corrente, via job no carregamento do app), **nunca** a série inteira de uma vez — é isso que resolve o problema original de escala (um financiamento de 420 meses nunca tem mais que algumas dezenas de `Transaction` reais em qualquer momento).
+- **ID determinístico** (`uuid5(loanId + período)`, mesmo padrão do script `sync_gimbo.py`) evita duplicação quando dois dispositivos offline geram a parcela do mesmo período antes de sincronizar — o merge por UUID deduplica sozinho.
+
+### D11 — Saldo devedor: planejado − pago, sem amortização
+
+- `saldoDevedor = (parcelasRestantesPlanejadas × valorDaParcela)` ajustado pela diferença entre o que foi efetivamente pago e o que seria pago seguindo o plano original. Quando o pago diverge do planejado (parcela maior/menor, atraso), o ajuste recai sobre o **prazo restante** (recalculado a cada lançamento como `saldo ÷ valorDaParcela`), não sobre o valor da próxima parcela.
+- **Sem método de amortização** (Tabela Price/SAC) e **sem correção monetária** — fora de escopo deliberadamente, em troca de simplicidade. Consequência aceita: **projeção de juros sai do v1** (pode voltar como demanda futura, já que IRR sobre o fluxo real de um `LOAN` com transações reais seria possível do mesmo jeito que `getInstallmentLoanInsight` faz hoje para séries marcadas).
+
+### D12 — Cadastro de empréstimo já em andamento: backfill é escolha do usuário
+
+- Ao cadastrar um `LOAN` cujo início é anterior a hoje, o usuário escolhe explicitamente entre **(a) backfill** das parcelas já vencidas como transações históricas reais, ou **(b) começar a contar a partir de hoje** (saldo inicial = o que falta, sem histórico). Aviso de impacto explícito na escolha (b): relatórios e fluxo de caixa passados não refletirão pagamentos já feitos.
+
+### D13 — UI: seção dedicada em Configurações
+
+- Nova seção "Empréstimos", abaixo de "Contas e Cartões" em `pages/Settings/index.tsx`. Um card por `LOAN`: valor do empréstimo (principal), número de parcelas, total pago, saldo devedor.
+- Drawer de criação/edição: saldo inicial (principal), número de parcelas, valor da parcela, conta pagadora, data de início, escolha de backfill (D12).
+
+### Impacto em outras telas
+
+- **Relatórios/Analytics:** pouco impacto — a geração nunca pré-materializa o futuro, então um intervalo de relatório acima de 10 anos simplesmente não vê parcelas que ainda não aconteceram (correto). Projeção *futura* (ex. "este empréstimo será quitado em tal mês" em Patrimônio/Saúde) é caso especial, fora de escopo por ora.
+- **Saúde (F-29):** saldo devedor e parcela mensal do `LOAN` passam a vir do motor de geração (D11) em vez de `loanMetadata` estático editado à mão (HE-06) — `getTotalCommittedDebt`/`getMonthlyCommitment`/`getDebtHorizon`/`getDebtBreakdown` trocam a fonte do dado, mantendo a mesma forma de agregação.
+- **Patrimônio (F-24):** `getLoanLiability` segue valendo; só troca a fonte do saldo (derivado do motor em vez de editado).
+
+### D14 — Empréstimo "frio" (sem cronograma): flag explícita, não inferida (sessão 2026-06-26, follow-up)
+
+- Nem todo `LOAN` tem parcela fixa — ex. uma dívida informal ("devo R$ 11k pro meu pai"), sem cronograma de pagamento. O motor de geração (D10) já degradava de volta ao modelo estático quando faltavam `principal`/`installmentAmount`/`startDate`/`payerAccountId`, mas isso era **inferido pela ausência de campos**, indistinguível de "usuário esqueceu de preencher" ou "conta legada ainda não migrada".
+- **Decisão:** `loanMetadata.schedule: 'fixed' | 'none'` explícito. `'fixed'` aciona o motor (D10/D11); `'none'` é o empréstimo frio — mantém o modelo `outstandingBalance` editado à mão (HE-06), nunca gera transação. `undefined` (contas legadas migradas pela HE-19, `legacy: true`) é tratado como `'none'` até o usuário decidir na UI (D13).
+- `isLoanGenerationReady` passa a checar `schedule === 'fixed'` em vez de inferir pela presença dos 4 campos — resolve a ponta solta original sem reabrir o desenho da HE-19.
+
+### D15 — Destino dos dados HE-16: remoção completa, não leitura histórica (sessão 2026-06-26, HE-21)
+
+- A marca (`DataFile.installmentLoans`) foi adicionada e superseded pela `LOAN` dentro da mesma sessão de trabalho, sem indício de uso real em dados de usuário — escolhida a opção mais simples das três em aberto: **remoção completa** (tipo, schema, tabela SQLite, actions, `getInstallmentLoanInsight`, UI) em vez de manter um caminho de leitura legado. Schema bump v12→v13 só formaliza a remoção; nenhuma migração assistida foi necessária.
+- HE-17 (LOAN opaca *set-once*, D7) e HE-18 (série rastreada como passivo no Patrimônio) ficam **supersedidos** por este desenho — fechados no `BACKLOG.md`.
+
+---
+
+## 9. Estado atual
 
 **v1 (dívida + orçamento) ligado aos motores reais (HE-04 a HE-11, 2026-06-21).** `pages/Health/index.tsx` lê `useDataStore`/`useWorkspaceStore`: dívida total, comprometido mensal e horizonte vêm de `getTotalCommittedDebt`/`getMonthlyCommitment`/`getDebtHorizon` (HE-08); o detalhamento expansível vem de `getDebtBreakdown` (HE-10), que agrupa por conta CREDIT (itens de parcela aberta) e LOAN (item único a partir de `loanMetadata`), sempre reconciliando com os agregados. Renda mensal usa `deriveMonthlyIncome` (HE-09) com override do usuário em `workspace.monthlyIncomeOverride`, editável inline (lápis → input → confirmar) e rotulada por confiança (`confirmedByYou`/`basedOnMonths`/`estimateConfirm`/CTA manual). Rota, navbar e i18n (`nav.health`, `health.*`) ligados. Testes: `Health.test.tsx` (HE-11, 9 testes de componente) + 5 testes unitários de `getDebtBreakdown` em `utils.test.ts`.
 

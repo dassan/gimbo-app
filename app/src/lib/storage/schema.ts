@@ -4,7 +4,7 @@ import { uuid, now } from '@/lib/utils'
 
 export const AUDIT_RETENTION_DEFAULT = 200
 export const AUDIT_RETENTION_DAYS = 90
-export const CURRENT_SCHEMA_VERSION = 11
+export const CURRENT_SCHEMA_VERSION = 13
 
 /**
  * Thrown by validateDataFile() when the parsed file declares a schemaVersion
@@ -44,11 +44,20 @@ const CreditMetadataSchema = z.object({
 })
 
 // HE-04: non-card loans/financing as a first-class liability (Account.loanMetadata).
+// HE-19: principal/installmentAmount/categoryId/startDate/payerAccountId/legacy — see
+// the field comments in types/index.ts for the generation-engine contract.
 const LoanMetadataSchema = z.object({
   outstandingBalance: z.number(),
   monthlyPayment: z.number(),
   remainingInstallments: z.number().int().min(0),
   interestRate: z.number().optional(),
+  schedule: z.enum(['fixed', 'none']).optional(),
+  principal: z.number().optional(),
+  installmentAmount: z.number().optional(),
+  categoryId: z.string().optional(),
+  startDate: z.string().optional(),
+  payerAccountId: z.string().optional(),
+  legacy: z.boolean().optional(),
 })
 
 const AccountSchema = z.object({
@@ -133,27 +142,11 @@ const SavedPeriodSchema = z.object({
   end: z.string(),
 })
 
-// HE-16: opt-in annotation marking an installment series as a loan/financing. interestRate
-// is deliberately not part of this shape — it's derived/estimated, never stored.
-const InstallmentLoanSchema = z.object({
-  parentId: z.string(),
-  principal: z.number(),
-  name: z.string().optional(),
-})
-
 const AuditEntrySchema = z.object({
   id: z.string(),
   timestamp: z.string(),
   action: z.enum(['CREATE', 'UPDATE', 'DELETE']),
-  entity: z.enum([
-    'account',
-    'category',
-    'tag',
-    'transaction',
-    'user',
-    'savedPeriod',
-    'installmentLoan',
-  ]),
+  entity: z.enum(['account', 'category', 'tag', 'transaction', 'user', 'savedPeriod']),
   entityId: z.string(),
   summary: z.string(),
 })
@@ -170,7 +163,6 @@ export const DataFileSchema = z.object({
   auditLog: z.array(AuditEntrySchema),
   deletedIds: z.array(z.string()).default([]), // tombstone — B-11; absent in v1/v2 files defaults to []
   savedPeriods: z.array(SavedPeriodSchema).default([]), // M-45; absent in older files defaults to []
-  installmentLoans: z.array(InstallmentLoanSchema).default([]), // HE-16; absent in older files defaults to []
 })
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -260,11 +252,36 @@ function migrateDataFile(data: DataFile): DataFile {
     migrated = { ...migrated, schemaVersion: 10 }
   }
 
-  // v10 → v11: adds installmentLoans array (HE-16) — opt-in annotations marking installment
-  // series as loans/financing. Absent in older files; Zod default already fills it via
-  // DataFileSchema.parse, so we only need to bump the version here.
+  // v10 → v11: added installmentLoans array (HE-16) — opt-in annotations marking installment
+  // series as loans/financing. Removed in v13 (HE-21): the mark was deprecated in favor of
+  // the LOAN generation engine (HE-19/HE-20) before it ever shipped to real user data.
   if (migrated.schemaVersion === 10) {
-    migrated = { ...migrated, schemaVersion: 11, installmentLoans: migrated.installmentLoans ?? [] }
+    migrated = { ...migrated, schemaVersion: 11 }
+  }
+
+  // v11 → v12: LOAN gains a generation engine (HE-19) — principal/installmentAmount/
+  // categoryId/startDate/payerAccountId on loanMetadata. Existing LOAN accounts (HE-04/
+  // HE-06) can't derive these from the old hand-maintained shape, so they're marked
+  // `legacy: true`: the engine skips them until the user completes the new fields in the
+  // account modal (HE-20); outstandingBalance/monthlyPayment/remainingInstallments keep
+  // working exactly as before (hand-edited) in the meantime.
+  if (migrated.schemaVersion === 11) {
+    migrated = {
+      ...migrated,
+      schemaVersion: 12,
+      accounts: migrated.accounts.map((a) =>
+        a.type === 'LOAN' && a.loanMetadata && !a.loanMetadata.principal
+          ? { ...a, loanMetadata: { ...a.loanMetadata, legacy: true } }
+          : a
+      ),
+    }
+  }
+
+  // v12 → v13: drops installmentLoans (HE-16, deprecated in favor of the LOAN generation
+  // engine — HE-19/HE-20/HE-21/D9). Zod already strips the unknown key during the initial
+  // parse (DataFileSchema no longer declares it), so this step is just the version bump.
+  if (migrated.schemaVersion === 12) {
+    migrated = { ...migrated, schemaVersion: 13 }
   }
 
   return migrated
@@ -290,7 +307,6 @@ export function createEmptyDataFile(name: string, email: string): DataFile {
     auditLog: [],
     deletedIds: [],
     savedPeriods: [],
-    installmentLoans: [],
   }
 }
 

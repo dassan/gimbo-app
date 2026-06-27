@@ -10,7 +10,6 @@ import type {
   LoanMetadata,
   Valuation,
   SavedPeriod,
-  InstallmentLoan,
 } from '@/types'
 
 function makeAccount(overrides: Partial<Account> = {}): Account {
@@ -1123,77 +1122,109 @@ describe('deleteSavedPeriod', () => {
   })
 })
 
-// ─── Installment loan marks (HE-16) ────────────────────────────────────────────
+// ─── LOAN generation engine (HE-19) ────────────────────────────────────────────
 
-function makeInstallmentLoan(overrides: Partial<InstallmentLoan> = {}): InstallmentLoan {
-  return { parentId: 'fin-1', principal: 50000, name: 'Refinanciamento Itaú', ...overrides }
+function makeGeneratingLoan(overrides: Partial<LoanMetadata> = {}): Account {
+  return makeAccount({
+    id: 'loan-1',
+    type: 'LOAN',
+    loanMetadata: {
+      outstandingBalance: 99999, // deliberately wrong — proves the engine overwrites it
+      monthlyPayment: 1000,
+      remainingInstallments: 99,
+      schedule: 'fixed',
+      principal: 3000,
+      installmentAmount: 1000,
+      categoryId: 'cat-1',
+      startDate: '2020-01-10', // far enough in the past that the whole term is already due
+      payerAccountId: 'acc-checking',
+      ...overrides,
+    },
+  })
 }
 
-describe('setInstallmentLoan', () => {
-  it('creates a new mark and records a CREATE audit entry', () => {
-    useDataStore.setState({ data: makeDataFile() })
-    useDataStore.getState().setInstallmentLoan(makeInstallmentLoan())
-    const { installmentLoans, auditLog } = useDataStore.getState().data!
-    expect(installmentLoans).toHaveLength(1)
-    expect(installmentLoans[0]).toEqual(makeInstallmentLoan())
-    const entry = auditLog.at(-1)!
-    expect(entry.action).toBe('CREATE')
-    expect(entry.entity).toBe('installmentLoan')
-    expect(entry.summary).toContain('Refinanciamento Itaú')
-  })
-
-  it('updates the existing mark in place (by parentId) and records an UPDATE audit entry', () => {
-    useDataStore.setState({ data: makeDataFile({ installmentLoans: [makeInstallmentLoan()] }) })
-    useDataStore
-      .getState()
-      .setInstallmentLoan(makeInstallmentLoan({ principal: 60000, name: 'Refi atualizado' }))
-    const { installmentLoans, auditLog } = useDataStore.getState().data!
-    expect(installmentLoans).toHaveLength(1)
-    expect(installmentLoans[0]).toEqual(
-      makeInstallmentLoan({ principal: 60000, name: 'Refi atualizado' })
-    )
-    const entry = auditLog.at(-1)!
-    expect(entry.action).toBe('UPDATE')
-    expect(entry.entity).toBe('installmentLoan')
-  })
-
-  it('never touches transactions — purely additive metadata', () => {
-    const tx = makeTransaction({
-      id: 'tx-1',
-      installment: { parentId: 'fin-1', currentIndex: 1, total: 4 },
-    })
-    useDataStore.setState({ data: makeDataFile({ transactions: [tx] }) })
-    useDataStore.getState().setInstallmentLoan(makeInstallmentLoan())
-    expect(useDataStore.getState().data!.transactions).toEqual([tx])
-  })
-
-  it('does nothing when data is null', () => {
+describe('generateDueLoanInstallments (HE-19)', () => {
+  it('does nothing when data is null', async () => {
     useDataStore.setState({ data: null })
-    useDataStore.getState().setInstallmentLoan(makeInstallmentLoan())
+    await useDataStore.getState().generateDueLoanInstallments()
     expect(useDataStore.getState().data).toBeNull()
   })
-})
 
-describe('unmarkInstallmentLoan', () => {
-  it('removes the mark and records a DELETE audit entry', () => {
-    useDataStore.setState({ data: makeDataFile({ installmentLoans: [makeInstallmentLoan()] }) })
-    useDataStore.getState().unmarkInstallmentLoan('fin-1')
-    const { installmentLoans, auditLog } = useDataStore.getState().data!
-    expect(installmentLoans).toHaveLength(0)
-    const entry = auditLog.at(-1)!
-    expect(entry.action).toBe('DELETE')
-    expect(entry.entity).toBe('installmentLoan')
-    expect(entry.summary).toContain('Refinanciamento Itaú')
+  it('generates every elapsed installment as a real EXPENSE Transaction and recomputes the balance', async () => {
+    const loan = makeGeneratingLoan()
+    useDataStore.setState({ data: makeDataFile({ accounts: [loan] }) })
+
+    await useDataStore.getState().generateDueLoanInstallments()
+
+    const { transactions, accounts, auditLog } = useDataStore.getState().data!
+    const generated = transactions.filter((t) => t.installment?.parentId === 'loan-1')
+    expect(generated).toHaveLength(3)
+    expect(generated.map((t) => t.installment!.currentIndex)).toEqual([1, 2, 3])
+    generated.forEach((t) => {
+      expect(t.accountId).toBe('acc-checking')
+      expect(t.categoryId).toBe('cat-1')
+      expect(t.amount).toBe(1000)
+      expect(t.type).toBe('EXPENSE')
+      expect(t.isPaid).toBe(false)
+    })
+
+    const updatedLoan = accounts.find((a) => a.id === 'loan-1')!
+    expect(updatedLoan.loanMetadata).toMatchObject({
+      outstandingBalance: 0,
+      remainingInstallments: 0,
+    })
+    expect(auditLog.at(-1)?.summary).toContain('3')
   })
 
-  it('is idempotent: unmarking a non-existent parentId does not crash', () => {
-    useDataStore.setState({ data: makeDataFile({ installmentLoans: [] }) })
-    expect(() => useDataStore.getState().unmarkInstallmentLoan('ghost-id')).not.toThrow()
+  it('is idempotent — calling twice does not duplicate transactions', async () => {
+    const loan = makeGeneratingLoan()
+    useDataStore.setState({ data: makeDataFile({ accounts: [loan] }) })
+
+    await useDataStore.getState().generateDueLoanInstallments()
+    await useDataStore.getState().generateDueLoanInstallments()
+
+    const generated = useDataStore
+      .getState()
+      .data!.transactions.filter((t) => t.installment?.parentId === 'loan-1')
+    expect(generated).toHaveLength(3)
   })
 
-  it('does not add the parentId to deletedIds — it is not a tombstoned entity', () => {
-    useDataStore.setState({ data: makeDataFile({ installmentLoans: [makeInstallmentLoan()] }) })
-    useDataStore.getState().unmarkInstallmentLoan('fin-1')
-    expect(useDataStore.getState().data!.deletedIds).not.toContain('fin-1')
+  it('produces the same deterministic ids across independent runs (sync dedupe)', async () => {
+    useDataStore.setState({ data: makeDataFile({ accounts: [makeGeneratingLoan()] }) })
+    await useDataStore.getState().generateDueLoanInstallments()
+    const firstIds = useDataStore
+      .getState()
+      .data!.transactions.filter((t) => t.installment?.parentId === 'loan-1')
+      .map((t) => t.id)
+
+    // Simulate a second device generating the same periods independently from scratch.
+    useDataStore.setState({ data: makeDataFile({ accounts: [makeGeneratingLoan()] }) })
+    await useDataStore.getState().generateDueLoanInstallments()
+    const secondIds = useDataStore
+      .getState()
+      .data!.transactions.filter((t) => t.installment?.parentId === 'loan-1')
+      .map((t) => t.id)
+
+    expect(secondIds).toEqual(firstIds)
+  })
+
+  it('skips a legacy LOAN (HE-06 shape, no principal) — nothing generated, balance untouched', async () => {
+    const legacyLoan = makeAccount({
+      id: 'loan-legacy',
+      type: 'LOAN',
+      loanMetadata: { outstandingBalance: 8000, monthlyPayment: 500, remainingInstallments: 16 },
+    })
+    useDataStore.setState({ data: makeDataFile({ accounts: [legacyLoan] }) })
+
+    await useDataStore.getState().generateDueLoanInstallments()
+
+    const { transactions, accounts, auditLog } = useDataStore.getState().data!
+    expect(transactions).toHaveLength(0)
+    expect(accounts[0].loanMetadata).toEqual({
+      outstandingBalance: 8000,
+      monthlyPayment: 500,
+      remainingInstallments: 16,
+    })
+    expect(auditLog).toHaveLength(0)
   })
 })

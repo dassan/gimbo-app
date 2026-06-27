@@ -11,7 +11,6 @@ import type {
   CreditMetadata,
   DataFile,
   Installment,
-  InstallmentLoan,
   LoanMetadata,
   Recurrence,
   SavedPeriod,
@@ -179,8 +178,10 @@ export class StorageService {
          (id, name, type, balance, include_in_balance,
           credit_limit, credit_closing_day, credit_due_day,
           loan_outstanding_balance, loan_monthly_payment, loan_remaining_installments, loan_interest_rate,
+          loan_principal, loan_installment_amount, loan_category_id, loan_start_date,
+          loan_payer_account_id, loan_legacy,
           issuer_icon, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         data.name,
@@ -194,6 +195,12 @@ export class StorageService {
         data.loanMetadata?.monthlyPayment ?? null,
         data.loanMetadata?.remainingInstallments ?? null,
         data.loanMetadata?.interestRate ?? null,
+        data.loanMetadata?.principal ?? null,
+        data.loanMetadata?.installmentAmount ?? null,
+        data.loanMetadata?.categoryId ?? null,
+        data.loanMetadata?.startDate ?? null,
+        data.loanMetadata?.payerAccountId ?? null,
+        data.loanMetadata?.legacy ? 1 : 0,
         data.issuerIcon ?? null,
         data.archived ? 1 : 0,
         now,
@@ -213,6 +220,8 @@ export class StorageService {
          name = ?, type = ?, balance = ?, include_in_balance = ?,
          credit_limit = ?, credit_closing_day = ?, credit_due_day = ?,
          loan_outstanding_balance = ?, loan_monthly_payment = ?, loan_remaining_installments = ?, loan_interest_rate = ?,
+         loan_principal = ?, loan_installment_amount = ?, loan_category_id = ?, loan_start_date = ?,
+         loan_payer_account_id = ?, loan_legacy = ?,
          issuer_icon = ?, archived = ?, updated_at = ?
        WHERE id = ?`,
       [
@@ -227,6 +236,12 @@ export class StorageService {
         merged.loanMetadata?.monthlyPayment ?? null,
         merged.loanMetadata?.remainingInstallments ?? null,
         merged.loanMetadata?.interestRate ?? null,
+        merged.loanMetadata?.principal ?? null,
+        merged.loanMetadata?.installmentAmount ?? null,
+        merged.loanMetadata?.categoryId ?? null,
+        merged.loanMetadata?.startDate ?? null,
+        merged.loanMetadata?.payerAccountId ?? null,
+        merged.loanMetadata?.legacy ? 1 : 0,
         merged.issuerIcon ?? null,
         merged.archived ? 1 : 0,
         new Date().toISOString(),
@@ -533,19 +548,6 @@ export class StorageService {
     }))
   }
 
-  // ─── Installment loan marks (HE-16) ───────────────────────────────────────────
-
-  async getInstallmentLoans(): Promise<InstallmentLoan[]> {
-    const rows = await this.query(
-      'SELECT parent_id, principal, name FROM installment_loans ORDER BY created_at'
-    )
-    return rows.map((r) => ({
-      parentId: r.parent_id as string,
-      principal: r.principal as number,
-      ...(r.name !== null && r.name !== undefined ? { name: r.name as string } : {}),
-    }))
-  }
-
   // ─── Export / Import ─────────────────────────────────────────────────────────
 
   async exportBlob(): Promise<Blob> {
@@ -582,7 +584,6 @@ export class StorageService {
       auditLog,
       deletedIds,
       savedPeriods,
-      installmentLoans,
     ] = await Promise.all([
       this.getAccounts(),
       this.getCategories(),
@@ -592,7 +593,6 @@ export class StorageService {
       this.getAuditLog(),
       this.getDeletedIds(),
       this.getSavedPeriods(),
-      this.getInstallmentLoans(),
     ])
 
     return {
@@ -607,7 +607,6 @@ export class StorageService {
       auditLog,
       deletedIds,
       savedPeriods,
-      installmentLoans,
     }
   }
 
@@ -670,6 +669,22 @@ function rowToAccount(row: Row): Account {
       ...(row.loan_interest_rate !== null && row.loan_interest_rate !== undefined
         ? { interestRate: row.loan_interest_rate as number }
         : {}),
+      ...(row.loan_principal !== null && row.loan_principal !== undefined
+        ? { principal: row.loan_principal as number }
+        : {}),
+      ...(row.loan_installment_amount !== null && row.loan_installment_amount !== undefined
+        ? { installmentAmount: row.loan_installment_amount as number }
+        : {}),
+      ...(row.loan_category_id !== null && row.loan_category_id !== undefined
+        ? { categoryId: row.loan_category_id as string }
+        : {}),
+      ...(row.loan_start_date !== null && row.loan_start_date !== undefined
+        ? { startDate: row.loan_start_date as string }
+        : {}),
+      ...(row.loan_payer_account_id !== null && row.loan_payer_account_id !== undefined
+        ? { payerAccountId: row.loan_payer_account_id as string }
+        : {}),
+      ...(row.loan_legacy ? { legacy: true } : {}),
     } satisfies LoanMetadata
   }
   if (row.issuer_icon !== null && row.issuer_icon !== undefined) {

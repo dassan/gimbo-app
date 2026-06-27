@@ -14,14 +14,7 @@ export type CategoryType = 'INCOME' | 'EXPENSE'
 export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'CREDIT_PAYMENT'
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
-export type AuditEntity =
-  | 'account'
-  | 'category'
-  | 'tag'
-  | 'transaction'
-  | 'user'
-  | 'savedPeriod'
-  | 'installmentLoan'
+export type AuditEntity = 'account' | 'category' | 'tag' | 'transaction' | 'user' | 'savedPeriod'
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 
@@ -44,14 +37,34 @@ export interface CreditMetadata {
   dueDay: number // 1–31
 }
 
-// HE-04: non-card loans/financing as a first-class liability. outstandingBalance is
-// maintained by the user (mirrors the Valuation pattern for STOCKS/CRYPTO/ASSET) — no
-// automatic interest/principal amortization in v1.
+// HE-04: non-card loans/financing as a first-class liability. outstandingBalance/
+// monthlyPayment/remainingInstallments were hand-maintained in v1 (mirroring the
+// Valuation pattern for STOCKS/CRYPTO/ASSET) — no automatic amortization.
+//
+// HE-19 (D9/D10/D11, FINANCIAL_HEALTH.md §8): when principal/installmentAmount/
+// categoryId/startDate/payerAccountId are all present, the generation engine takes
+// over — it materializes real EXPENSE transactions over time (never the whole term
+// up front) and recomputes outstandingBalance/remainingInstallments from the actual
+// cash flow (principal − paid), instead of those fields being edited by hand.
 export interface LoanMetadata {
-  outstandingBalance: number
-  monthlyPayment: number
-  remainingInstallments: number
-  interestRate?: number // % a.m., optional
+  outstandingBalance: number // derived by the engine once principal/installmentAmount are set
+  monthlyPayment: number // mirrors installmentAmount once the engine is active
+  remainingInstallments: number // derived by the engine once principal/installmentAmount are set
+  interestRate?: number // % a.m., optional — not used by the generation engine (D11 scope)
+  // HE-20: explicit choice between a loan with a fixed installment schedule (the engine
+  // generates real Transactions) and a "cold" loan with no schedule — e.g. an informal debt
+  // ("devo R$ 11k pro meu pai") with no fixed parcela. 'none' mirrors the original HE-06
+  // model: outstandingBalance is hand-edited, the engine never touches it. Undefined means
+  // the user hasn't decided yet (legacy accounts migrated by HE-19, or a brand-new LOAN
+  // before its first save) — the engine treats that the same as 'none'.
+  schedule?: 'fixed' | 'none'
+  principal?: number // amount disbursed by the lender — required when schedule is 'fixed'
+  installmentAmount?: number // planned value of each generated parcela
+  categoryId?: string // category applied to every generated EXPENSE transaction
+  startDate?: string // "YYYY-MM-DD" — date of the first parcela
+  payerAccountId?: string // account debited by every generated parcela
+  legacy?: boolean // true for HE-06 accounts migrated without `schedule` (HE-19 migration,
+  // v11→v12) — purely informational, prompts HE-20's UI to ask the user to decide
 }
 
 export interface Account {
@@ -136,18 +149,6 @@ export interface SavedPeriod {
   end: string // "YYYY-MM-DD"
 }
 
-// HE-16: opt-in annotation marking an installment series (identified by its
-// installment.parentId) as a loan/financing for the Financial Health debt breakdown.
-// Stores only what the ledger can't derive — the principal disbursed by the lender, and
-// an optional friendly name. interestRate is deliberately NOT stored: it's estimated from
-// the series' real cash flow (see lib/utils.ts#getInstallmentLoanInsight). Never alters
-// the underlying transactions — purely a classification layer, reversible at any time.
-export interface InstallmentLoan {
-  parentId: string // UUID — installment.parentId of the marked series
-  principal: number // amount disbursed by the lender (HE-16/D7) — what the user actually knows
-  name?: string // friendly name override (defaults to the series' own description)
-}
-
 // ─── Root data.json shape ─────────────────────────────────────────────────────
 
 export interface DataFile {
@@ -162,7 +163,6 @@ export interface DataFile {
   auditLog: AuditEntry[]
   deletedIds: string[] // tombstone: IDs explicitly deleted on this device (B-11)
   savedPeriods: SavedPeriod[] // M-45: named custom date ranges saved from Reports
-  installmentLoans: InstallmentLoan[] // HE-16: installment series marked as loans/financing
 }
 
 // ─── workspace.json shape ─────────────────────────────────────────────────────

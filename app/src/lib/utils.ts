@@ -1,4 +1,4 @@
-import type { Account, Category, IncomeWindowMonths, InstallmentLoan, Transaction } from '@/types'
+import type { Account, Category, IncomeWindowMonths, Transaction } from '@/types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -423,73 +423,152 @@ export function getDebtHorizon(transactions: Transaction[], accounts: Account[])
   return Math.max(installmentHorizon, loanHorizon)
 }
 
-// ─── Financial Health — Installment Loan Mark (HE-16) ────────────────────────
+// ─── Financial Health — LOAN Generation Engine (HE-19) ───────────────────────
 //
-// An installment series (installment.parentId) can be opt-in marked as a loan/
-// financing — see InstallmentLoan in types/index.ts and D7/D8 in FINANCIAL_HEALTH.md.
-// Only the principal (what the lender disbursed) is stored; everything time-dependent
-// is derived from the series' own materialized transactions.
+// Reverts part of the two-backing model from D6/HE-16: LOAN becomes the entity for
+// trackable long-term loans/financing, generating real EXPENSE transactions over time
+// instead of relying on the user booking each parcela by hand (or pre-materializing the
+// whole term up front, which doesn't scale to e.g. a 420-month financing). See D9/D10/D11
+// in FINANCIAL_HEALTH.md §8. A LOAN only participates once loanMetadata carries principal,
+// installmentAmount, categoryId, startDate and payerAccountId — accounts migrated from the
+// HE-06 hand-maintained model (`legacy: true`, no principal) are left untouched.
 
-export interface InstallmentLoanInsight {
-  totalPaid: number // Σ of every installment in the series, paid and still open
-  cost: number // totalPaid − principal — what the credit actually cost
-  multiplier: number // totalPaid ÷ principal — "for every R$1 received, you pay back R$X"
-  estimatedRate: number | null // monthly IRR of the real cash flow; null when it can't be solved
+/** Advances a "YYYY-MM-DD" date string by the given number of months (local arithmetic,
+ * day clamped to the target month's last day). Mirrors useDataStore's private helper of
+ * the same name, kept separate because lib/utils.ts must stay store-independent. */
+function _advanceMonths(dateStr: string, months: number): string {
+  if (months === 0) return dateStr.slice(0, 10)
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+  let newMonth = m + months
+  let newYear = y
+  while (newMonth > 12) {
+    newMonth -= 12
+    newYear += 1
+  }
+  const lastDay = new Date(newYear, newMonth, 0).getDate()
+  const clampedDay = Math.min(d, lastDay)
+  return `${newYear}-${String(newMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`
 }
 
 /**
- * Estimates the series' periodic (monthly) interest rate from its real cash flow:
- * −principal at disbursement, +each installment's actual amount at its 1-based installment
- * number (matches the standard amortization convention — the first payment lands one period
- * after disbursement). Solved by bisection over [0, 100% a.m.], a deliberately wide bracket
- * given Brazilian consumer credit can carry triple-digit annualized rates.
- *
- * Returns null when it can't be estimated: no principal, no installments in the series, or
- * no sign change in the search range (e.g. totalPaid <= principal, which a real loan never
- * produces but a misentered principal could).
+ * Deterministic id for a LOAN-generated installment transaction, derived from the loan's
+ * account id and the installment's date (SHA-1 over `loan:${loanId}:${date}`, via Web
+ * Crypto — no new dependency for a uuid5-style id; TransactionSchema only requires a
+ * string id, so the raw hex digest works as-is). Two devices generating the same period
+ * independently before syncing produce the same id, so the UUID-merge dedupes them.
  */
-function _estimateInstallmentLoanRate(
-  transactions: Transaction[],
-  parentId: string,
-  principal: number
-): number | null {
-  if (principal <= 0) return null
-  const series = transactions.filter((tx) => tx.installment?.parentId === parentId)
-  if (series.length === 0) return null
-
-  function npv(rate: number): number {
-    return series.reduce((s, tx) => {
-      const months = tx.installment?.currentIndex ?? 0
-      return s + tx.amount / Math.pow(1 + rate, months)
-    }, -principal)
-  }
-
-  let lo = 0
-  let hi = 1
-  const signLo = Math.sign(npv(lo))
-  if (signLo === 0) return lo
-  if (signLo === Math.sign(npv(hi))) return null // no root in range — can't bracket
-  for (let i = 0; i < 60; i++) {
-    const mid = (lo + hi) / 2
-    if (Math.sign(npv(mid)) === signLo) lo = mid
-    else hi = mid
-  }
-  return (lo + hi) / 2
+export async function deterministicLoanTransactionId(
+  loanId: string,
+  date: string
+): Promise<string> {
+  const bytes = await crypto.subtle.digest(
+    'SHA-1',
+    new TextEncoder().encode(`loan:${loanId}:${date}`)
+  )
+  return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** Pure derivations for a marked installment series — feeds the debt breakdown (HE-16). */
-export function getInstallmentLoanInsight(
+/**
+ * True when a LOAN account is set up for the generation engine: the user explicitly chose
+ * a fixed installment schedule (HE-20) and every field the engine needs is present. A "cold"
+ * loan (schedule: 'none', e.g. an informal debt with no fixed parcela) and an undecided
+ * legacy account (schedule absent — see LoanMetadata.legacy) both fall through to the
+ * hand-edited model (HE-06): the engine never touches them.
+ */
+export function isLoanGenerationReady(loan: Account): boolean {
+  const lm = loan.loanMetadata
+  return !!(
+    lm &&
+    lm.schedule === 'fixed' &&
+    lm.principal &&
+    lm.installmentAmount &&
+    lm.startDate &&
+    lm.payerAccountId
+  )
+}
+
+export interface LoanDueInstallment {
+  date: string // "YYYY-MM-DD" — the installment's own date (startDate advanced by currentIndex-1 months)
+  currentIndex: number // 1-based
+}
+
+export interface LoanGenerationPlan {
+  totalInstallments: number // Math.ceil(principal / installmentAmount) — fixed for the series' life
+  due: LoanDueInstallment[] // elapsed (date <= today) periods with no generated Transaction yet, ascending
+}
+
+/**
+ * What the generation engine still needs to materialize as real Transactions for a LOAN —
+ * every installment from loanMetadata.startDate up to today that doesn't yet have a
+ * matching Transaction (matched by `installment.parentId === loan.id`). Never includes
+ * future installments (D10: the engine never pre-materializes ahead of time). Returns an
+ * empty plan when the loan isn't generation-ready (see isLoanGenerationReady).
+ */
+export function getLoanGenerationPlan(
+  loan: Account,
   transactions: Transaction[],
-  loan: InstallmentLoan
-): InstallmentLoanInsight {
-  const totalPaid = transactions
-    .filter((tx) => tx.installment?.parentId === loan.parentId)
+  today: string = todayStr()
+): LoanGenerationPlan {
+  const lm = loan.loanMetadata
+  if (!isLoanGenerationReady(loan) || !lm) return { totalInstallments: 0, due: [] }
+
+  const totalInstallments = Math.ceil(lm.principal! / lm.installmentAmount!)
+  const generatedIndexes = new Set(
+    transactions
+      .filter((tx) => tx.installment?.parentId === loan.id)
+      .map((tx) => tx.installment!.currentIndex)
+  )
+
+  const due: LoanDueInstallment[] = []
+  for (let i = 1; i <= totalInstallments; i++) {
+    const date = _advanceMonths(lm.startDate!, i - 1)
+    if (date > today) break
+    if (generatedIndexes.has(i)) continue
+    due.push({ date, currentIndex: i })
+  }
+
+  return { totalInstallments, due }
+}
+
+export interface LoanBalanceSnapshot {
+  outstandingBalance: number
+  remainingInstallments: number
+  monthlyPayment: number
+}
+
+/**
+ * Outstanding balance and remaining term of a LOAN, recomputed from real cash flow
+ * (D11): principal minus everything actually paid in the series so far, with the
+ * remaining term derived from that balance over the planned installmentAmount. Never a
+ * fixed monthly decrement — a parcela paid above/below plan shortens/lengthens the term
+ * instead of distorting the next parcela's value. Falls back to the stored (hand-edited)
+ * figures for loans the engine doesn't manage (see isLoanGenerationReady).
+ *
+ * `monthlyPayment` is derived alongside the balance — once `remainingInstallments` hits 0
+ * (the loan is fully paid), it drops to 0 too. Without this, a settled loan keeps reporting
+ * its old installmentAmount as an ongoing commitment to getMonthlyCommitment/getDebtBreakdown/
+ * NetWorth, even though there's nothing left to pay (caught verifying HE-22).
+ */
+export function getLoanBalance(loan: Account, transactions: Transaction[]): LoanBalanceSnapshot {
+  const lm = loan.loanMetadata
+  if (!isLoanGenerationReady(loan) || !lm) {
+    return {
+      outstandingBalance: lm?.outstandingBalance ?? 0,
+      remainingInstallments: lm?.remainingInstallments ?? 0,
+      monthlyPayment: lm?.monthlyPayment ?? 0,
+    }
+  }
+
+  const paid = transactions
+    .filter((tx) => tx.installment?.parentId === loan.id)
     .reduce((s, tx) => s + tx.amount, 0)
+  const outstandingBalance = Math.max(0, Math.round((lm.principal! - paid) * 100) / 100)
+  const remainingInstallments =
+    outstandingBalance <= 0 ? 0 : Math.ceil(outstandingBalance / lm.installmentAmount!)
   return {
-    totalPaid,
-    cost: totalPaid - loan.principal,
-    multiplier: loan.principal > 0 ? totalPaid / loan.principal : 0,
-    estimatedRate: _estimateInstallmentLoanRate(transactions, loan.parentId, loan.principal),
+    outstandingBalance,
+    remainingInstallments,
+    monthlyPayment: remainingInstallments > 0 ? lm.installmentAmount! : 0,
   }
 }
 
@@ -508,9 +587,6 @@ export interface DebtInstallmentItem {
   remaining: number // still-open occurrences
   monthly: number
   remainingTotal: number
-  // HE-16: present when the series was marked as a loan/financing — never changes the
-  // counting above, only annotates it with the principal-based insight (D7).
-  loanMark?: { name?: string; principal: number } & InstallmentLoanInsight
 }
 
 export interface DebtLoanItem {
@@ -538,40 +614,22 @@ export interface DebtGroup {
 /**
  * Per-account breakdown of open committed debt — installment groups on any non-LOAN
  * account (credit cards → kind 'card'; regular accounts → kind 'installments', e.g. a
- * financing booked parcela by parcela) + LOAN balances. `installmentLoans` (HE-16)
- * annotates matching series with `loanMark` — purely additive, never changes the
- * counting (a marked series was already counted as an installment group since HE-15).
+ * financing booked parcela by parcela) + LOAN balances.
  */
-export function getDebtBreakdown(
-  transactions: Transaction[],
-  accounts: Account[],
-  installmentLoans: InstallmentLoan[] = []
-): DebtGroup[] {
+export function getDebtBreakdown(transactions: Transaction[], accounts: Account[]): DebtGroup[] {
   const installmentGroups = accounts
     .filter((a) => a.type !== 'LOAN')
     .map((acc): DebtGroup => {
       const items: DebtInstallmentItem[] = _getOpenInstallmentGroups(transactions, acc.id).map(
-        (g) => {
-          const loan = installmentLoans.find((l) => l.parentId === g.parentId)
-          return {
-            kind: 'installment',
-            description: loan?.name?.trim() || g.description,
-            current: g.currentIndex,
-            total: g.total,
-            remaining: g.remainingCount,
-            monthly: g.monthly,
-            remainingTotal: g.remainingTotal,
-            ...(loan
-              ? {
-                  loanMark: {
-                    name: loan.name,
-                    principal: loan.principal,
-                    ...getInstallmentLoanInsight(transactions, loan),
-                  },
-                }
-              : {}),
-          }
-        }
+        (g) => ({
+          kind: 'installment',
+          description: g.description,
+          current: g.currentIndex,
+          total: g.total,
+          remaining: g.remainingCount,
+          monthly: g.monthly,
+          remainingTotal: g.remainingTotal,
+        })
       )
       return {
         accountId: acc.id,

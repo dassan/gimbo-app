@@ -7,7 +7,6 @@ import type {
   Transaction,
   Valuation,
   SavedPeriod,
-  InstallmentLoan,
   AuditEntry,
   AuditAction,
   AuditEntity,
@@ -16,7 +15,13 @@ import type {
 import { applyRetention } from '@/lib/storage/schema'
 import { storage } from '@/services/storage'
 import { loadBackupDirHandle, ensureBackupDirPermission, writeBackupToDir } from '@/lib/backupDir'
-import { uuid, now } from '@/lib/utils'
+import {
+  uuid,
+  now,
+  getLoanGenerationPlan,
+  getLoanBalance,
+  deterministicLoanTransactionId,
+} from '@/lib/utils'
 import { isDemoMode } from '@/lib/demo'
 import { trackAction } from '@/lib/telemetry'
 
@@ -61,7 +66,6 @@ function buildSummary(
     transaction: 'Transação',
     user: 'Perfil',
     savedPeriod: 'Período salvo',
-    installmentLoan: 'Marca de empréstimo',
   }
   const actionLabel: Record<AuditAction, string> = {
     CREATE: 'criada',
@@ -116,15 +120,16 @@ interface DataStore {
   addSavedPeriod: (period: SavedPeriod) => void
   deleteSavedPeriod: (id: string) => void
 
-  // HE-16: mark/unmark an installment series as a loan/financing (create-or-update by parentId)
-  setInstallmentLoan: (loan: InstallmentLoan) => void
-  unmarkInstallmentLoan: (parentId: string) => void
+  // HE-19: top up every generation-ready LOAN with the real Transactions due since its
+  // last run (D10) and recompute its balance from actual cash flow (D11). Called once on
+  // boot (App.tsx) — safe to call repeatedly, it's idempotent.
+  generateDueLoanInstallments: () => Promise<void>
 
   updateUser: (patch: Partial<DataFile['user']>) => void
   setRetentionLimit: (limit: number | null) => void
 }
 
-export const useDataStore = create<DataStore>((set) => ({
+export const useDataStore = create<DataStore>((set, get) => ({
   data: null,
 
   loadData: (data) => set({ data }),
@@ -544,48 +549,77 @@ export const useDataStore = create<DataStore>((set) => ({
       })
     ),
 
-  // ── Installment loan marks (HE-16) ──────────────────────────────────────────
+  // ── LOAN generation engine (HE-19) ──────────────────────────────────────────
 
-  setInstallmentLoan: (loan) =>
+  generateDueLoanInstallments: async () => {
+    const data = get().data
+    if (!data) return
+
+    // IDs are computed up front because crypto.subtle.digest is async and mutate()'s
+    // reducer must stay synchronous — the due plan is recomputed again inside the
+    // reducer below so any mutation that happened during the await doesn't go stale.
+    const ids = new Map<string, string>() // `${loanId}:${date}` -> deterministic id
+    for (const loan of data.accounts.filter((a) => a.type === 'LOAN')) {
+      const plan = getLoanGenerationPlan(loan, data.transactions)
+      for (const occ of plan.due) {
+        ids.set(`${loan.id}:${occ.date}`, await deterministicLoanTransactionId(loan.id, occ.date))
+      }
+    }
+    if (ids.size === 0) return
+
     set((s) =>
       mutate(
         s,
         (d) => {
-          const i = d.installmentLoans.findIndex((l) => l.parentId === loan.parentId)
-          const isUpdate = i !== -1
-          if (isUpdate) d.installmentLoans[i] = loan
-          else d.installmentLoans.push(loan)
-          const valueStr = `R$ ${loan.principal.toFixed(2).replace('.', ',')}`
-          addAudit(
-            d,
-            makeEntry(
-              isUpdate ? 'UPDATE' : 'CREATE',
-              'installmentLoan',
-              loan.parentId,
-              `Marca de empréstimo ${isUpdate ? 'atualizada' : 'criada'}: ${loan.name || loan.parentId} — principal ${valueStr}`
+          let generatedCount = 0
+          for (const loan of d.accounts.filter((a) => a.type === 'LOAN')) {
+            const lm = loan.loanMetadata
+            const plan = getLoanGenerationPlan(loan, d.transactions)
+            for (const occ of plan.due) {
+              const id = ids.get(`${loan.id}:${occ.date}`)
+              if (!id) continue // newly-due period that appeared after the id pass — picked up next boot
+              d.transactions.push({
+                id,
+                accountId: lm!.payerAccountId!,
+                categoryId: lm!.categoryId ?? '',
+                amount: lm!.installmentAmount!,
+                type: 'EXPENSE',
+                date: occ.date,
+                description: `${loan.name} (${occ.currentIndex}/${plan.totalInstallments})`,
+                isPaid: false,
+                tags: [],
+                installment: {
+                  parentId: loan.id,
+                  currentIndex: occ.currentIndex,
+                  total: plan.totalInstallments,
+                },
+              })
+              generatedCount++
+            }
+            if (plan.due.length > 0) {
+              const i = d.accounts.findIndex((a) => a.id === loan.id)
+              d.accounts[i] = {
+                ...loan,
+                loanMetadata: { ...lm!, ...getLoanBalance(loan, d.transactions) },
+              }
+            }
+          }
+          if (generatedCount > 0) {
+            addAudit(
+              d,
+              makeEntry(
+                'CREATE',
+                'transaction',
+                'loan-generation',
+                `Parcelas de empréstimo geradas automaticamente: ${generatedCount}`
+              )
             )
-          )
+          }
         },
-        'installment_loan_marked'
+        'loan_installments_generated'
       )
-    ),
-
-  unmarkInstallmentLoan: (parentId) =>
-    set((s) =>
-      mutate(s, (d) => {
-        const loan = d.installmentLoans.find((l) => l.parentId === parentId)
-        d.installmentLoans = d.installmentLoans.filter((l) => l.parentId !== parentId)
-        addAudit(
-          d,
-          makeEntry(
-            'DELETE',
-            'installmentLoan',
-            parentId,
-            `Marca de empréstimo removida: ${loan?.name || parentId}`
-          )
-        )
-      })
-    ),
+    )
+  },
 
   // ── User / Settings ───────────────────────────────────────────────────────
 

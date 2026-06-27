@@ -16,6 +16,8 @@ import v6Schema from './migrations/v6.sql?raw'
 import v7Schema from './migrations/v7.sql?raw'
 import v8Schema from './migrations/v8.sql?raw'
 import v9Schema from './migrations/v9.sql?raw'
+import v10Schema from './migrations/v10.sql?raw'
+import v11Schema from './migrations/v11.sql?raw'
 
 // ─── Protocol types ───────────────────────────────────────────────────────────
 
@@ -51,6 +53,12 @@ type RawAccount = {
     monthlyPayment: number
     remainingInstallments: number
     interestRate?: number
+    principal?: number
+    installmentAmount?: number
+    categoryId?: string
+    startDate?: string
+    payerAccountId?: string
+    legacy?: boolean
   }
   issuerIcon?: string
   archived?: boolean
@@ -100,11 +108,6 @@ type RawSavedPeriod = {
   start: string
   end: string
 }
-type RawInstallmentLoan = {
-  parentId: string
-  principal: number
-  name?: string
-}
 type RawDataFile = {
   user: RawUser
   settings: RawSettings
@@ -116,7 +119,6 @@ type RawDataFile = {
   auditLog: RawAuditEntry[]
   deletedIds: string[]
   savedPeriods: RawSavedPeriod[]
-  installmentLoans: RawInstallmentLoan[]
 }
 
 // ─── SQLite state ─────────────────────────────────────────────────────────────
@@ -183,6 +185,12 @@ async function runMigrations(): Promise<void> {
   if (version < 9) {
     await sqlite3.run(db, v9Schema)
   }
+  if (version < 10) {
+    await sqlite3.run(db, v10Schema)
+  }
+  if (version < 11) {
+    await sqlite3.run(db, v11Schema)
+  }
 }
 
 // ─── Export / Import ──────────────────────────────────────────────────────────
@@ -240,7 +248,6 @@ async function replaceAll(raw: unknown): Promise<void> {
     await sqlite3.run(db, 'DELETE FROM transactions')
     await sqlite3.run(db, 'DELETE FROM valuations')
     await sqlite3.run(db, 'DELETE FROM saved_periods')
-    await sqlite3.run(db, 'DELETE FROM installment_loans')
     await sqlite3.run(db, 'DELETE FROM categories')
     await sqlite3.run(db, 'DELETE FROM tags')
     await sqlite3.run(db, 'DELETE FROM accounts')
@@ -269,8 +276,10 @@ async function replaceAll(raw: unknown): Promise<void> {
            (id, name, type, balance, include_in_balance,
             credit_limit, credit_closing_day, credit_due_day,
             loan_outstanding_balance, loan_monthly_payment, loan_remaining_installments, loan_interest_rate,
+            loan_principal, loan_installment_amount, loan_category_id, loan_start_date,
+            loan_payer_account_id, loan_legacy,
             issuer_icon, archived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           acc.id,
           acc.name,
@@ -284,6 +293,12 @@ async function replaceAll(raw: unknown): Promise<void> {
           acc.loanMetadata?.monthlyPayment ?? null,
           acc.loanMetadata?.remainingInstallments ?? null,
           acc.loanMetadata?.interestRate ?? null,
+          acc.loanMetadata?.principal ?? null,
+          acc.loanMetadata?.installmentAmount ?? null,
+          acc.loanMetadata?.categoryId ?? null,
+          acc.loanMetadata?.startDate ?? null,
+          acc.loanMetadata?.payerAccountId ?? null,
+          acc.loanMetadata?.legacy ? 1 : 0,
           acc.issuerIcon ?? null,
           acc.archived ? 1 : 0,
           ts,
@@ -372,15 +387,6 @@ async function replaceAll(raw: unknown): Promise<void> {
       )
     }
 
-    // installment loan marks (HE-16)
-    for (const loan of d.installmentLoans ?? []) {
-      await sqlite3.run(
-        db,
-        'INSERT INTO installment_loans (parent_id, principal, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [loan.parentId, loan.principal, loan.name ?? null, ts, ts]
-      )
-    }
-
     // audit log
     for (const entry of d.auditLog) {
       await sqlite3.run(
@@ -417,7 +423,6 @@ async function clearAll(): Promise<void> {
     await sqlite3.run(db, 'DELETE FROM transactions')
     await sqlite3.run(db, 'DELETE FROM valuations')
     await sqlite3.run(db, 'DELETE FROM saved_periods')
-    await sqlite3.run(db, 'DELETE FROM installment_loans')
     await sqlite3.run(db, 'DELETE FROM categories')
     await sqlite3.run(db, 'DELETE FROM tags')
     await sqlite3.run(db, 'DELETE FROM accounts')
